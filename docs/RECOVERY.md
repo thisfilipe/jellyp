@@ -15,7 +15,7 @@ data directory; do not assume it is the directory containing the DLL):
 
 `Prepared`, `Restoring` or `RecoveryRequired` blocks further applying batches.
 The dashboard lists the latest hundred transactions. Restore the affected
-transaction with **Restore original** during a confirmed maintenance window.
+transaction with **Restore original** after confirming that specific restore action.
 Restoration verifies both current image identity and original checksum and uses
 Jellyfin's save/persistence services. An interrupted restore can be retried.
 
@@ -33,12 +33,12 @@ review. Temporary files from an interrupted atomic write also count toward quota
 ## Reversing a canary
 
 1. Keep the canary item allowlist and original preservation enabled. Pause
-   uploads/refreshes. In JellyP choose **Apply**, confirm
-   the maintenance window and save settings.
+   manual image uploads. Keep the desired scope and policies saved; restoration
+   is independently authorized and does not change the scheduled mode.
 2. In the JellyP settings page locate the canary transaction and select
    **Restore original**. Refresh status, then reload the item's images in
    Jellyfin. A successful restore records `RolledBack` and releases the backup.
-3. Return to **Simulate** and save after the canary. Do not
+3. Keep scheduled processing in its intended mode after the canary. Do not
    clear the allowlist until deliberately approving a broader migration.
 
 An authenticated administrator can also call
@@ -69,6 +69,6 @@ blindly delete Jellyfin's metadata directory, database, original backups, or
 live transcodes. Client caches may retain old variants after an image changes.
 
 The plugin serializes its own operations but cannot block Jellyfin uploads.
-An idle-server precondition is part of safe use. Linux journal publication fsyncs
+Applying waits for scans and related metadata; manual uploads must still be avoided. Linux journal publication fsyncs
 files and directories; power loss or storage faults still require checking
 filesystem/database health before attempting recovery.

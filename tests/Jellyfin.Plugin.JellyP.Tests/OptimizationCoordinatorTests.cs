@@ -1,6 +1,7 @@
 using Jellyfin.Plugin.JellyP.Configuration;
 using Jellyfin.Plugin.JellyP.Conversion;
 using Jellyfin.Plugin.JellyP.Infrastructure;
+using Jellyfin.Plugin.JellyP.Tasks;
 using Jellyfin.Plugin.JellyP.Migration;
 using MediaBrowser.Model.Entities;
 using Microsoft.AspNetCore.Authorization;
@@ -136,15 +137,237 @@ public sealed class OptimizationCoordinatorTests : IDisposable
     }
 
     [Fact]
-    public async Task BusyServerAndMissingMaintenanceConfirmationBlockWrites()
+    public async Task BusyServerWaitsAndCancellationPreservesOriginal()
+    {
+        var image = _store.Add();
+        _store.Busy = true;
+        using var cancellation = new CancellationTokenSource();
+        var run = _coordinator.RunAsync(new Progress<double>(), cancellation.Token);
+        Assert.Equal("WaitingForMetadata", _coordinator.GetStatus().LastRun.Phase);
+        Assert.Equal(0, _store.SaveCalls);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+        Assert.Equal("Cancelled", _coordinator.GetStatus().LastRun.Phase);
+        Assert.True(File.Exists(image.Path));
+    }
+
+    [Fact]
+    public async Task ApplyResumesAfterConflictWithoutManualMaintenanceFlag()
     {
         _store.Add();
         _store.Busy = true;
-        await Assert.ThrowsAsync<InvalidOperationException>(Run);
-        _store.Busy = false;
         _config.MaintenanceWindowConfirmed = false;
-        await Assert.ThrowsAsync<InvalidOperationException>(Run);
+        var run = Run();
+        Assert.Equal("WaitingForMetadata", _coordinator.GetStatus().LastRun.Phase);
+        _store.Busy = false;
+        await run.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(1, _store.SaveCalls);
+        Assert.Equal("Completed", _coordinator.GetStatus().LastRun.Phase);
+    }
+
+    [Fact]
+    public async Task ManualPreviewDoesNotChangeSavedAutomationOrRequireIdle()
+    {
+        _store.Add();
+        _store.Busy = true;
+        await _coordinator.RunAsync(new Progress<double>(), default, dryRunOverride: true);
+        var report = _coordinator.GetStatus().LastRun;
+        Assert.True(report.DryRun);
+        Assert.Equal(1, report.WouldConvert);
+        Assert.Single(report.Samples);
         Assert.Equal(0, _store.SaveCalls);
+        Assert.False(_config.DryRun);
+        Assert.True(_config.Enabled);
+    }
+
+    [Fact]
+    public async Task ExplicitRestoreWorksWithPreviewAutomationWithoutChangingFlags()
+    {
+        var image = _store.Add();
+        var original = File.ReadAllBytes(image.Path);
+        await Run();
+        var record = Assert.Single(_coordinator.GetStatus().RecentRecords);
+        _config.Enabled = false;
+        _config.DryRun = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _coordinator.RollbackAsync(record.Id, default));
+        await _coordinator.RollbackAsync(record.Id, default, authorizedManual: true);
+        Assert.Equal(original, File.ReadAllBytes(_store.GetCurrent(image)!.Path));
+        Assert.False(_config.Enabled);
+        Assert.True(_config.DryRun);
+    }
+
+    [Fact]
+    public async Task ManualRestoreWaitCanBeCancelledWithoutChangingConvertedImage()
+    {
+        var image = _store.Add();
+        await Run();
+        var record = Assert.Single(_coordinator.GetStatus().RecentRecords);
+        _store.Busy = true;
+        using var cancellation = new CancellationTokenSource();
+        var restore = _coordinator.RollbackAsync(record.Id, cancellation.Token, authorizedManual: true);
+        Assert.Equal("WaitingForMetadata", _coordinator.GetStatus().LastRun.Phase);
+        _coordinator.CancelQueuedExecution();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => restore);
+        Assert.EndsWith(".webp", _store.GetCurrent(image)!.Path);
+        Assert.Equal("Committed", Assert.Single(_coordinator.GetStatus().RecentRecords).State);
+    }
+
+    [Fact]
+    public async Task ExplicitManualApplyLeavesAutomationInPreviewMode()
+    {
+        _store.Add();
+        _config.Enabled = false;
+        _config.DryRun = true;
+        _coordinator.QueueExecution(false, false);
+        await Run();
+        Assert.Equal(1, _store.SaveCalls);
+        Assert.False(_coordinator.GetStatus().LastRun.DryRun);
+        Assert.False(_config.Enabled);
+        Assert.True(_config.DryRun);
+    }
+
+    [Fact]
+    public async Task CancelledNativeTokenConsumesCancelledRequestWithoutApplying()
+    {
+        _store.Add();
+        _coordinator.QueueExecution(false, false);
+        _coordinator.CancelQueuedExecution();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await _coordinator.RunAsync(new Progress<double>(), cancellation.Token);
+        Assert.Equal(0, _store.SaveCalls);
+        Assert.Equal("Cancelled", _coordinator.GetStatus().LastRun.Phase);
+        Assert.NotEqual(Guid.Empty, _coordinator.QueueExecution(false, true));
+    }
+
+    [Theory]
+    [InlineData("legacy", true, false)]
+    [InlineData("items", true, false)]
+    [InlineData("all", false, false)]
+    [InlineData("libraries", false, true)]
+    public async Task ScopeSelectionPassesOnlyItsOwnIdentifiersToInventory(string mode, bool items, bool libraries)
+    {
+        var image = _store.Add();
+        _config.ScopeMode = mode;
+        _config.IncludedItemIds = [image.ItemId];
+        _config.IncludedLibraryIds = [Guid.NewGuid()];
+        await _coordinator.RunAsync(new Progress<double>(), default, dryRunOverride: true);
+        Assert.Equal(items ? 1 : 0, _store.LastIncludedItemIds?.Count ?? 0);
+        Assert.Equal(libraries, _store.LastIncludedLibraryIds is not null);
+        if (libraries) Assert.Equal(_config.IncludedLibraryIds, _store.LastIncludedLibraryIds);
+        Assert.Equal(1, _coordinator.GetStatus().LastRun.InventoryItems);
+    }
+
+    [Fact]
+    public async Task EmptyScopeResultExplainsWhyThereWasNothingToProcess()
+    {
+        _config.DryRun = true;
+        await Run();
+        var report = _coordinator.GetStatus().LastRun;
+        Assert.Equal("Completed", report.Phase);
+        Assert.Equal(0, report.Examined);
+        Assert.Contains("No eligible images", report.Message);
+    }
+
+    [Fact]
+    public async Task QueuedPreviewKeepsIdentityAndSnapshotAcrossSettingsChanges()
+    {
+        _store.Add(); _store.Add();
+        _config.BatchSize = 1;
+        var id = _coordinator.QueueExecution(false, true);
+        Assert.Equal("Queued", _coordinator.GetStatus().LastRun.Phase);
+        Assert.Throws<InvalidOperationException>(() => _coordinator.QueueExecution(true, true));
+        _config.BatchSize = 2;
+        await Run();
+        var report = _coordinator.GetStatus().LastRun;
+        Assert.Equal(id, report.ExecutionId);
+        Assert.True(report.DryRun);
+        Assert.Equal(1, report.Examined);
+        Assert.Equal(0, _store.SaveCalls);
+    }
+
+    [Fact]
+    public async Task CancelQueuedRequestNeverFallsBackToApplyingSavedSettings()
+    {
+        _store.Add();
+        var id = _coordinator.QueueExecution(false, false);
+        _coordinator.CancelQueuedExecution();
+        await Run();
+        Assert.Equal(0, _store.SaveCalls);
+        Assert.Equal(id, _coordinator.GetStatus().LastRun.ExecutionId);
+        Assert.Equal("Cancelled", _coordinator.GetStatus().LastRun.Phase);
+    }
+
+    [Fact]
+    public async Task NativeOptimizeAndSyncSerializeWithoutFailingEachOther()
+    {
+        _store.Add();
+        _store.Busy = true;
+        var optimize = new OptimizeArtworkTask(_coordinator).ExecuteAsync(new Progress<double>(), default);
+        var firstId = _coordinator.GetStatus().LastRun.ExecutionId;
+        var synchronize = new SynchronizePoliciesTask(_coordinator).ExecuteAsync(new Progress<double>(), default);
+        Assert.False(synchronize.IsCompleted);
+        Assert.Equal(firstId, _coordinator.GetStatus().LastRun.ExecutionId);
+        _store.Busy = false;
+        await Task.WhenAll(optimize, synchronize).WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.Equal(2, _store.InventoryCalls);
+        Assert.Equal(1, _store.SaveCalls);
+        Assert.Equal("Completed", _coordinator.GetStatus().LastRun.Phase);
+        Assert.NotEqual(firstId, _coordinator.GetStatus().LastRun.ExecutionId);
+    }
+
+    [Fact]
+    public async Task CancellingNativeWaiterLeavesActiveReportAndGateIntact()
+    {
+        _store.Add();
+        _store.Busy = true;
+        var optimize = new OptimizeArtworkTask(_coordinator).ExecuteAsync(new Progress<double>(), default);
+        var firstId = _coordinator.GetStatus().LastRun.ExecutionId;
+        using var cancellation = new CancellationTokenSource();
+        var synchronize = new SynchronizePoliciesTask(_coordinator).ExecuteAsync(new Progress<double>(), cancellation.Token);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => synchronize);
+        var status = _coordinator.GetStatus();
+        Assert.True(status.LastRun.Running);
+        Assert.Equal(firstId, status.LastRun.ExecutionId);
+        Assert.Equal("WaitingForMetadata", status.LastRun.Phase);
+        Assert.Throws<InvalidOperationException>(() => _coordinator.QueueExecution(false, true));
+        _store.Busy = false;
+        await optimize.WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.Equal(1, _store.InventoryCalls);
+        Assert.Equal(1, _store.SaveCalls);
+    }
+
+    [Fact]
+    public async Task NativeWaiterDoesNotConsumeOtherTaskPendingRequest()
+    {
+        _store.Add();
+        var id = _coordinator.QueueExecution(false, true);
+        using var cancellation = new CancellationTokenSource();
+        var synchronize = new SynchronizePoliciesTask(_coordinator).ExecuteAsync(new Progress<double>(), cancellation.Token);
+        Assert.False(synchronize.IsCompleted);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => synchronize);
+        Assert.Equal(id, _coordinator.GetStatus().LastRun.ExecutionId);
+        Assert.Equal("Queued", _coordinator.GetStatus().LastRun.Phase);
+        await new OptimizeArtworkTask(_coordinator).ExecuteAsync(new Progress<double>(), default);
+        Assert.Equal(id, _coordinator.GetStatus().LastRun.ExecutionId);
+        Assert.True(_coordinator.GetStatus().LastRun.DryRun);
+        Assert.Equal(0, _store.SaveCalls);
+    }
+
+    [Fact]
+    public async Task ConcurrentNativeTasksCannotOverwriteActiveExecution()
+    {
+        _store.Add(); _store.Busy = true;
+        using var cancellation = new CancellationTokenSource();
+        var run = _coordinator.RunAsync(new Progress<double>(), cancellation.Token);
+        var id = _coordinator.GetStatus().LastRun.ExecutionId;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _coordinator.RunAsync(new Progress<double>(), default, true));
+        Assert.Equal(id, _coordinator.GetStatus().LastRun.ExecutionId);
+        Assert.Throws<InvalidOperationException>(() => _coordinator.QueueExecution(false, true));
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
     }
 
     [Fact]
@@ -609,6 +832,9 @@ public sealed class OptimizationCoordinatorTests : IDisposable
         public int SaveCalls { get; private set; }
         public bool FailNextSaveAfterChange { get; set; }
         public bool Busy { get; set; }
+        public int InventoryCalls { get; private set; }
+        public IReadOnlyCollection<Guid>? LastIncludedItemIds { get; private set; }
+        public IReadOnlyCollection<Guid>? LastIncludedLibraryIds { get; private set; }
         public bool FailNextSaveBeforeReference { get; set; }
         public bool WritePartialOutput { get; set; }
         public ArtworkReference Add(bool isPerson = false, Guid? itemId = null)
@@ -626,9 +852,12 @@ public sealed class OptimizationCoordinatorTests : IDisposable
             _images.Add(reference);
             return reference;
         }
-        public IReadOnlyList<ArtworkReference> Inventory(CancellationToken cancellationToken, IReadOnlyCollection<Guid>? includedItemIds = null)
+        public IReadOnlyList<ArtworkReference> Inventory(CancellationToken cancellationToken, IReadOnlyCollection<Guid>? includedItemIds = null, IReadOnlyCollection<Guid>? includedLibraryIds = null, Action<int>? inventoryProgress = null)
         {
-            EnsureIdle();
+            InventoryCalls++;
+            LastIncludedItemIds = includedItemIds;
+            LastIncludedLibraryIds = includedLibraryIds;
+            inventoryProgress?.Invoke(_images.Count);
             return _images.OrderBy(i => i.Key, StringComparer.Ordinal).ToArray();
         }
         public bool IsPathReferenced(string path) => _images.Any(i => i.Path == path);

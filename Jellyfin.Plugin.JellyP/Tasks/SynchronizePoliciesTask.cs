@@ -11,11 +11,11 @@ public sealed class SynchronizePoliciesTask(OptimizationCoordinator coordinator)
     /// <inheritdoc />
     public string Key => "JellyPSynchronizePolicies";
     /// <inheritdoc />
-    public string Description => "Preview or regenerate changed policies from verified preserved originals. Retired originals are reported as unavailable.";
+    public string Description => "Use saved automation settings to synchronize selected artwork from preserved originals. Applying waits for metadata activity. Configure a schedule here.";
     /// <inheritdoc />
     public string Category => "JellyP";
     /// <inheritdoc />
-    public Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken) => coordinator.RunAsync(progress, cancellationToken, synchronize: true);
+    public Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken) => coordinator.RunAsync(progress, cancellationToken, synchronize: true, waitForOtherOperations: true);
     /// <inheritdoc />
     public IEnumerable<TaskTriggerInfo> GetDefaultTriggers() => [];
 }

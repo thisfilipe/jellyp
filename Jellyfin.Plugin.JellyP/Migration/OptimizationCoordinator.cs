@@ -16,6 +16,55 @@ public sealed class OptimizationCoordinator
     private readonly ILogger<OptimizationCoordinator> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private volatile bool _running;
+    private readonly object _requestGate = new();
+    private PendingExecution? _pending;
+    private CancellationTokenSource? _manualCancellation;
+    private sealed record PendingExecution(bool Synchronize, PluginConfiguration Configuration, RunReport Report)
+    {
+        public bool Cancelled { get; set; }
+    }
+
+    /// <summary>Captures one bounded manual request before dispatch through Jellyfin's scheduler.</summary>
+    public Guid QueueExecution(bool synchronize, bool? dryRunOverride = null)
+    {
+        lock (_requestGate)
+        {
+            if (_running || _pending is not null)
+                throw new InvalidOperationException("A JellyP operation is already running or queued.");
+            var config = SnapshotConfiguration();
+            if (dryRunOverride.HasValue)
+            {
+                config.DryRun = dryRunOverride.Value;
+                if (!config.DryRun) config.Enabled = true; // Explicit elevated manual request; persisted automation stays unchanged.
+            }
+            if (!config.DryRun && !config.Enabled)
+                throw new InvalidOperationException("Enable artwork changes in JellyP settings first, or simulate.");
+            var report = new RunReport { ExecutionId = Guid.NewGuid(), DryRun = config.DryRun, Phase = "Queued" };
+            _pending = new PendingExecution(synchronize, config, report);
+            return report.ExecutionId;
+        }
+    }
+
+    /// <summary>Releases a request whose native dispatch failed.</summary>
+    public void RejectQueuedExecution(Guid executionId)
+    {
+        lock (_requestGate)
+            if (_pending?.Report.ExecutionId == executionId) _pending = null;
+    }
+
+    /// <summary>Cancels a queued request without allowing its eventual native invocation to mutate artwork.</summary>
+    public void CancelQueuedExecution()
+    {
+        lock (_requestGate)
+        {
+            _manualCancellation?.Cancel();
+            if (_pending is null) return;
+            _pending.Cancelled = true;
+            _pending.Report.Phase = "Cancelled";
+            _pending.Report.FinishedUtc = DateTime.UtcNow;
+            _pending.Report.Message = "Cancelled before execution.";
+        }
+    }
 
     /// <summary>Creates a coordinator; this constructor does not modify artwork.</summary>
     public OptimizationCoordinator(IArtworkStore artwork, Func<PluginConfiguration> configuration,
@@ -33,6 +82,8 @@ public sealed class OptimizationCoordinator
         var records = Records().ToArray();
         var reportPath = Path.Combine(_root, "last-run.json");
         var report = File.Exists(reportPath) ? DurableFiles.ReadJson<RunReport>(reportPath) : new RunReport();
+        lock (_requestGate)
+            if (_pending is not null) report = JsonSerializer.Deserialize<RunReport>(JsonSerializer.Serialize(_pending.Report))!;
         report.Running = _running;
         var committed = records.Where(r => r.State == "Committed")
             .GroupBy(r => r.Source.Key).Select(g => g.OrderByDescending(r => r.CompletedUtc).First())
@@ -46,21 +97,60 @@ public sealed class OptimizationCoordinator
     }
 
     /// <summary>Runs the next bounded batch, honoring cancellation between transactions.</summary>
-    public async Task RunAsync(IProgress<double> progress, CancellationToken cancellationToken, bool synchronize = false)
+    public async Task RunAsync(IProgress<double> progress, CancellationToken cancellationToken, bool synchronize = false, bool? dryRunOverride = null, bool waitForOtherOperations = false)
     {
-        await EnterAsync(cancellationToken).ConfigureAwait(false);
-        RunReport? report = null;
+        PendingExecution? request = null;
+        while (true)
+        {
+            lock (_requestGate)
+            {
+                if (!_running && (_pending is null || _pending.Synchronize == synchronize))
+                {
+                    request = _pending;
+                    if (request is not null && (request.Cancelled || cancellationToken.IsCancellationRequested))
+                    {
+                        request.Report.Phase = "Cancelled";
+                        request.Report.FinishedUtc = DateTime.UtcNow;
+                        request.Report.Message = "Cancelled before execution.";
+                        SaveReport(request.Report);
+                        _pending = null;
+                        return;
+                    }
+                    if (_gate.Wait(0, cancellationToken))
+                    {
+                        _pending = null;
+                        _running = true;
+                        break;
+                    }
+                }
+                if (!waitForOtherOperations)
+                    throw new InvalidOperationException("A JellyP operation is already running or queued.");
+            }
+            // Native scheduled tasks serialize without claiming or rewriting the active execution's report.
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+        }
+        RunReport? report = request?.Report ?? new RunReport { ExecutionId = Guid.NewGuid() };
         try
         {
-            var config = SnapshotConfiguration();
+            if (request?.Cancelled == true)
+            {
+                report.Phase = "Cancelled";
+                return;
+            }
+            var config = request?.Configuration ?? SnapshotConfiguration();
+            if (request is null && dryRunOverride.HasValue)
+            {
+                config.DryRun = dryRunOverride.Value;
+                if (!config.DryRun) config.Enabled = true;
+            }
+            report.DryRun = config.DryRun;
+            report.Running = true;
+            report.StartedUtc = DateTime.UtcNow;
+            report.Phase = "Preparing";
+            SaveReport(report);
             if (!config.DryRun && !config.Enabled)
             {
                 throw new InvalidOperationException("Enable artwork changes in JellyP settings first, or use dry run.");
-            }
-
-            if (!config.DryRun && !config.MaintenanceWindowConfirmed)
-            {
-                throw new InvalidOperationException("Confirm an idle maintenance window before changing artwork.");
             }
 
             DurableFiles.CreateDirectory(_root);
@@ -82,6 +172,7 @@ public sealed class OptimizationCoordinator
 
             if (!config.DryRun)
             {
+                await WaitForIdleAsync(null, report, cancellationToken).ConfigureAwait(false);
                 FinalizeRolledBackRecords();
                 CleanupStaging();
             }
@@ -93,26 +184,43 @@ public sealed class OptimizationCoordinator
 
             var cursorPath = Path.Combine(_root, (synchronize ? "sync-" : "optimize-") + (config.DryRun ? "cursor-preview.json" : "cursor-apply.json"));
             var cursor = ReadCursor(cursorPath, CursorContext(config, synchronize));
-            report = new RunReport { DryRun = config.DryRun, Running = true, StartedUtc = DateTime.UtcNow, Cursor = cursor.LastKey };
+            report.Cursor = cursor.LastKey;
+            report.Phase = "Inventory";
             SaveReport(report);
-            var eligible = _artwork.Inventory(cancellationToken, config.IncludedItemIds);
+            var itemIds = config.ScopeMode is "legacy" or "items" ? config.IncludedItemIds : [];
+            var libraryIds = config.ScopeMode == "libraries" ? config.IncludedLibraryIds : null;
+            var eligible = _artwork.Inventory(cancellationToken, itemIds, libraryIds, count =>
+            {
+                report.InventoryItems = count;
+                SaveReport(report);
+            });
+            report.Inventory = _artwork.GetInventorySummary();
             var syncRecords = synchronize ? Records().Where(r => r.State == "Committed")
                 .GroupBy(r => r.Source.Key).ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.CompletedUtc).First()) : [];
             IReadOnlyList<ArtworkReference> inventory = synchronize
                 ? syncRecords.Values.Select(r => r.Source).OrderBy(r => r.Key, StringComparer.Ordinal).ToArray()
                 : eligible.Where(r => !Path.GetExtension(r.Path).Equals(".webp", StringComparison.OrdinalIgnoreCase)).ToArray();
-            if (config.IncludedItemIds.Length > 0)
-                inventory = inventory.Where(r => config.IncludedItemIds.Contains(r.ItemId)).ToArray();
+            if (synchronize)
+            {
+                var eligibleKeys = eligible.Select(r => r.Key).ToHashSet(StringComparer.Ordinal);
+                inventory = inventory.Where(r => eligibleKeys.Contains(r.Key)).ToArray();
+            }
+            if (itemIds.Length > 0)
+                inventory = inventory.Where(r => itemIds.Contains(r.ItemId)).ToArray();
             // A batch represents selected categories, rather than unrelated artwork that would only be skipped.
             inventory = inventory.Where(r => config.PolicyFor(r) is { Enabled: true })
                 .OrderBy(r => r.Key, StringComparer.Ordinal).ToArray();
             report.InventoryImages = inventory.Count;
+            SaveReport(report);
             var candidates = inventory.Where(r => string.CompareOrdinal(r.Key, cursor.LastKey) > 0).Take(config.BatchSize).ToArray();
             var converter = new WebpImageConverter();
             foreach (var reference in candidates)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                _artwork.EnsureIdle(reference.ItemId);
+                if (!config.DryRun) await WaitForIdleAsync(reference.ItemId, report, cancellationToken).ConfigureAwait(false);
+                report.Phase = "Processing";
+                report.Message = null;
+                SaveReport(report);
                 try
                 {
                     var policy = config.PolicyFor(reference);
@@ -149,6 +257,9 @@ public sealed class OptimizationCoordinator
                     if (syncRecord is not null && DurableFiles.Hash(bytes) != syncRecord.SourceHash)
                         throw new IOException("Preserved original checksum failed; no image was changed.");
                     var result = converter.Optimize(bytes, config.OptionsFor(policy!));
+                    if (report.Samples.Count < 20)
+                        report.Samples.Add(new ImageRunSample(reference.ItemId, reference.Type, bytes.LongLength,
+                            result.OutputBytes?.LongLength ?? 0, result.Success ? "WouldConvert" : result.SkipReason.ToString()));
                     if (!result.Success)
                     {
                         report.Skipped++;
@@ -157,8 +268,11 @@ public sealed class OptimizationCoordinator
                     }
                     else
                     {
+                        report.WouldConvert++;
                         if (!config.DryRun)
                         {
+                            await WaitForIdleAsync(reference.ItemId, report, cancellationToken).ConfigureAwait(false);
+                            report.Phase = "Processing";
                             var target = reference;
                             if (syncRecord is not null)
                             {
@@ -207,16 +321,24 @@ public sealed class OptimizationCoordinator
                 report.Message = "Batch complete. Run again to resume at the next image.";
             }
 
+            if (inventory.Count == 0)
+                report.Message = "No eligible images match the selected scope, image types and operation. Review the inventory counts for already-WebP, shared and excluded images.";
+            report.Phase = "Completed";
             progress.Report(100);
         }
         catch (OperationCanceledException)
         {
-            if (report is not null) report.Message = "Cancelled between image transactions; resume with the next run.";
+            if (report is not null)
+            {
+                report.Phase = "Cancelled";
+                report.Message = "Cancelled between image transactions; resume with the next run.";
+            }
             throw;
         }
         catch (Exception ex)
         {
             report ??= new RunReport { StartedUtc = DateTime.UtcNow, DryRun = true };
+            report.Phase = "Failed";
             report.Failed = Math.Max(1, report.Failed);
             report.Message = ex.Message;
             throw;
@@ -240,6 +362,9 @@ public sealed class OptimizationCoordinator
     private static string CursorContext(PluginConfiguration config, bool synchronize) => DurableFiles.Hash(
         JsonSerializer.SerializeToUtf8Bytes(new
         {
+            config.ScopeMode,
+            IncludedLibraryIds = config.IncludedLibraryIds.Select(id => id.ToString("N")).Distinct(StringComparer.Ordinal)
+                .OrderBy(id => id, StringComparer.Ordinal).ToArray(),
             IncludedItemIds = config.IncludedItemIds.Select(id => id.ToString("N")).Distinct(StringComparer.Ordinal)
                 .OrderBy(id => id, StringComparer.Ordinal).ToArray(),
             Policies = config.ImagePolicies.Where(policy => policy.Enabled).OrderBy(policy => policy.Category, StringComparer.Ordinal)
@@ -259,36 +384,67 @@ public sealed class OptimizationCoordinator
     }
 
     /// <summary>Restores a committed or interrupted transaction through Jellyfin services.</summary>
-    public async Task RollbackAsync(Guid id, CancellationToken cancellationToken)
-    {
-        await EnterAsync(cancellationToken).ConfigureAwait(false);
-        try
+    public Task RollbackAsync(Guid id, CancellationToken cancellationToken, bool authorizedManual = false) =>
+        RunMaintenanceAsync("Restoring", authorizedManual, cancellationToken, async (config, _) =>
         {
-            var config = SnapshotConfiguration();
-            RequireMaintenance(config);
             FinalizeRolledBackRecords();
             var record = ReadRecord(id);
             if (record.BackupDeleted)
-            {
                 throw new InvalidOperationException("This original is no longer available for rollback.");
-            }
-
             await RestoreCoreAsync(record, config).ConfigureAwait(false);
-        }
-        finally { _running = false; _gate.Release(); }
-    }
+        });
 
     /// <summary>Retires only verified committed backups older than the specified cutoff.</summary>
-    public async Task PurgeAsync(DateTime cutoffUtc, CancellationToken cancellationToken)
+    public Task PurgeAsync(DateTime cutoffUtc, CancellationToken cancellationToken, bool authorizedManual = false) =>
+        RunMaintenanceAsync("RetiringOriginals", authorizedManual, cancellationToken, async (_, token) =>
+        {
+            FinalizeRolledBackRecords();
+            await PurgeCoreAsync(cutoffUtc, token).ConfigureAwait(false);
+        });
+
+    private async Task RunMaintenanceAsync(string phase, bool authorizedManual, CancellationToken cancellationToken,
+        Func<PluginConfiguration, CancellationToken, Task> action)
     {
         await EnterAsync(cancellationToken).ConfigureAwait(false);
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        lock (_requestGate) _manualCancellation = linkedCancellation;
+        cancellationToken = linkedCancellation.Token;
+        var report = new RunReport { ExecutionId = Guid.NewGuid(), StartedUtc = DateTime.UtcNow, Running = true, Phase = "Preparing" };
         try
         {
-            RequireMaintenance(SnapshotConfiguration());
-            FinalizeRolledBackRecords();
-            await PurgeCoreAsync(cutoffUtc, cancellationToken).ConfigureAwait(false);
+            var config = SnapshotConfiguration();
+            if (!authorizedManual) RequireMaintenance(config);
+            await WaitForIdleAsync(null, report, cancellationToken).ConfigureAwait(false);
+            report.Phase = phase;
+            report.Message = null;
+            SaveReport(report);
+            cancellationToken.ThrowIfCancellationRequested();
+            await action(config, cancellationToken).ConfigureAwait(false);
+            report.Phase = "Completed";
+            report.Message = phase == "Restoring" ? "Original restored." : "Verified stored originals retired.";
         }
-        finally { _running = false; _gate.Release(); }
+        catch (OperationCanceledException)
+        {
+            report.Phase = "Cancelled";
+            report.Message = "Cancelled before the next image transaction.";
+            throw;
+        }
+        catch (Exception ex)
+        {
+            report.Phase = "Failed";
+            report.Failed = 1;
+            report.Message = ex.Message;
+            throw;
+        }
+        finally
+        {
+            lock (_requestGate) _manualCancellation = null;
+            _running = false;
+            report.Running = false;
+            report.FinishedUtc = DateTime.UtcNow;
+            try { SaveReport(report); }
+            finally { _gate.Release(); }
+        }
     }
 
     private async Task ConvertAsync(ArtworkReference reference, byte[] source, byte[] output, PluginConfiguration config, string policyFingerprint)
@@ -517,14 +673,36 @@ public sealed class OptimizationCoordinator
         }
     }
 
-    private async Task EnterAsync(CancellationToken cancellationToken)
+    private async Task WaitForIdleAsync(Guid? itemId, RunReport report, CancellationToken cancellationToken)
     {
-        if (!await _gate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        while (true)
         {
-            throw new InvalidOperationException("A JellyP operation is already running.");
+            cancellationToken.ThrowIfCancellationRequested();
+            try { _artwork.EnsureIdle(itemId); return; }
+            catch (InvalidOperationException ex)
+            {
+                if (report.Phase != "WaitingForMetadata" || report.Message != ex.Message)
+                {
+                    report.Phase = "WaitingForMetadata";
+                    report.Message = ex.Message;
+                    SaveReport(report);
+                }
+                // Native task cancellation/maximum runtime governs the wait; a daily scan can
+                // legitimately take hours and must not cause every coincident trigger to fail.
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
+            }
         }
+    }
 
-        _running = true;
+    private Task EnterAsync(CancellationToken cancellationToken)
+    {
+        lock (_requestGate)
+        {
+            if (_pending is not null || !_gate.Wait(0, cancellationToken))
+                throw new InvalidOperationException("A JellyP operation is already running or queued.");
+            _running = true;
+        }
+        return Task.CompletedTask;
     }
 
     private PluginConfiguration SnapshotConfiguration()
@@ -536,8 +714,8 @@ public sealed class OptimizationCoordinator
 
     private static void RequireMaintenance(PluginConfiguration config)
     {
-        if (!config.Enabled || !config.MaintenanceWindowConfirmed)
-            throw new InvalidOperationException("Enable artwork changes and confirm an idle maintenance window first.");
+        if (!config.Enabled)
+            throw new InvalidOperationException("Enable artwork changes first.");
     }
 
     private static string DetectOriginalMime(byte[] source) => source.AsSpan().StartsWith(new byte[] { 137, 80, 78, 71 })

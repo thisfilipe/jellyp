@@ -16,27 +16,55 @@ namespace Jellyfin.Plugin.JellyP.Infrastructure;
 /// <summary>Uses supported Jellyfin save and persistence services for internal library artwork.</summary>
 public sealed class JellyfinArtworkStore(ILibraryManager library, IProviderManager providers, IServerConfigurationManager configuration) : IArtworkStore
 {
+    private InventorySummary? _inventorySummary;
+
+    /// <inheritdoc />
+    public InventorySummary? GetInventorySummary() => _inventorySummary;
+
     /// <inheritdoc />
     public void EnsureIdle(Guid? itemId = null)
     {
-        if (library.IsScanRunning || providers.GetRefreshQueue().Count != 0
-            || (itemId.HasValue && providers.GetRefreshProgress(itemId.Value).HasValue))
+        if (library.IsScanRunning)
+            throw new InvalidOperationException("Jellyfin library scan is running. Waiting for it to finish.");
+        if (!itemId.HasValue) return; // Read-only inventory does not conflict with another item's queued refresh.
+        var related = new HashSet<Guid> { itemId.Value };
+        var item = library.GetItemById(itemId.Value);
+        if (item is not null)
         {
-            throw new InvalidOperationException("Jellyfin is scanning or refreshing. Retry during an idle maintenance window.");
+            related.UnionWith(library.GetCollectionFolders(item).Select(folder => folder.Id));
+            var current = item;
+            while (current is not null)
+            {
+                var parent = current.ParentId != Guid.Empty ? current.ParentId : current.OwnerId;
+                if (parent == Guid.Empty || !related.Add(parent)) break;
+                current = library.GetItemById(parent);
+            }
         }
+        var queue = providers.GetRefreshQueue();
+        if (related.Any(id => queue.Contains(id) || providers.GetRefreshProgress(id).HasValue))
+            throw new InvalidOperationException("Jellyfin is refreshing this item or its library. Waiting for metadata to finish.");
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<ArtworkReference> Inventory(CancellationToken cancellationToken, IReadOnlyCollection<Guid>? includedItemIds = null)
+    public IReadOnlyList<ArtworkReference> Inventory(CancellationToken cancellationToken, IReadOnlyCollection<Guid>? includedItemIds = null, IReadOnlyCollection<Guid>? includedLibraryIds = null, Action<int>? inventoryProgress = null)
     {
-        EnsureIdle();
+        // Read-only inventory and simulation are allowed while native tasks are active.
+        // Apply rechecks/waits at transaction boundaries in the coordinator.
+        var scope = includedLibraryIds is null ? null : ResolveLibraryItems(includedLibraryIds, cancellationToken);
+        var summary = new InventorySummary();
+        _inventorySummary = summary;
         var candidates = new List<ArtworkReference>();
         var referenceCounts = new Dictionary<string, int>(PathComparer);
         var totalReferences = 0;
+        var inspectedItems = 0;
         foreach (var items in InventoryBatches(cancellationToken))
         {
             foreach (var item in items)
             {
+                summary.TotalItems++;
+                var inScope = (scope is null || scope.Contains(item.Id))
+                    && (includedItemIds is null || includedItemIds.Count == 0 || includedItemIds.Contains(item.Id));
+                if (inScope) summary.MatchedItems++;
                 foreach (var group in item.ImageInfos.GroupBy(i => i.Type))
                 {
                     var index = 0;
@@ -49,10 +77,12 @@ public sealed class JellyfinArtworkStore(ILibraryManager library, IProviderManag
                             referenceCounts[path] = referenceCounts.GetValueOrDefault(path) + 1;
                             if (++totalReferences > 1_000_000)
                                 throw new InvalidOperationException("Inventory exceeds one million image references; split the library before migration.");
-                            if (includedItemIds is null || includedItemIds.Count == 0 || includedItemIds.Contains(item.Id))
+                            if (inScope)
                             {
+                                summary.LocalImages++;
                                 var reference = new ArtworkReference(item.Id, group.Key, index, image.Path, item is Person);
                                 if (IsEligible(item, reference)) candidates.Add(reference);
+                                else summary.ExcludedImages++;
                             }
                         }
 
@@ -60,11 +90,52 @@ public sealed class JellyfinArtworkStore(ILibraryManager library, IProviderManag
                     }
                 }
             }
-
+            inspectedItems += items.Count;
+            inventoryProgress?.Invoke(inspectedItems);
         }
 
-        return candidates.Where(r => referenceCounts[Path.GetFullPath(r.Path)] == 1)
+        var result = candidates.Where(r => referenceCounts[Path.GetFullPath(r.Path)] == 1)
             .OrderBy(r => r.Key, StringComparer.Ordinal).ToArray();
+        summary.SharedImages = candidates.Count - result.Length;
+        summary.EligibleImages = result.Length;
+        summary.AlreadyWebpImages = result.Count(image => Path.GetExtension(image.Path).Equals(".webp", StringComparison.OrdinalIgnoreCase));
+        return result;
+    }
+
+    private HashSet<Guid> ResolveLibraryItems(IReadOnlyCollection<Guid> libraryIds, CancellationToken cancellationToken)
+    {
+        var selected = new HashSet<Guid>();
+        if (libraryIds.Count == 0) return selected; // A missing selection must never mean the whole server.
+        var known = library.GetVirtualFolders().Where(folder => Guid.TryParse(folder.ItemId, out _))
+            .Select(folder => Guid.Parse(folder.ItemId)).ToHashSet();
+        var physicalIds = new HashSet<Guid>();
+        foreach (var id in libraryIds.Distinct())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!known.Contains(id) || library.GetItemById(id) is not CollectionFolder folder)
+                throw new InvalidOperationException("A selected library no longer exists. Review the JellyP library selection.");
+            selected.Add(id); // Include the library's own cover.
+            physicalIds.UnionWith(folder.PhysicalFolderIds);
+        }
+        if (physicalIds.Count == 0) return selected;
+        // Native library IDs are virtual CollectionFolders; TopParentIds must use their physical IDs.
+        selected.UnionWith(library.GetItemIds(new InternalItemsQuery
+        {
+            TopParentIds = physicalIds.ToArray(), Recursive = true, IncludeOwnedItems = true,
+            GroupByPresentationUniqueKey = false, EnableTotalRecordCount = false, DtoOptions = DtoOptions.StoredColumnsOnly,
+        }));
+        // People live outside the folder hierarchy. Associate only people credited in selected items.
+        // Their entities/photos are global in Jellyfin, including when shared with another library.
+        var people = new HashSet<Guid>();
+        foreach (var batch in selected.ToArray().Chunk(500))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var credits in library.GetPeopleByItems(batch).Values)
+                foreach (var person in credits)
+                    if (!string.IsNullOrWhiteSpace(person.Name)) people.Add(library.GetPersonId(person.Name));
+        }
+        selected.UnionWith(people);
+        return selected;
     }
 
     /// <inheritdoc />

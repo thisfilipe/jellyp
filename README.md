@@ -25,65 +25,73 @@ for manual installation. This is a third-party repository; adding it does not
 add JellyP to Jellyfin's official repository. See Jellyfin's
 [plugin documentation](https://jellyfin.org/docs/general/server/plugins/).
 
-## Choose what changes
+## Libraries, individual items and image policies
 
-- Select **People, Primary, Thumb, Logo, Backdrop, Art, Banner, Disc, Box,
-  BoxRear, and Menu** independently. People is an item-category override for
-  person artwork. Primary, Thumb, Logo and People start selected; other
-  categories start disabled.
-- Use global encoding defaults or override each category's quality **0–100**,
-  lossy/lossless mode, optional downscaling and SSIM gate. Quality 100 is still
-  lossy unless **Lossless** is selected.
-- Dimensions are preserved by default. Downscaling never upscales. Alpha samples
-  must match exactly at the chosen output dimensions; lossless mode also checks
-  every RGB sample.
-- Preserve originals for restoration and future policy changes, or disable
-  preservation to permanently remove each original **after** the output and
-  Jellyfin reference verify. A transient recovery copy is always required until
-  verification succeeds.
-- Select **Only selected items**, search by name or paste Jellyfin details links,
-  and start with a batch of one. An empty selection in this mode blocks running;
-  **Whole library** must be selected explicitly. Selection is by individual item,
-  not recursively by every descendant of a selected series or folder.
+Choose **Selected libraries** and check native Jellyfin libraries. Their folders,
+seasons, episodes and owned versions are included. An empty/deleted library
+selection never expands to the entire server. **Only selected items** supports
+name search, item IDs and details links; this selects those exact items, not
+children of a selected show. **All libraries and global metadata** explicitly includes all libraries
+and global metadata. Old configurations retain their previous scope for native
+tasks; the dashboard asks legacy global selections to choose libraries before saving.
 
-Defaults are deliberately inactive: **dry run on, artwork changes off, no task
-schedule, original preservation on, no resizing**. Global quality is 85; minimum
-windowed luma SSIM is 0.96, with at least 5% and 4096 bytes saved per image. These
-are independent controls: lowering encoder quality does not disable the SSIM
-gate. A rejected candidate leaves its source unchanged.
+People are global Jellyfin entities. Library selection includes people credited
+in selected items; their photos can also appear in other libraries. Shared image
+files referenced by multiple entities remain excluded, including references from
+unselected libraries. Unrelated global artists/studios are available through
+individual-item or explicit whole-server scope rather than inferred membership.
+
+Select any of the 11 image categories independently. Global encoding defaults or
+per-type overrides control quality 0–100, lossy/lossless mode, optional downscaling
+and SSIM. Quality 100 remains lossy; use **Lossless** for exact pixels. Dimensions
+stay unchanged by default, and alpha samples are checked exactly at output size.
+
+Keep originals for restoration and future policy changes, or permanently remove
+them after output and reference verification. A temporary recovery copy is always
+required. Retained originals initially consume additional space.
 
 ## Dashboard workflow
 
-After installing, open **Dashboard → Plugins → JellyP → Settings**.
+1. **Select libraries or items.** Choose scope and image types.
+2. **Choose quality and storage.** Defaults: quality 85, SSIM 0.96, no resizing,
+   retained originals, at least 5% and 4 KiB saved. The SSIM gate is independent
+   of encoder quality; lowering quality does not disable it.
+3. **Test or run now.** Choose Simulate and run the selection. The result shows
+   how many images would convert, estimated savings and named example results.
+   Inventory progress appears during the shared-reference check. No images
+   change in simulation. Already-WebP, shared and excluded images explain empty
+   outcomes. Choose Apply for an explicit manual conversion after reviewing.
+4. **Scheduled processing.** Choose whether native JellyP tasks may simulate or
+   apply, save, and open Jellyfin Scheduled Tasks to configure their triggers.
+   No schedule is created automatically. Simulating manually does not disable
+   applying automation; manually applying does not enable it.
+5. An advanced **Image limit per execution** bounds each run (default 250).
+   Repeated scheduled triggers resume the pass automatically. A changed scope or
+   effective policy resets that mode's position. Preview/apply have separate
+   cursors. Stop cancels at transaction boundaries or during metadata waits.
+6. **Restore original** and **Remove verified stored originals…** are individually
+   confirmed actions independent of the scheduled mode. Restoration requires
+   retained originals; retirement is permanent. Retention zero means manual
+   removal, otherwise expiration runs before applying optimization.
 
-1. **Select images:** choose individual items or the whole library, then check
-   image types. Expand **Settings for this type** only for individual overrides.
-2. **Choose quality and storage:** keep dimensions unless downscaling is wanted.
-   Retained originals support restoration and policy changes but initially use
-   additional space. Removing originals is permanent after verification.
-3. **Simulate or apply:** start in **Simulate**, then **Simulate next batch**.
-   The button saves current settings before queuing; **Save settings** only saves.
-4. Review automatic progress, savings and skip reasons. Choose **Apply**, pause
-   uploads/metadata refreshes, confirm the maintenance window and, when removing
-   originals, acknowledge permanence. **Convert next batch** applies a small batch.
-5. Repeat the batch button to continue. **Stop after current image** finishes
-   the current transaction safely. Changing selected items, enabled types or
-   effective encoding settings restarts that mode's pass. Preview and apply
-   positions are independent. Disabled types do not consume the batch limit.
-6. Inspect images. **Restore original** reverses a retained transaction;
-   **Remove verified stored originals…** permanently releases backup storage.
-   Expiration can also be configured in advanced settings; zero days keeps them
-   until manual removal. Expiration runs at the start of an applying batch.
-7. Return to **Simulate** and save when maintenance ends. No schedule is created
-   by the page; Jellyfin Scheduled Tasks uses the saved execution settings.
+JellyP already exposes its own **Optimize library artwork** and **Synchronize
+artwork policies** tasks under Dashboard → Scheduled Tasks → JellyP. Both process
+artwork after Jellyfin has saved it; they do not intercept downloads. Tasks use
+saved scope/policies and automatic processing mode. Triggers remain managed by
+Jellyfin and existing configured triggers are preserved on upgrade.
 
-Both the optimizer and synchronization task process existing and subsequently
-saved artwork. They do not intercept a download before Jellyfin saves it.
+Conversion automatically waits for a full library scan or
+refresh of the target, its parents or owning library, with visible wait state and
+cancel support. It does not block on unrelated scheduled tasks or other items'
+metadata queue entries. The wait continues until metadata clears or the native task is cancelled;
+a maximum runtime configured in Jellyfin still applies. Manual image
+uploads still need to be avoided during conversion; Jellyfin exposes no shared
+mutation lock to plugins.
 
 ## Synchronizing changed policies
 
 Change a selected category's policy, save, then run **Sync changed quality
-settings**. The selected Simulate/Apply mode applies to synchronization too.
+settings**. Its manual mode is independent of scheduled processing too.
 
 JellyP compares a fingerprint of the effective encoding settings, verifies that
 current artwork still matches its journal and reads the preserved original. It
@@ -123,9 +131,8 @@ and rejects more than one million image references; this is an inventory-memory
 bound, separate from the per-run candidate limit. Inventory is repeated each run
 to detect shared references. Its duration scales with library size.
 
-Jellyfin exposes no shared image mutation lock. Known scans and refreshes stop
-writes; **simultaneous manual uploads remain a residual race**. Run applying
-operations during an idle maintenance window. No watcher, method patch, database
+Jellyfin exposes no shared image mutation lock. Known scans and related refreshes pause
+writes automatically; **simultaneous manual uploads remain a residual race**. Avoid simultaneous manual uploads to items being converted. No watcher, method patch, database
 edit or direct rename of a referenced artwork file is used. Jellyfin's save is
 not atomic; durable recovery records and backups bridge save/persistence failures.
 See [integration evidence](docs/INTEGRATION.md) and [recovery](docs/RECOVERY.md).
@@ -151,7 +158,7 @@ dotnet test JellyP.slnx --configuration Release --no-build --no-restore
 python3 scripts/package.py
 ```
 
-The local archive is `artifacts/JellyP_0.2.0.1.zip` with a SHA256 file. It contains
+The local archive is `artifacts/JellyP_0.3.0.0.zip` with a SHA256 file. It contains
 only the plugin DLL, `meta.json` and license. Jellyfin supplies its matching
 SkiaSharp 3.119.4 managed/native stack. No server or duplicate native dependencies
 are bundled. A WebP codec probe runs before any scan. The package script packages the local Release build; the trusted tag workflow publishes releases
@@ -159,7 +166,7 @@ and updates the catalog after checking their assets. See
 [releasing](docs/RELEASING.md).
 
 Stop Jellyfin during installation, extract the archive to
-`<Jellyfin data>/plugins/JellyP_0.2.0.1/`, ensure ownership matches the server,
+`<Jellyfin data>/plugins/JellyP_0.3.0.0/`, ensure ownership matches the server,
 then restart and verify the plugin is active. Back up the server first. Do not
 restart during playback or another maintenance task. For uninstall and retained
 originals, follow [recovery instructions](docs/RECOVERY.md).

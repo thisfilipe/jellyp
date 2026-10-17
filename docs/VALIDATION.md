@@ -6,7 +6,7 @@ remain unvalidated.
 
 ## Automated checks
 
-The 0.2.0.1 integrated .NET suite contains 87 passing tests. Coverage includes
+The 0.3.0.0 integrated .NET suite contains 116 passing tests. Coverage includes
 baseline/progressive JPEG completeness, PNG/WebP structure, exact alpha,
 lossless pixels, resizing, savings and SSIM gates, interrupted saves, recovery,
 retirement, policy synchronization, shared references, owned/alternate items,
@@ -22,13 +22,14 @@ locked restore, Release build, both test suites, packaging and publication audit
 A disposable real Jellyfin instance on localhost was used to verify plugin
 loading, administrator-only APIs, the embedded settings page, preview, migration,
 policy synchronization, exact rollback and references surviving a process restart.
-The 0.2.0.1 browser exercise uses native Jellyfin controls at desktop and mobile
+The 0.3.0.0 browser exercise uses native Jellyfin controls at desktop and mobile
 widths, with no horizontal overflow or JavaScript errors. It checks all 11
 categories, saved global/per-category values, byte-unit conversions, reload
 persistence, language changes retaining unsaved edits, conditional fields,
-numeric validation, empty restricted selection, item search, apply guards,
+numeric validation, empty library/item selection, library descendants, item search, apply guards,
 canceling permanence confirmation, simulation auto-save/polling, and the emergency
-shortcut's unsaved behavior. An optional controlled case converts the single
+shortcut's unsaved behavior. It also verifies separate manual/scheduled modes,
+execution identity, simulated counts and named examples, plus the native scheduling link. An optional controlled case converts the single
 synthetic image through the UI and restores its exact SHA256.
 
 Reproduce after `smoke-local.py` with Node.js, Playwright and an installed browser:
@@ -47,6 +48,28 @@ The generated 512×512 PNG fixture was 471893 bytes; at quality 60 its WebP was
 2648 bytes. This synthetic gradient is not a whole-library savings forecast.
 Run [smoke-local.py](../scripts/smoke-local.py) only against a marked disposable
 server and generated video fixture, as described in its docstring.
+
+## Library isolation and native scheduling (0.3.0.0)
+
+The disposable instance contains two generated libraries. A real interval trigger
+in Jellyfin's scheduler ran JellyP in saved applying mode without a maintenance
+confirmation. Only the selected library changed, including its own cover where
+eligible; the excluded library's image metadata stayed identical. A manual preview
+preserved applying automation and explained already-WebP images. Explicit restore
+worked after automation returned to preview and restored the exact source checksum.
+
+Run `scripts/smoke-scope.py --root <marked-fixture-root>` after `smoke-local.py`.
+It creates the second synthetic library, installs a temporary native interval
+trigger, waits for its actual firing and restores the previous triggers/settings.
+Allow about two minutes: Jellyfin 12.1's
+[interval trigger](https://github.com/jellyfin/jellyfin/blob/v12.1/Emby.Server.Implementations/ScheduledTasks/Triggers/IntervalTrigger.cs)
+adds a minimum minute even for a short configured interval.
+
+Unit regression coverage includes manual mode overrides, captured configuration,
+queued cancellation, busy/missing/failed task dispatch, concurrent requests,
+cancelable metadata waits, serialized native optimize/sync with cancellation, library isolation, associated people, protected shared
+files outside the selected scope and unrelated refresh coexistence. These checks
+do not claim a shared native lock against simultaneous manual uploads.
 
 ## Controlled ARM64 validation
 

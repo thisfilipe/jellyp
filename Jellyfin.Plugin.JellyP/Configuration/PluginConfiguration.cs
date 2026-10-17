@@ -43,6 +43,10 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     public bool SyncUnchangedPolicies { get; set; }
     /// <summary>Gets or sets an optional item allowlist for canaries; empty selects the library.</summary>
     public Guid[] IncludedItemIds { get; set; } = [];
+    /// <summary>Gets or sets scope: legacy preserves pre-0.3 item/global selection; libraries never expands an empty selection.</summary>
+    public string ScopeMode { get; set; } = "legacy";
+    /// <summary>Gets or sets the selected native Jellyfin library IDs.</summary>
+    public Guid[] IncludedLibraryIds { get; set; } = [];
     /// <summary>Gets or sets category selection and individual overrides.</summary>
     public ImageTypePolicy[] ImagePolicies { get; set; } = DefaultPolicies();
 
@@ -79,7 +83,11 @@ public sealed class PluginConfiguration : BasePluginConfiguration
             || ImagePolicies.Any(p => p is null || !Categories.Contains(p.Category)
                 || p.Quality is < 0 or > 100 || p.MaximumDimension is < 256 or > 8192
                 || !double.IsFinite(p.MinimumSsim) || p.MinimumSsim is < 0 or > 1)
-            || ImagePolicies.Select(p => p.Category).Distinct(StringComparer.Ordinal).Count() != ImagePolicies.Length)
+            || ImagePolicies.Select(p => p.Category).Distinct(StringComparer.Ordinal).Count() != ImagePolicies.Length
+            || ScopeMode is not ("legacy" or "all" or "libraries" or "items")
+            || IncludedLibraryIds is null || IncludedLibraryIds.Length > 1000 || IncludedLibraryIds.Any(id => id == Guid.Empty)
+            || (ScopeMode == "libraries" && IncludedLibraryIds.Length == 0)
+            || (ScopeMode == "items" && IncludedItemIds.Length == 0))
         {
             throw new ArgumentException("Invalid JellyP settings. Check quality, dimensions, limits and category policies.");
         }

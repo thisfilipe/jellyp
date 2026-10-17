@@ -17,6 +17,7 @@ import package
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--root', required=True, type=Path)
 parser.add_argument('--phase', required=True, choices=('install', 'upgrade', 'verify'))
+parser.add_argument('--version', help='Explicit public version, for initializing an older upgrade fixture')
 args = parser.parse_args()
 root = args.root.resolve()
 if not (root / '.jellyp-smoke-root').is_file():
@@ -47,6 +48,11 @@ if not password_file.exists():
 token = request('Users/AuthenticateByName', {'Username': 'jellyp-catalog-admin', 'Pw': password_file.read_text()})['AccessToken']
 assert Path(request('System/Info')['ProgramDataPath']).resolve() == root / 'data', 'Server does not match disposable root.'
 meta = package.metadata()
+if args.version:
+    import re
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+', args.version):
+        raise SystemExit('Use a four-part public version.')
+    meta['version'] = args.version
 plugin_id = meta['guid'].replace('-', '')
 if args.phase in ('install', 'upgrade'):
     installed = [p for p in request('Plugins') if p['Id'].replace('-', '') == plugin_id]
@@ -73,13 +79,18 @@ else:
     config = request('Plugins/' + meta['guid'] + '/Configuration')
     snapshot = root / 'catalog-previous-settings.json'
     if snapshot.exists():
-        assert config == json.loads(snapshot.read_text()), 'Saved configuration changed during upgrade.'
+        previous = json.loads(snapshot.read_text())
+        assert all(config.get(key) == value for key, value in previous.items()), 'Saved configuration changed during upgrade.'
+        if 'ScopeMode' not in previous:
+            assert config['ScopeMode'] == 'legacy' and config['IncludedLibraryIds'] == [], 'Legacy scope expanded during upgrade.'
     else:
         assert not config['Enabled'] and config['DryRun'] and config['PreserveOriginals']
     assert len(config['ImagePolicies']) == 11
     assert request('JellyP/Status')['PendingRecovery'] == 0
     page = request('web/ConfigurationPage?name=jellyp')
-    assert b'JellyPPolicies' in page and b'Execution mode' in page and b'PrepareEmergency' in page
+    assert b'JellyPPolicies' in page and b'PrepareEmergency' in page
+    if meta['version'] == package.metadata()['version']:
+        assert b'LibraryScope' in page and b'Automation' in page
     tasks = [t for t in request('ScheduledTasks') if t['Category'] == 'JellyP']
     assert len(tasks) == 2 and all(not t['Triggers'] for t in tasks)
     print('Catalog-installed plugin active after restart; configuration, embedded UI, recovery status and empty schedules verified.')

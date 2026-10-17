@@ -52,11 +52,10 @@ const identification = 'MediaBrowser Client="JellyP UI fixture", Device="disposa
         assert.equal(path.resolve((await get('System/Info')).ProgramDataPath), path.join(root, 'data'), 'Server/root mismatch');
         original = await get('Plugins/'+plugin+'/Configuration');
         const fixtureItems = (await get('Items?Recursive=true&IncludeItemTypes=Movie')).Items;
-        assert.equal(fixtureItems.length, 1, 'Expected exactly one generated movie fixture');
-        assert.equal(fixtureItems[0].Name, 'JellyP Canary (2026)');
-        const fixture = fixtureItems[0];
+        const fixture=fixtureItems.find(item=>item.Name==='JellyP Canary (2026)');
+        assert.ok(fixture, 'Generated movie fixture missing');
         const baseline = { ...original, Enabled:false, DryRun:true, MaintenanceWindowConfirmed:false,
-            IncludedItemIds:[fixture.Id], BatchSize:1, Quality:85, Lossless:false, ResizeImages:false,
+            ScopeMode:'items', IncludedLibraryIds:[], IncludedItemIds:[fixture.Id], BatchSize:1, Quality:85, Lossless:false, ResizeImages:false,
             PreserveOriginals:true, BackupRetentionDays:0,
             ImagePolicies:original.ImagePolicies.map(policy=>({ ...policy, OverrideGlobal:false,
                 Enabled:['People','Primary','Thumb','Logo'].includes(policy.Category) })) };
@@ -87,10 +86,27 @@ const identification = 'MediaBrowser Client="JellyP UI fixture", Device="disposa
         assert.equal(await page.locator('[data-policy-category]').count(), 11);
         assert.equal(await page.locator('#JellyPPolicies .checkboxOutline').count(), 44);
         assert.match(await page.locator('#Quality').getAttribute('class'), /emby-input/);
-        assert.equal(await page.locator('#JellyPConfigPage .selectArrowContainer').count(), 5);
+        assert.equal(await page.locator('#JellyPConfigPage .selectArrowContainer').count(), 6);
         assert.equal(await page.locator('label[for=Language]').count(), 1);
         assert.equal(await page.locator('label[for=Language]').innerText(), 'Interface language');
         checks.push('native Jellyfin inputs, selects and dynamic checkboxes');
+        await page.locator('#Scope').selectOption('libraries');
+        await page.locator('#Save').click();
+        await waitUntil(async()=> (await page.locator('#JellyPMessage').textContent()).includes('at least one library'));
+        const fixtureLibrary=(await get('Library/VirtualFolders')).find(library=>library.Name==='JellyP fixture');
+        const libraryCheckbox=page.locator('#Library'+fixtureLibrary.ItemId.replaceAll('-',''));
+        assert.ok(await libraryCheckbox.count());
+        await libraryCheckbox.locator('..').click();
+        const previousLibrary=(await get('JellyP/Status')).LastRun.ExecutionId;
+        await page.locator('#Run').click();
+        const libraryStatus=await waitUntil(async()=>{const current=await get('JellyP/Status');return current.LastRun.Phase==='Completed'&&current.LastRun.ExecutionId!==previousLibrary?current:null;});
+        assert.equal(libraryStatus.LastRun.WouldConvert,1);
+        assert.ok([fixture.Id,fixtureLibrary.ItemId].includes(libraryStatus.LastRun.Samples[0].ItemId));
+        assert.equal((await get('Plugins/'+plugin+'/Configuration')).ScopeMode,'libraries');
+        await waitUntil(async()=>!(await page.locator('#Scope').isDisabled()));
+        await page.locator('#Scope').selectOption('items');
+        checks.push('native library selection, fail-closed empty scope and descendant simulation');
+
 
         await page.locator('#Quality').fill('81');
         await page.locator('#AdditionalCategories > summary').click();
@@ -137,6 +153,7 @@ const identification = 'MediaBrowser Client="JellyP UI fixture", Device="disposa
         assert.equal(await page.locator('#ReserveGiB').inputValue(), '2.25');
         checks.push('global and per-type settings, byte units and reload persistence');
 
+        await page.locator('#AdvancedSettings > summary').click();
         await page.locator('#BatchSize').fill('0');
         await page.locator('#Save').click();
         await waitUntil(async()=> (await page.locator('#JellyPMessage').textContent()).includes('highlighted'));
@@ -152,8 +169,6 @@ const identification = 'MediaBrowser Client="JellyP UI fixture", Device="disposa
         checks.push('numeric validation, empty restricted scope blocked, item-name search');
 
         await page.locator('#Mode').selectOption('apply');
-        assert.equal(await page.locator('#Run').isDisabled(), true);
-        await check('#Maintenance', true);
         assert.equal(await page.locator('#Run').isDisabled(), false);
         await page.locator('#Storage').selectOption('discard');
         assert.equal(await page.locator('#Run').isDisabled(), true);
@@ -167,37 +182,48 @@ const identification = 'MediaBrowser Client="JellyP UI fixture", Device="disposa
         assert.equal((await get('Plugins/'+plugin+'/Configuration')).PreserveOriginals, true);
         await page.locator('#Mode').selectOption('preview');
         await page.locator('#Storage').selectOption('keep');
-        checks.push('maintenance/permanence gates and canceling permanent conversion');
+        checks.push('permanence acknowledgment and canceling permanent conversion');
 
-        const before = (await get('JellyP/Status')).LastRun.FinishedUtc;
+        await page.locator('#Automation').selectOption('apply');
+        await page.locator('#SaveAutomation').click();
+        await waitUntil(async()=>(await get('Plugins/'+plugin+'/Configuration')).DryRun===false);
+        const before = (await get('JellyP/Status')).LastRun.ExecutionId;
         await page.locator('#Quality').fill('85');
         await page.locator('#Run').click();
         const status = await waitUntil(async()=>{
             const current = await get('JellyP/Status');
-            return !current.LastRun.Running && current.LastRun.FinishedUtc!==before ? current : null;
+            return current.LastRun.Phase==='Completed'&&current.LastRun.ExecutionId!==before ? current : null;
         });
         assert.equal(status.LastRun.DryRun, true);
         assert.equal(status.LastRun.Converted, 0);
+        assert.equal(status.LastRun.WouldConvert, 1);
+        assert.equal((await get('Plugins/'+plugin+'/Configuration')).DryRun, false);
+        assert.equal((await get('Plugins/'+plugin+'/Configuration')).Enabled, true);
         assert.equal(status.LastRun.Failed, 0);
         assert.equal((await get('Plugins/'+plugin+'/Configuration')).Quality, 85);
-        await waitUntil(async()=> (await page.locator('#PhaseText').innerText()).includes('Last batch: simulation'));
-        checks.push('run saves displayed edits, queues simulation and automatically refreshes completion');
+        await page.waitForFunction(id=>(()=>{const report=JSON.parse(document.querySelector('#TechnicalStatus').textContent||'{}');return report.ExecutionId===id&&report.Phase==='Completed';})(),status.LastRun.ExecutionId);
+        assert.match(await page.locator('#RunSummary').innerText(), /1 images would convert/);
+        await waitUntil(async()=> (await page.locator('#SampleResults').innerText()).includes('JellyP Canary'));
+        assert.match(await page.locator('#SampleResults').innerText(), /JellyP Canary/);
+        checks.push('simulation shows count and named sample, preserves applying automation and polls execution ID');
 
         if (arguments_.includes('--apply-fixture')) {
             await page.locator('#Mode').selectOption('apply');
-            await check('#Maintenance', true);
-            const previous = (await get('JellyP/Status')).LastRun.FinishedUtc;
+            await page.locator('#Automation').selectOption('preview');
+            const previous = (await get('JellyP/Status')).LastRun.ExecutionId;
             await page.locator('#Run').click();
             const applied = await waitUntil(async()=>{
                 const current=await get('JellyP/Status');
-                return !current.LastRun.Running&&current.LastRun.FinishedUtc!==previous?current:null;
+                return current.LastRun.Phase==='Completed'&&current.LastRun.ExecutionId!==previous?current:null;
             });
             assert.equal(applied.LastRun.DryRun, false);
             assert.equal(applied.LastRun.Converted, 1);
             assert.equal(applied.LastRun.Failed, 0);
             const record=applied.RecentRecords.find(r=>r.State==='Committed');
             assert.ok(record && !record.BackupDeleted);
-            await waitUntil(async()=> (await page.locator('#PhaseText').innerText()).includes('Last batch: application'));
+            await page.waitForFunction(id=>(()=>{const report=JSON.parse(document.querySelector('#TechnicalStatus').textContent||'{}');return report.ExecutionId===id&&report.Phase==='Completed';})(),applied.LastRun.ExecutionId);
+            assert.equal((await get('Plugins/'+plugin+'/Configuration')).DryRun,true);
+            assert.equal((await get('Plugins/'+plugin+'/Configuration')).Enabled,false);
             await page.locator('#HistoryDetails > summary').click();
             page.once('dialog', dialog=>dialog.accept());
             await page.locator('[data-restore]').first().click();
@@ -221,6 +247,18 @@ const identification = 'MediaBrowser Client="JellyP UI fixture", Device="disposa
         assert.equal((await get('Plugins/'+plugin+'/Configuration')).PreserveOriginals, true);
         checks.push('emergency shortcut preserves scope/quality and neither saves nor runs');
 
+        await setConfig({...baseline,ScopeMode:'legacy'});
+        await page.reload({waitUntil:'domcontentloaded'});
+        await page.waitForFunction(()=>document.querySelector('#Quality')?.value==='85');
+        assert.equal(await page.locator('#Scope').inputValue(),'items');
+        assert.equal(await page.locator('#LegacyScopeNotice').isVisible(),true);
+        checks.push('legacy item-only scope is preserved and its migration notice is visible');
+        await page.locator('#Scope').selectOption('libraries');
+        await page.locator('#Library'+fixtureLibrary.ItemId.replaceAll('-','')).locator('..').click();
+        const beforeFinal=(await get('JellyP/Status')).LastRun.ExecutionId;
+        await page.locator('#Run').click();
+        const finalReport=await waitUntil(async()=>{const value=await get('JellyP/Status');return value.LastRun.Phase==='Completed'&&value.LastRun.ExecutionId!==beforeFinal?value:null;});
+        await page.waitForFunction(id=>(()=>{const report=JSON.parse(document.querySelector('#TechnicalStatus').textContent||'{}');return report.ExecutionId===id&&report.Phase==='Completed';})(),finalReport.LastRun.ExecutionId);
         await page.locator('#Language').selectOption('pt');
         await page.locator('h1').scrollIntoViewIfNeeded();
         await page.evaluate(()=>window.scrollTo(0,0));
@@ -232,6 +270,10 @@ const identification = 'MediaBrowser Client="JellyP UI fixture", Device="disposa
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth), false);
         if (screenshots) await page.screenshot({path:path.join(screenshots,'mobile.png'), fullPage:true});
         checks.push('desktop/mobile layout and no horizontal overflow');
+        await page.locator('#JellyPConfigPage [href="#/dashboard/tasks"]').click();
+        await page.waitForURL(url=>url.hash.includes('/dashboard/tasks'));
+        await page.getByText('Optimize library artwork',{exact:true}).waitFor();
+        checks.push('direct access to the actual native Jellyfin scheduling screen');
         assert.deepEqual(errors, []);
         console.log(JSON.stringify({passed:checks, browserErrors:errors}, null, 2));
     } finally {

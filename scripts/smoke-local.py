@@ -63,10 +63,10 @@ config=request('Plugins/'+pluginid+'/Configuration');config.update(Enabled=True,
 request('Plugins/'+pluginid+'/Configuration',config)
 def run(path):
     before=request('JellyP/Status')['LastRun'].get('FinishedUtc')
-    request('JellyP/'+path,b'')
+    receipt=request('JellyP/'+path,b'')
     for _ in range(120):
         s=request('JellyP/Status')
-        if not s['LastRun']['Running'] and s['LastRun'].get('FinishedUtc')!=before:return s
+        if s['LastRun'].get('ExecutionId')==receipt['ExecutionId'] and s['LastRun'].get('Phase') in ('Completed','Failed','Cancelled'):return s
         time.sleep(.25)
     raise AssertionError('Task timeout')
 preview=run('Run');assert preview['LastRun']['EstimatedSavingsBytes']>0,preview

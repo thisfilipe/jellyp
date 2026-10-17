@@ -11,11 +11,11 @@ public sealed class OptimizeArtworkTask(OptimizationCoordinator coordinator) : I
     /// <inheritdoc />
     public string Key => "JellyPOptimizeArtwork";
     /// <inheritdoc />
-    public string Description => "Preview or apply the next resumable WebP batch. Configure JellyP first.";
+    public string Description => "Process the selected libraries or items using saved automation settings and a resumable work limit. Applying waits for metadata activity; configure a schedule here.";
     /// <inheritdoc />
     public string Category => "JellyP";
     /// <inheritdoc />
-    public Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken) => coordinator.RunAsync(progress, cancellationToken);
+    public Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken) => coordinator.RunAsync(progress, cancellationToken, waitForOtherOperations: true);
     /// <inheritdoc />
     public IEnumerable<TaskTriggerInfo> GetDefaultTriggers() => [];
 }

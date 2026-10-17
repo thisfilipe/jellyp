@@ -1,7 +1,7 @@
 ---
 name: "JellyP"
 guid: "0928e334-8971-4205-a455-f42a76527f9e"
-version: "0.2.0.1"
+version: "0.3.0.0"
 targetAbi: "12.1.0.0"
 framework: "net10.0"
 overview: "Optimize Jellyfin library artwork, including WebP conversion."
@@ -13,4 +13,4 @@ owner: "thisfilipe"
 artifacts:
   - "Jellyfin.Plugin.JellyP.dll"
 changelog: >
-  Redesigned bilingual dashboard with native Jellyfin controls, guided batches, item search and clear storage accounting; selection-aware scan cursors.
+  Library selection, observable simulations with example results, independent scheduled processing and automatic metadata conflict waiting.

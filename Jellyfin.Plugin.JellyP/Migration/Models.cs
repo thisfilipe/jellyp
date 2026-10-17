@@ -14,7 +14,10 @@ public sealed record ArtworkReference(Guid ItemId, ImageType Type, int Index, st
 public interface IArtworkStore
 {
     /// <summary>Lists image slots, excluding shared and external files.</summary>
-    IReadOnlyList<ArtworkReference> Inventory(CancellationToken cancellationToken, IReadOnlyCollection<Guid>? includedItemIds = null);
+    IReadOnlyList<ArtworkReference> Inventory(CancellationToken cancellationToken, IReadOnlyCollection<Guid>? includedItemIds = null, IReadOnlyCollection<Guid>? includedLibraryIds = null, Action<int>? inventoryProgress = null);
+
+    /// <summary>Returns aggregate reasons from the last inventory without private paths.</summary>
+    InventorySummary? GetInventorySummary() => null;
 
     /// <summary>Checks that no scan or refresh is active.</summary>
     void EnsureIdle(Guid? itemId = null);
@@ -55,6 +58,12 @@ public sealed class MigrationRecord
 /// <summary>Persisted scan cursor and most recent run summary.</summary>
 public sealed class RunReport
 {
+    public Guid ExecutionId { get; set; }
+    public string Phase { get; set; } = "Idle";
+    public int InventoryItems { get; set; }
+    public InventorySummary? Inventory { get; set; }
+    public int WouldConvert { get; set; }
+    public List<ImageRunSample> Samples { get; set; } = [];
     public bool Running { get; set; }
     public bool DryRun { get; set; }
     public string? Cursor { get; set; }
@@ -81,3 +90,9 @@ internal sealed class ScanCursor
 /// <summary>Administrator status including honest net storage accounting.</summary>
 public sealed record OptimizerStatus(RunReport LastRun, long RetainedBackupBytes, long VerifiedSavingsBytes,
     long NetReclaimedBytes, IReadOnlyList<MigrationRecord> RecentRecords, int PendingRecovery);
+
+/// <summary>A bounded, path-free image result for administrators.</summary>
+public sealed record ImageRunSample(Guid ItemId, ImageType Type, long OriginalBytes, long OutputBytes, string Reason);
+
+/// <summary>Accepted native scheduled-task request.</summary>
+public sealed record ExecutionReceipt(Guid ExecutionId, string TaskId, string State);

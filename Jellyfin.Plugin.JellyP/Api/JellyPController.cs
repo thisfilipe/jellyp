@@ -19,16 +19,13 @@ public sealed class JellyPController(OptimizationCoordinator coordinator, ITaskM
 
     /// <summary>Queues the configured batch in Jellyfin's task manager.</summary>
     [HttpPost("Run")]
-    public ActionResult Run()
-    {
-        tasks.QueueIfNotRunning<OptimizeArtworkTask>();
-        return Accepted();
-    }
+    public ActionResult Run([FromQuery] bool? dryRun = null) => Queue<OptimizeArtworkTask>(false, dryRun);
 
     /// <summary>Requests cancellation after the current image transaction.</summary>
     [HttpPost("Cancel")]
     public ActionResult Cancel()
     {
+        coordinator.CancelQueuedExecution();
         tasks.CancelIfRunning<OptimizeArtworkTask>();
         tasks.CancelIfRunning<SynchronizePoliciesTask>();
         return Accepted();
@@ -36,10 +33,30 @@ public sealed class JellyPController(OptimizationCoordinator coordinator, ITaskM
 
     /// <summary>Queues policy synchronization from preserved reference originals.</summary>
     [HttpPost("Sync")]
-    public ActionResult Sync()
+    public ActionResult Sync([FromQuery] bool? dryRun = null) => Queue<SynchronizePoliciesTask>(true, dryRun);
+
+    private ActionResult Queue<T>(bool synchronize, bool? dryRun) where T : IScheduledTask
     {
-        tasks.QueueIfNotRunning<SynchronizePoliciesTask>();
-        return Accepted();
+        var task = tasks.ScheduledTasks.FirstOrDefault(worker => worker.ScheduledTask is T);
+        if (task is null) return Problem("JellyP scheduled task is unavailable. Restart Jellyfin and check plugin loading.", statusCode: 503);
+        if (task.State != TaskState.Idle) return Conflict("This JellyP scheduled task is already running or cancelling.");
+        Guid executionId = Guid.Empty;
+        try
+        {
+            executionId = coordinator.QueueExecution(synchronize, dryRun);
+            tasks.QueueIfNotRunning<T>();
+            return Accepted(new ExecutionReceipt(executionId, task.Id, "Queued"));
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+        {
+            if (executionId != Guid.Empty) coordinator.RejectQueuedExecution(executionId);
+            return Problem(ex.Message, statusCode: StatusCodes.Status409Conflict);
+        }
+        catch
+        {
+            if (executionId != Guid.Empty) coordinator.RejectQueuedExecution(executionId);
+            throw;
+        }
     }
 
     /// <summary>Restores one original through Jellyfin's supported save services.</summary>
@@ -48,7 +65,7 @@ public sealed class JellyPController(OptimizationCoordinator coordinator, ITaskM
     {
         try
         {
-            await coordinator.RollbackAsync(id, cancellationToken).ConfigureAwait(false);
+            await coordinator.RollbackAsync(id, cancellationToken, authorizedManual: true).ConfigureAwait(false);
             return NoContent();
         }
         catch (FileNotFoundException) { return NotFound(); }
@@ -65,7 +82,7 @@ public sealed class JellyPController(OptimizationCoordinator coordinator, ITaskM
         if (olderThanDays is < 0 or > 3650) return BadRequest("Age must be between 0 and 3650 days.");
         try
         {
-            await coordinator.PurgeAsync(DateTime.UtcNow.AddDays(-olderThanDays), cancellationToken).ConfigureAwait(false);
+            await coordinator.PurgeAsync(DateTime.UtcNow.AddDays(-olderThanDays), cancellationToken, authorizedManual: true).ConfigureAwait(false);
             return NoContent();
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or ArgumentException)

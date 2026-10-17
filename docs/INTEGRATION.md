@@ -100,12 +100,22 @@ basename, especially for nonzero backdrops, so verify the actual returned item
 path rather than assuming the original basename.
 
 `ILibraryManager.IsScanRunning`, `IProviderManager.GetRefreshQueue()` and
-`GetRefreshProgress(Guid)` allow refusing known active work. No public shared
-per-item mutation lock was found in the inspected interfaces/implementation.
-Refresh events and plugin locks do not exclude a simultaneous manual upload or
-provider refresh. Run applying batches during an idle maintenance period,
-recheck before each write, and document this residual race. Optimistic checks
-are not a claim of atomic coordination with Jellyfin.
+`GetRefreshProgress(Guid)` expose known conflicts. In the pinned implementation,
+GetRefreshQueue returns queued IDs; active progress lives separately. Simulation
+is read-only and no longer requires idle. Before applying, JellyP waits for full
+scans or a queued/active refresh of the target, its parent/owner chain or collection
+folder. Unrelated queue entries do not block it. The wait is cancelable and respects any native task maximum runtime. Idle checks remain immediately before writes and retirement.
+
+No public shared per-item mutation lock was found. ProviderManager's URL image
+cache lock does not cover the filename/stream SaveImage path used by uploads and
+JellyP. Optimistic checks do not exclude manual uploads that start between a check
+and a write. Avoid simultaneous manual image uploads; do not claim atomic native
+coordination or disable all Jellyfin scheduled tasks.
+
+Library selection resolves virtual CollectionFolder IDs to PhysicalFolderIds for
+TopParentIds queries, includes descendants/owned items and credited People, and
+keeps global reference counting separate from that selection. People are global
+entities and can be associated with multiple selected/unselected libraries.
 
 Count actual reclaimed bytes only when the old file is gone and any plugin
 backup has been retired. Keeping originals on the same filesystem consumes

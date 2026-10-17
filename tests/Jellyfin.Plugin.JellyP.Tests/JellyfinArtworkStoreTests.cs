@@ -18,6 +18,13 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
     private Guid[]? _snapshotIds;
     private readonly List<Guid[]> _requestedBatches = [];
     private int _snapshotCalls;
+    private readonly Dictionary<Guid, CollectionFolder> _libraries = [];
+    private readonly Dictionary<Guid, Guid[]> _libraryMembers = [];
+    private readonly Dictionary<Guid, IReadOnlyList<PersonInfo>> _people = [];
+    private readonly Dictionary<string, Guid> _personIds = [];
+    private bool _scanning;
+    private readonly HashSet<Guid> _refreshQueue = [];
+    private readonly HashSet<Guid> _activeRefreshes = [];
 
     public JellyfinArtworkStoreTests() => Directory.CreateDirectory(_root);
 
@@ -119,6 +126,96 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
         Assert.Equal(0, _snapshotCalls);
     }
 
+    [Fact]
+    public void LibraryScopeIncludesDescendantsOwnedItemsAndAssociatedPeopleButNotOtherLibraries()
+    {
+        var selected = PersonWithImage(Path.Combine(_root, "metadata", "selected", "folder.jpg"));
+        var related = PersonWithImage(Path.Combine(_root, "metadata", "related", "folder.jpg"));
+        var other = PersonWithImage(Path.Combine(_root, "metadata", "other", "folder.jpg"));
+        var folder = AddLibrary([selected.Id]);
+        _people[selected.Id] = new[] { new PersonInfo { Name = "Related Person" } };
+        _personIds["Related Person"] = related.Id;
+        var result = CreateStore().Inventory(default, includedLibraryIds: [folder.Id]);
+        Assert.Equal(new[] { selected.Id, related.Id }.Order(), result.Select(i => i.ItemId).Order());
+        Assert.DoesNotContain(result, image => image.ItemId == other.Id);
+    }
+
+    [Fact]
+    public void SharingAcrossExcludedLibrariesStillProtectsTheImage()
+    {
+        var selected = PersonWithImage(Path.Combine(_root, "metadata", "selected", "folder.jpg"));
+        var outside = new ChannelFixture { Id = Guid.NewGuid(), ImageInfos = selected.ImageInfos };
+        _items.Add(outside);
+        var folder = AddLibrary([selected.Id]);
+        var store = CreateStore();
+        Assert.Empty(store.Inventory(default, includedLibraryIds: [folder.Id]));
+        Assert.Equal(1, store.GetInventorySummary()!.SharedImages);
+    }
+
+    [Fact]
+    public void EmptyOrDeletedLibrarySelectionNeverExpandsToTheWholeServer()
+    {
+        PersonWithImage(Path.Combine(_root, "metadata", "sample", "folder.jpg"));
+        Assert.Empty(CreateStore().Inventory(default, includedLibraryIds: []));
+        Assert.Throws<InvalidOperationException>(() => CreateStore().Inventory(default, includedLibraryIds: [Guid.NewGuid()]));
+        var empty = AddLibrary([]);
+        Assert.Empty(CreateStore().Inventory(default, includedLibraryIds: [empty.Id]));
+    }
+
+    [Fact]
+    public void ReadOnlyInventoryReportsProgressAndReasonsWhileMetadataIsBusy()
+    {
+        var item = PersonWithImage(Path.Combine(_root, "metadata", "sample", "folder.webp"));
+        _scanning = true; _refreshQueue.Add(Guid.NewGuid());
+        var progress = new List<int>();
+        var store = CreateStore();
+        Assert.Single(store.Inventory(default, [item.Id], inventoryProgress: progress.Add));
+        Assert.Equal(new[] { 1 }, progress);
+        var summary = store.GetInventorySummary()!;
+        Assert.Equal(1, summary.TotalItems);
+        Assert.Equal(1, summary.MatchedItems);
+        Assert.Equal(1, summary.AlreadyWebpImages);
+        Assert.Throws<InvalidOperationException>(() => store.EnsureIdle());
+    }
+
+    [Fact]
+    public void ScopeValidationFailsClosedAndLegacyPreservesExistingCanaries()
+    {
+        var config = new Jellyfin.Plugin.JellyP.Configuration.PluginConfiguration { ScopeMode = "libraries" };
+        Assert.Throws<ArgumentException>(config.Validate);
+        config.IncludedLibraryIds = [Guid.NewGuid()]; config.Validate();
+        config.ScopeMode = "items"; Assert.Throws<ArgumentException>(config.Validate);
+        config.IncludedItemIds = [Guid.NewGuid()]; config.Validate();
+        config.ScopeMode = "legacy"; config.IncludedLibraryIds = []; config.Validate();
+    }
+
+    [Fact]
+    public void UnrelatedRefreshDoesNotBlockButTargetLibraryAncestorAndScanDo()
+    {
+        var item = PersonWithImage(Path.Combine(_root, "metadata", "target", "folder.jpg"));
+        var folder = AddLibrary([item.Id]);
+        var store = CreateStore();
+        _refreshQueue.Add(Guid.NewGuid());
+        store.EnsureIdle(item.Id);
+        _refreshQueue.Add(folder.Id);
+        Assert.Throws<InvalidOperationException>(() => store.EnsureIdle(item.Id));
+        _refreshQueue.Remove(folder.Id);
+        _activeRefreshes.Add(item.Id);
+        Assert.Throws<InvalidOperationException>(() => store.EnsureIdle(item.Id));
+        _activeRefreshes.Clear();
+        item.ParentId = Guid.NewGuid(); _refreshQueue.Add(item.ParentId);
+        Assert.Throws<InvalidOperationException>(() => store.EnsureIdle(item.Id));
+        _refreshQueue.Clear(); _scanning = true;
+        Assert.Throws<InvalidOperationException>(() => store.EnsureIdle(item.Id));
+    }
+
+    private CollectionFolder AddLibrary(Guid[] members)
+    {
+        var folder = new CollectionFolder { Id = Guid.NewGuid(), PhysicalFolderIds = [Guid.NewGuid()] };
+        _libraries[folder.Id] = folder; _libraryMembers[folder.PhysicalFolderIds[0]] = members;
+        return folder;
+    }
+
     private Person PersonWithImage(string path)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -138,14 +235,20 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
         var configuration = Proxy<IServerConfigurationManager>((method, _) => method.Name == "get_ApplicationPaths" ? paths : throw new NotSupportedException(method.Name));
         var library = Proxy<ILibraryManager>((method, args) => method.Name switch
         {
-            "get_IsScanRunning" => false,
+            "get_IsScanRunning" => _scanning,
+            "GetVirtualFolders" => _libraries.Values.Select(folder => new VirtualFolderInfo { ItemId = folder.Id.ToString("N"), Name = "Synthetic library" }).ToList(),
+            "GetItemById" => _items.FirstOrDefault(item => item.Id == (Guid)args![0]!) ?? (BaseItem?)_libraries.GetValueOrDefault((Guid)args![0]!),
+            "GetCollectionFolders" => _libraries.Values.Where(folder => _libraryMembers[folder.PhysicalFolderIds[0]].Contains(((BaseItem)args![0]!).Id)).Cast<Folder>().ToList(),
+            "GetPeopleByItems" => _people.Where(pair => ((IReadOnlyList<Guid>)args![0]!).Contains(pair.Key)).ToDictionary(),
+            "GetPersonId" => _personIds[(string)args![0]!],
             "GetItemIds" when args is [{ } query] => Snapshot((InternalItemsQuery)query),
             "GetItemList" when args is [{ } query] => Batch((InternalItemsQuery)query),
             _ => throw new NotSupportedException(method.Name),
         });
-        var providers = Proxy<IProviderManager>((method, _) => method.Name switch
+        var providers = Proxy<IProviderManager>((method, args) => method.Name switch
         {
-            "GetRefreshQueue" => new HashSet<Guid>(),
+            "GetRefreshQueue" => _refreshQueue,
+            "GetRefreshProgress" => _activeRefreshes.Contains((Guid)args![0]!) ? (double?)0.5 : null,
             _ => throw new NotSupportedException(method.Name),
         });
         return new JellyfinArtworkStore(library, providers, configuration);
@@ -162,7 +265,9 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
         Assert.False(query.DtoOptions.EnableImages);
         Assert.False(query.DtoOptions.EnableUserData);
         Assert.Empty(query.DtoOptions.Fields);
-        return _snapshotIds ?? _items.Select(i => i.Id).ToArray();
+        return query.TopParentIds.Length > 0
+            ? query.TopParentIds.SelectMany(id => _libraryMembers.GetValueOrDefault(id) ?? []).ToArray()
+            : _snapshotIds ?? _items.Select(i => i.Id).ToArray();
     }
 
     private IReadOnlyList<BaseItem> Batch(InternalItemsQuery query)
