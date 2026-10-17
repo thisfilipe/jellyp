@@ -87,6 +87,9 @@ const identification = 'MediaBrowser Client="JellyP UI fixture", Device="disposa
         assert.equal(await page.locator('[data-policy-category]').count(), 11);
         assert.equal(await page.locator('#JellyPPolicies .checkboxOutline').count(), 44);
         assert.match(await page.locator('#Quality').getAttribute('class'), /emby-input/);
+        assert.equal(await page.locator('#JellyPConfigPage .selectArrowContainer').count(), 5);
+        assert.equal(await page.locator('label[for=Language]').count(), 1);
+        assert.equal(await page.locator('label[for=Language]').innerText(), 'Interface language');
         checks.push('native Jellyfin inputs, selects and dynamic checkboxes');
 
         await page.locator('#Quality').fill('81');
@@ -100,6 +103,7 @@ const identification = 'MediaBrowser Client="JellyP UI fixture", Device="disposa
         assert.equal(await page.locator('#Quality').inputValue(), '81');
         assert.equal(await page.locator('#PolicyQuality4').inputValue(), '60');
         assert.match(await page.locator('#Run').innerText(), /Simular/);
+        assert.equal(await page.locator('label[for=Language]').innerText(), 'Idioma da interface');
         await page.locator('#Language').selectOption('en');
         checks.push('language change preserves unsaved global and per-type edits');
 

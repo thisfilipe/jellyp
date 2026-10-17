@@ -6,7 +6,7 @@ remain unvalidated.
 
 ## Automated checks
 
-The 0.2.0.0 integrated .NET suite contains 87 passing tests. Coverage includes
+The 0.2.0.1 integrated .NET suite contains 87 passing tests. Coverage includes
 baseline/progressive JPEG completeness, PNG/WebP structure, exact alpha,
 lossless pixels, resizing, savings and SSIM gates, interrupted saves, recovery,
 retirement, policy synchronization, shared references, owned/alternate items,
@@ -22,7 +22,7 @@ locked restore, Release build, both test suites, packaging and publication audit
 A disposable real Jellyfin instance on localhost was used to verify plugin
 loading, administrator-only APIs, the embedded settings page, preview, migration,
 policy synchronization, exact rollback and references surviving a process restart.
-The 0.2.0.0 browser exercise uses native Jellyfin controls at desktop and mobile
+The 0.2.0.1 browser exercise uses native Jellyfin controls at desktop and mobile
 widths, with no horizontal overflow or JavaScript errors. It checks all 11
 categories, saved global/per-category values, byte-unit conversions, reload
 persistence, language changes retaining unsaved edits, conditional fields,

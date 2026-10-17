@@ -151,7 +151,7 @@ dotnet test JellyP.slnx --configuration Release --no-build --no-restore
 python3 scripts/package.py
 ```
 
-The local archive is `artifacts/JellyP_0.2.0.0.zip` with a SHA256 file. It contains
+The local archive is `artifacts/JellyP_0.2.0.1.zip` with a SHA256 file. It contains
 only the plugin DLL, `meta.json` and license. Jellyfin supplies its matching
 SkiaSharp 3.119.4 managed/native stack. No server or duplicate native dependencies
 are bundled. A WebP codec probe runs before any scan. The package script packages the local Release build; the trusted tag workflow publishes releases
@@ -159,7 +159,7 @@ and updates the catalog after checking their assets. See
 [releasing](docs/RELEASING.md).
 
 Stop Jellyfin during installation, extract the archive to
-`<Jellyfin data>/plugins/JellyP_0.2.0.0/`, ensure ownership matches the server,
+`<Jellyfin data>/plugins/JellyP_0.2.0.1/`, ensure ownership matches the server,
 then restart and verify the plugin is active. Back up the server first. Do not
 restart during playback or another maintenance task. For uninstall and retained
 originals, follow [recovery instructions](docs/RECOVERY.md).

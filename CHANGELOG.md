@@ -3,6 +3,12 @@
 Versions use Jellyfin's four-part format. Published versions and their assets
 are immutable; corrections receive a new version.
 
+## [0.2.0.1] - 2026-10-17
+
+- Let Jellyfin initialize select labels and dropdown arrows; preserve translated
+  labels without duplicating the native markup.
+- Extend the browser exercise to verify native arrows and translated select labels.
+
 ## [0.2.0.0] - 2026-10-17
 
 - Rebuilt the dashboard around selection, quality/storage, and execution steps,
