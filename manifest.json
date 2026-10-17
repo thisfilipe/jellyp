@@ -1,0 +1,20 @@
+[
+  {
+    "guid": "0928e334-8971-4205-a455-f42a76527f9e",
+    "name": "JellyP",
+    "overview": "Configurable WebP artwork optimization and original-based policy synchronization.",
+    "description": "Administrator-selected artwork policies, verified alpha and quality, resumable migration and optional preserved originals.",
+    "owner": "thisfilipe",
+    "category": "General",
+    "versions": [
+      {
+        "version": "0.1.0.0",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/thisfilipe/jellyp/releases/download/v0.1.0.0/JellyP_0.1.0.0.zip",
+        "checksum": "dedb9bdf9d9227133e3bd70b2316531d",
+        "timestamp": "2026-10-17T02:01:26Z",
+        "changelog": "- Initial public release for Jellyfin 12.1 and .NET 10.\n- Global and per-category WebP policies for 11 artwork categories, with exact\n  alpha verification, optional lossless encoding/downscaling and SSIM gates.\n- Resumable preview/apply tasks, original-based policy synchronization,\n  optional retained originals, verified rollback and backup retirement.\n- Shared-reference checks, owned-item inventory, recovery journals and storage\n  budgets. Changes start disabled, with dry run on and no default schedule.\n- Jellyfin dashboard configuration and administrator-only operations."
+      }
+    ]
+  }
+]
