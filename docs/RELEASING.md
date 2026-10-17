@@ -32,6 +32,13 @@ than a separate rebuild. Sources: Jellyfin's
 [version model](https://github.com/jellyfin/jellyfin/blob/v12.1/MediaBrowser.Model/Updates/VersionInfo.cs)
 and [installer](https://github.com/jellyfin/jellyfin/blob/v12.1/Emby.Server.Implementations/Updates/InstallationManager.cs).
 
+The repeatable catalog exercise is `scripts/smoke-catalog.py`. Against a fresh,
+marked disposable server on localhost:18096, run `--root <fixture-root> --phase
+install`, restart only that disposable process, then run the same command with
+`--phase verify`. It registers the public repository, invokes Jellyfin's native
+installer and checks the installed plugin after restart. Test credentials stay
+private under the disposable root and are never printed.
+
 ## Failure and retry
 
 A failure before the catalog update leaves its previous entries intact. A
