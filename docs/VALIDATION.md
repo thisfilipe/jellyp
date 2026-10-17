@@ -12,7 +12,7 @@ lossless pixels, resizing, savings and SSIM gates, interrupted saves, recovery,
 retirement, policy synchronization, shared references, owned/alternate items,
 ID snapshots and canary isolation. Release builds treat warnings as errors.
 
-Python release tests verify catalog checksums, archive layout, version alignment,
+Nine Python release tests verify catalog checksums, archive layout, version alignment,
 history preservation and rejection of modified existing releases. CI performs a
 locked restore, Release build, both test suites, packaging and publication audit.
 
@@ -40,3 +40,17 @@ from the repository.
 Whole-library quality, performance and savings are not established by that test.
 Inventory duration scales with library size. Preserving originals initially uses
 additional storage; retirement is required to reclaim their space.
+
+## Public catalog installation
+
+The `v0.1.0.0` release workflow passed in GitHub Actions. Its public ZIP, SHA256
+sidecar and raw catalog entry were independently downloaded and cross-checked.
+The native Jellyfin installer on a fresh disposable Linux x64 instance loaded the
+public repository, downloaded the versioned release and passed its MD5 check.
+After restarting that instance, JellyP loaded active with its embedded settings
+page, all 11 policies, changes disabled, dry run enabled, retained originals and
+both tasks unscheduled. No production library was involved in this exercise.
+
+Reproduce with [smoke-catalog.py](../scripts/smoke-catalog.py), following the
+marked-root and two-phase instructions in its docstring and
+[RELEASING.md](RELEASING.md).
