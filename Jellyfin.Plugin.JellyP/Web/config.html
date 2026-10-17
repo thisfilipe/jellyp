@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html><head><title>JellyP</title></head><body>
+<div id="JellyPConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+<div data-role="content"><div class="content-primary">
+<h2>JellyP — Image Optimizer</h2>
+<p>Preview savings, then optimize internal library artwork in resumable batches. New downloads are processed on subsequent runs. Media-folder artwork, shared files and unsupported images are excluded.</p>
+<p>Originals remain in bounded rollback storage. Disk space is released when verified backups are retired. Retiring an original permanently ends rollback for that image.</p>
+<form id="JellyPForm">
+<div class="checkboxContainer checkboxContainer-withDescription"><label><input is="emby-checkbox" type="checkbox" id="Enabled"><span>Enable artwork changes</span></label></div>
+<div class="checkboxContainer checkboxContainer-withDescription"><label><input is="emby-checkbox" type="checkbox" id="DryRun"><span>Dry run (estimate only)</span></label></div>
+<div class="checkboxContainer checkboxContainer-withDescription"><label><input is="emby-checkbox" type="checkbox" id="MaintenanceWindowConfirmed"><span>I have paused uploads and metadata refreshes for this maintenance window</span></label><div class="fieldDescription">Jellyfin has no shared image lock. Scans and queued refreshes block changes, but a simultaneous manual upload cannot be excluded. Clear this when maintenance ends.</div></div>
+<div class="inputContainer"><label class="inputLabel" for="Quality">WebP quality (0–100)</label><input is="emby-input" type="number" id="Quality" min="0" max="100" required></div>
+<div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" id="PreserveOriginals"><span>Preserve originals for rollback and policy synchronization</span></label><div class="fieldDescription">When unchecked, the temporary original is permanently removed after the image and its reference verify. Existing retained backups remain until explicitly retired.</div></div>
+<div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" id="Lossless"><span>Lossless WebP (quality 100 alone is still lossy)</span></label></div>
+<div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" id="ResizeImages"><span>Allow downscaling; disabled preserves dimensions</span></label></div>
+<div class="inputContainer"><label class="inputLabel" for="MaximumDimension">Longest edge when downscaling (256–8192 px)</label><input is="emby-input" type="number" id="MaximumDimension" min="256" max="8192" required></div>
+<div class="inputContainer"><label class="inputLabel" for="IncludedItemIds">Optional item IDs (comma-separated; empty means entire library)</label><input is="emby-input" type="text" id="IncludedItemIds"><div class="fieldDescription">Use item IDs from Jellyfin details URLs to limit a canary to named items.</div></div>
+<h3>Artwork categories</h3><p>Choose categories and optionally override global encoding settings. People applies to person items before the normal image type. Alpha is always verified exactly against the source at the output size.</p><div id="JellyPPolicies"></div>
+<div class="inputContainer"><label class="inputLabel" for="MinimumSsim">Minimum windowed luminance SSIM (0–1; 0.96 default)</label><input is="emby-input" type="number" step="0.001" id="MinimumSsim" min="0" max="1" required></div>
+<div class="inputContainer"><label class="inputLabel" for="MinimumSavingsRatio">Minimum fractional savings (0–0.9)</label><input is="emby-input" type="number" step="0.01" id="MinimumSavingsRatio" min="0" max="0.9" required></div>
+<div class="inputContainer"><label class="inputLabel" for="MinimumSavingsBytes">Minimum savings per image (bytes)</label><input is="emby-input" type="number" id="MinimumSavingsBytes" min="0" required></div>
+<div class="inputContainer"><label class="inputLabel" for="BatchSize">Images evaluated per run (1–10000)</label><input is="emby-input" type="number" id="BatchSize" min="1" max="10000" required></div>
+<div class="inputContainer"><label class="inputLabel" for="MinimumFreeSpaceBytes">Free-space reserve (bytes; default 2147483648, Jellyfin startup minimum 2 GiB)</label><input is="emby-input" type="number" id="MinimumFreeSpaceBytes" min="67108864" required></div>
+<div class="inputContainer"><label class="inputLabel" for="MaximumBackupBytes">Rollback backup budget (bytes, at least 33554432)</label><input is="emby-input" type="number" id="MaximumBackupBytes" min="33554432" required></div>
+<div class="inputContainer"><label class="inputLabel" for="BackupRetentionDays">Automatically retire verified originals after days (0 = retain until manually retired)</label><input is="emby-input" type="number" id="BackupRetentionDays" min="0" max="3650" required></div>
+<div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" id="SyncUnchangedPolicies"><span>Policy sync also regenerates unchanged policies</span></label></div>
+<button is="emby-button" type="submit" class="raised button-submit block"><span>Save settings</span></button>
+</form>
+<p>Save settings before running. Tasks have no schedule by default; add a schedule under Dashboard → Scheduled Tasks after reviewing the preview.</p>
+<div><button is="emby-button" type="button" id="Run" class="raised">Run next batch</button> <button is="emby-button" type="button" id="Cancel" class="raised">Cancel after current image</button> <button is="emby-button" type="button" id="Sync" class="raised">Sync policies from preserved originals</button> <button is="emby-button" type="button" id="Refresh" class="raised">Refresh status</button></div>
+<p id="JellyPMessage" role="status"></p><pre id="JellyPStatus" style="white-space:pre-wrap"></pre>
+<h3>Rollback and recovery</h3><p>The most recent 100 transactions are listed below. Interrupted records must be recovered before applying more batches. To restore, save settings with artwork changes enabled, dry run off and the maintenance window confirmed. Each restore verifies the current slot and refuses to overwrite different artwork.</p><div id="JellyPRecords"></div>
+<h3>Release disk space</h3><p>This permanently deletes only originals whose converted artwork and reference still verify. Uncertain backups remain available. Rollback is unavailable after retirement.</p><button is="emby-button" type="button" id="Retire" class="raised">Retire all verified originals…</button>
+<script>
+(function () {
+    'use strict';
+    const pluginId = '0928e334-8971-4205-a455-f42a76527f9e';
+    const page = document.querySelector('#JellyPConfigPage');
+    const booleanFields = ['Enabled', 'DryRun', 'MaintenanceWindowConfirmed', 'PreserveOriginals', 'Lossless', 'ResizeImages', 'SyncUnchangedPolicies'];
+    const numberFields = ['Quality', 'MaximumDimension', 'MinimumSsim', 'MinimumSavingsRatio', 'MinimumSavingsBytes', 'BatchSize', 'MinimumFreeSpaceBytes', 'MaximumBackupBytes', 'BackupRetentionDays'];
+    let configuration;
+    function policies() {
+        const container = page.querySelector('#JellyPPolicies'); container.replaceChildren();
+        configuration.ImagePolicies.forEach((policy, index) => {
+            const section = document.createElement('fieldset');
+            section.style.marginBottom = '1em';
+            const legend = document.createElement('legend'); legend.textContent = policy.Category; section.append(legend);
+            [['Enabled', 'Process this category', 'checkbox'], ['OverrideGlobal', 'Override global settings', 'checkbox'], ['Quality', 'Quality (0–100)', 'number'], ['Lossless', 'Lossless', 'checkbox'], ['ResizeImages', 'Allow downscaling', 'checkbox'], ['MaximumDimension', 'Longest edge (256–8192 px)', 'number'], ['MinimumSsim', 'Minimum SSIM (0–1)', 'number']].forEach(([key, caption, type]) => {
+                const label = document.createElement('label'); label.style.display = 'block'; label.style.margin = '.5em 0';
+                const input = document.createElement('input'); input.type = type; input.dataset.policyIndex = String(index); input.dataset.policyKey = key;
+                if (type === 'checkbox') { input.checked = policy[key]; label.append(input, document.createTextNode(' ' + caption)); }
+                else {
+                    input.value = policy[key]; input.required = true;
+                    input.min = key === 'MaximumDimension' ? '256' : '0'; input.max = key === 'Quality' ? '100' : key === 'MaximumDimension' ? '8192' : '1'; input.step = key === 'MinimumSsim' ? '0.001' : '1';
+                    label.append(document.createTextNode(caption + ' '), input);
+                }
+                section.append(label);
+            });
+            container.append(section);
+        });
+    }
+    const message = text => { page.querySelector('#JellyPMessage').textContent = text; };
+    const bytes = value => (value / (1024 * 1024)).toFixed(2) + ' MiB';
+    async function request(path, method) {
+        return ApiClient.ajax({ type: method || 'GET', url: ApiClient.getUrl('JellyP/' + path), dataType: method ? undefined : 'json' });
+    }
+    async function refresh() {
+        const status = await request('Status');
+        const r = status.LastRun;
+        page.querySelector('#JellyPStatus').textContent = [
+            r.Running ? 'Running' : 'Idle', r.DryRun ? 'Last run: dry run' : 'Last run: apply',
+            'Eligible images: ' + r.InventoryImages, 'Examined: ' + r.Examined + ', converted: ' + r.Converted + ', skipped: ' + r.Skipped + ', failed: ' + r.Failed,
+            'Estimated savings in last batch: ' + bytes(r.EstimatedSavingsBytes),
+            'Verified savings before backups: ' + bytes(status.VerifiedSavingsBytes),
+            'Retained originals: ' + bytes(status.RetainedBackupBytes),
+            'Net reclaimed by plugin: ' + bytes(status.NetReclaimedBytes),
+            'Pending recovery: ' + status.PendingRecovery, r.Message || '',
+            'Skip reasons: ' + JSON.stringify(r.SkipReasons || {})
+        ].join('\n');
+        const container = page.querySelector('#JellyPRecords');
+        container.replaceChildren();
+        status.RecentRecords.forEach(record => {
+            const row = document.createElement('p');
+            row.append(document.createTextNode('Item ' + record.Source.ItemId + ' · ' + record.Source.Type + '/' + record.Source.Index + ' · transaction ' + record.Id + ' · ' + record.State + ' · ' + bytes(record.OriginalBytes - record.OutputBytes) + (record.Error ? ' · ' + record.Error : '') + ' '));
+            if (!record.BackupDeleted && record.State !== 'RolledBack') {
+                const button = document.createElement('button');
+                button.type = 'button'; button.className = 'raised emby-button'; button.textContent = 'Restore original';
+                button.addEventListener('click', () => perform(async () => {
+                    if (window.confirm('Restore this original through Jellyfin? The current artwork must still match the transaction.')) {
+                        await request('Rollback/' + encodeURIComponent(record.Id), 'POST'); await refresh();
+                    }
+                }));
+                row.append(button);
+            }
+            container.append(row);
+        });
+    }
+    async function perform(action) {
+        Dashboard.showLoadingMsg();
+        try { await action(); message('Operation completed.'); }
+        catch (error) { message(error.responseJSON?.detail || error.responseText || error.message || 'Operation failed. Check Jellyfin logs.'); }
+        finally { Dashboard.hideLoadingMsg(); }
+    }
+    page.addEventListener('viewshow', () => perform(async () => {
+        configuration = await ApiClient.getPluginConfiguration(pluginId);
+        booleanFields.forEach(key => { page.querySelector('#' + key).checked = configuration[key]; });
+        numberFields.forEach(key => { page.querySelector('#' + key).value = configuration[key]; });
+        page.querySelector('#IncludedItemIds').value = (configuration.IncludedItemIds || []).join(', ');
+        policies();
+        await refresh();
+    }));
+    page.querySelector('#JellyPForm').addEventListener('submit', event => {
+        event.preventDefault();
+        perform(async () => {
+            booleanFields.forEach(key => { configuration[key] = page.querySelector('#' + key).checked; });
+            numberFields.forEach(key => { configuration[key] = Number(page.querySelector('#' + key).value); });
+            page.querySelectorAll('[data-policy-key]').forEach(input => {
+                configuration.ImagePolicies[Number(input.dataset.policyIndex)][input.dataset.policyKey] = input.type === 'checkbox' ? input.checked : Number(input.value);
+            });
+            configuration.IncludedItemIds = page.querySelector('#IncludedItemIds').value.split(/[\s,]+/).filter(Boolean);
+            if (configuration.IncludedItemIds.some(id => !/^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(id))) throw new Error('Enter valid Jellyfin item IDs.');
+            await ApiClient.updatePluginConfiguration(pluginId, configuration);
+        });
+    });
+    page.querySelector('#Run').addEventListener('click', () => perform(async () => { await request('Run', 'POST'); message('Batch queued; refresh status to follow progress.'); }));
+    page.querySelector('#Sync').addEventListener('click', () => perform(async () => { await request('Sync', 'POST'); }));
+    page.querySelector('#Cancel').addEventListener('click', () => perform(async () => { await request('Cancel', 'POST'); await refresh(); }));
+    page.querySelector('#Refresh').addEventListener('click', () => perform(refresh));
+    page.querySelector('#Retire').addEventListener('click', () => perform(async () => {
+        if (window.confirm('Permanently delete all verified rollback originals and release their disk space? This cannot be undone.')) {
+            await request('Backups/Retire?olderThanDays=0', 'POST'); await refresh();
+        }
+    }));
+})();
+</script>
+</div></div></div></body></html>

@@ -1,0 +1,40 @@
+# .NET build output
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+coverage/
+**/__pycache__/
+*.pyc
+*.coverage
+
+# IDE and local tooling
+.vs/
+.idea/
+.vscode/*.user.json
+*.suo
+*.user
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+secrets.json
+appsettings.Local.json
+user-secrets.json
+
+# Private operations, local fixtures and reports
+.local/
+.codex/
+.agents/
+*.db
+*.sqlite
+*.sqlite3
+*.db-*
+*.sqlite3-*
+*.original
+*.pem
+*.key
+*.log
+.aws/
+.ssh/

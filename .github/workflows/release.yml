@@ -1,0 +1,42 @@
+name: Publish release and catalog
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: jellyp-release-catalog
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: python3 scripts/audit-publication.py
+      - run: dotnet restore JellyP.slnx --locked-mode
+      - run: dotnet build JellyP.slnx -c Release --no-restore
+      - run: dotnet test JellyP.slnx -c Release --no-build --no-restore
+      - run: python3 -m unittest discover -s tests/release -v
+      - run: python3 scripts/package.py --tag "$RELEASE_TAG"
+      - name: Publish immutable assets, then update the catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python3 scripts/package.py --version)
+          archive="artifacts/JellyP_${version}.zip"
+          python3 -c 'import sys; sys.path.insert(0,"scripts"); import catalog,package; print(catalog.changelog(package.metadata()["version"]))' > "$RUNNER_TEMP/release-notes.md"
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" "$archive" "$archive.sha256" --repo "$GITHUB_REPOSITORY" --verify-tag --title "JellyP $version" --notes-file "$RUNNER_TEMP/release-notes.md" --latest
+          fi
+          python3 scripts/publish-catalog.py --repository "$GITHUB_REPOSITORY" --archive "$archive"

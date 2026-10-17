@@ -1,0 +1,30 @@
+name: Bug report
+description: Report a reproducible problem with JellyP.
+body:
+  - type: markdown
+    attributes:
+      value: Use synthetic fixtures and redact private data. Report security issues privately through the Security tab.
+  - type: input
+    id: versions
+    attributes:
+      label: JellyP and Jellyfin versions
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and architecture
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction and expected behavior
+      description: Include relevant settings and minimal steps using a disposable library.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted logs or error details
+      description: Remove credentials, hostnames, paths, item IDs and personal metadata. Do not attach a database or backup.
