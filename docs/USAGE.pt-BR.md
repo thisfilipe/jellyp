@@ -16,6 +16,14 @@ nome ou cole o link dos detalhes/ID. Isso seleciona exatamente esses itens: um I
 de série não inclui os episódios. **Todas as bibliotecas e metadata global** inclui explicitamente
 todas as bibliotecas e metadata global.
 
+Ao selecionar itens, a tela verifica as imagens próprias cadastradas e mostra o ano,
+tipo e final do ID para distinguir versões do mesmo título. Ela avisa se não houver
+imagens ou tipos marcados, se forem remotas, já WebP, ausentes ou excluídas.
+Pré-candidatas locais ainda precisam passar pelas verificações da simulação.
+O JellyP não baixa capas ausentes. Use **Atualizar andamento** para refazer essa
+verificação depois de alterar imagens fora do plugin. Uma seleção sem candidatas
+locais termina sem inventário global; havendo candidatas, a checagem global continua.
+
 Pessoas são entidades globais do Jellyfin. No escopo de biblioteca entram as pessoas
 creditadas nos itens selecionados; suas fotos também podem aparecer em outras
 bibliotecas. Arquivos de imagem compartilhados por entidades distintas continuam

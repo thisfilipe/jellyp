@@ -3,6 +3,17 @@
 Versions use Jellyfin's four-part format. Published versions and their assets
 are immutable; corrections receive a new version.
 
+## [0.3.0.1] - 2026-10-17
+
+- Inspect exact selected items before execution, showing registered image types,
+  preliminary local candidates, already-WebP, remote, missing and excluded images.
+  Explain items with no artwork and checked types absent from an item.
+- Identify search/selected items by year, type and short ID to distinguish variants.
+- Skip the global inventory when selected items have no usable local images;
+  real conversion/synchronization candidates still receive global shared-file checks.
+- Replace the queued banner with the completed, cancelled or failed execution result.
+  Explain image-less items and untouched remote references in inventory outcomes.
+
 ## [0.3.0.0] - 2026-10-17
 
 - Select native Jellyfin libraries, including descendants and credited people,

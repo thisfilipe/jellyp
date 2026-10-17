@@ -11,8 +11,18 @@ namespace Jellyfin.Plugin.JellyP.Api;
 [ApiController]
 [Route("JellyP")]
 [Authorize(Policy = "RequiresElevation")]
-public sealed class JellyPController(OptimizationCoordinator coordinator, ITaskManager tasks) : ControllerBase
+public sealed class JellyPController(OptimizationCoordinator coordinator, ITaskManager tasks, IArtworkStore artwork) : ControllerBase
 {
+    /// <summary>Inspects up to 100 exact item IDs without downloading or changing artwork.</summary>
+    [HttpGet("Selection")]
+    public ActionResult<IReadOnlyList<ItemArtworkInspection>> Selection([FromQuery] string? ids, CancellationToken cancellationToken)
+    {
+        var values = ids?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
+        if (values.Length is < 1 or > 100 || values.Any(value => !Guid.TryParse(value, out var id) || id == Guid.Empty))
+            return BadRequest("Provide between 1 and 100 valid item IDs.");
+        return Ok(artwork.InspectItems(values.Select(Guid.Parse).Distinct().ToArray(), cancellationToken));
+    }
+
     /// <summary>Gets progress, storage accounting and the last hundred transactions.</summary>
     [HttpGet("Status")]
     public ActionResult<OptimizerStatus> Status() => coordinator.GetStatus();

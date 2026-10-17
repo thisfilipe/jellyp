@@ -22,7 +22,8 @@ const plugin = '0928e334-8971-4205-a455-f42a76527f9e';
 const identification = 'MediaBrowser Client="JellyP UI fixture", Device="disposable browser", DeviceId="jellyp-ui-fixture", Version="0.2"';
 (async () => {
     const api = await request.newContext();
-    let browser, original, headers;
+    let browser, original, headers, fixtureImage, fixtureImageId;
+    let imageNeedsRestore=false;
     const errors = [];
     const checks = [];
     async function get(endpoint) {
@@ -83,6 +84,28 @@ const identification = 'MediaBrowser Client="JellyP UI fixture", Device="disposa
             await waitUntil(async()=>await page.locator('#DirtyState').textContent()==='Settings saved.');
         }
         await page.locator('#Language').selectOption('en');
+        // Reproduce a real registered item with no image; fixture/root checks above prohibit production.
+        const previousRecords=(await get('JellyP/Status')).RecentRecords;
+        const originalRecord=previousRecords.find(record=>record.Source.ItemId===fixture.Id&&record.State==='RolledBack'&&fs.existsSync(record.Source.Path));
+        assert.ok(originalRecord,'Run smoke-local.py first to prepare the restored synthetic source');
+        assert.ok(fs.realpathSync(originalRecord.Source.Path).startsWith(path.join(root,'data')+path.sep));
+        fixtureImage=fs.readFileSync(originalRecord.Source.Path);fixtureImageId=fixture.Id;imageNeedsRestore=true;
+        const deleted=await api.delete(base+'/Items/'+fixture.Id+'/Images/Primary',{headers});assert.ok(deleted.ok());
+        await page.locator('#Refresh').click();
+        await waitUntil(async()=> (await page.locator('[data-inspection]').innerText()).includes('no images registered'));
+        const emptyBefore=(await get('JellyP/Status')).LastRun.ExecutionId;
+        await page.locator('#Run').click();
+        const emptyResult=await waitUntil(async()=>{const status=await get('JellyP/Status');return status.LastRun.Phase==='Completed'&&status.LastRun.ExecutionId!==emptyBefore?status.LastRun:null;});
+        assert.equal(emptyResult.InventoryItems,1);assert.equal(emptyResult.Inventory.ItemsWithoutImages,1);assert.equal(emptyResult.WouldConvert,0);
+        await waitUntil(async()=> (await page.locator('#JellyPMessage').innerText()).includes('Simulation finished: 0'));
+        assert.match(await page.locator('#InventoryExplanation').innerText(),/no images registered/);
+        const uploaded=await api.post(base+'/Items/'+fixture.Id+'/Images/Primary',{headers:{...headers,'Content-Type':'image/png'},data:fixtureImage.toString('base64')});assert.ok(uploaded.ok());imageNeedsRestore=false;
+        await page.locator('#Refresh').click();
+        await waitUntil(async()=> (await page.locator('[data-inspection]').innerText()).includes('preliminary local candidates'));
+        await check('#PolicyEnabled1',false);
+        await waitUntil(async()=> (await page.locator('[data-inspection]').innerText()).includes('No images of the checked types'));
+        await check('#PolicyEnabled1',true);
+        checks.push('empty-image selection is explained before execution, skips global inventory and replaces the queued banner; inspection refresh sees restored artwork and checked types');
         assert.equal(await page.locator('[data-policy-category]').count(), 11);
         assert.equal(await page.locator('#JellyPPolicies .checkboxOutline').count(), 44);
         assert.match(await page.locator('#Quality').getAttribute('class'), /emby-input/);
@@ -277,8 +300,9 @@ const identification = 'MediaBrowser Client="JellyP UI fixture", Device="disposa
         assert.deepEqual(errors, []);
         console.log(JSON.stringify({passed:checks, browserErrors:errors}, null, 2));
     } finally {
+        if(imageNeedsRestore&&fixtureImage)await api.post(base+'/Items/'+fixtureImageId+'/Images/Primary',{headers:{...headers,'Content-Type':'image/png'},data:fixtureImage.toString('base64')});
         if (original) await setConfig({...original, Enabled:false, DryRun:true, MaintenanceWindowConfirmed:false});
         if (browser) await browser.close();
         await api.dispose();
     }
-})().catch(error=>{console.error(String(error.message).split(password).join('[redacted]'));process.exitCode=1;});
+})().catch(error=>{console.error(String(error.stack||error.message).split(password).join('[redacted]'));process.exitCode=1;});

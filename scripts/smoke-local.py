@@ -46,6 +46,8 @@ page=request('web/ConfigurationPage?name=jellyp'); assert b'JellyPPolicies' in p
 folders=request('Library/VirtualFolders')
 if not any(f['Name']=='JellyP fixture' for f in folders):
     request('Library/VirtualFolders?name=JellyP%20fixture&collectionType=movies&refreshLibrary=true',{'LibraryOptions':{'PathInfos':[{'Path':str(root/'media')}],'EnableRealtimeMonitor':False,'SaveLocalMetadata':False,'EnableInternetProviders':False,'TypeOptions':[{'Type':'Movie','MetadataFetchers':[],'ImageFetchers':[]}]}})
+# Ensure a pass observes the fully saved new virtual-folder configuration.
+request('Library/Refresh',b'')
 for _ in range(120):
     items=request('Items?Recursive=true&IncludeItemTypes=Movie&Fields=Path')['Items']
     if items:break

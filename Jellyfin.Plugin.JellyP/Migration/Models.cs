@@ -13,6 +13,10 @@ public sealed record ArtworkReference(Guid ItemId, ImageType Type, int Index, st
 /// <summary>The only integration surface through which migration changes artwork.</summary>
 public interface IArtworkStore
 {
+    /// <summary>Inspects exact items without downloads, saves or a whole-server inventory.</summary>
+    IReadOnlyList<ItemArtworkInspection> InspectItems(IReadOnlyCollection<Guid> itemIds, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Item inspection is not available in this artwork store.");
+
     /// <summary>Lists image slots, excluding shared and external files.</summary>
     IReadOnlyList<ArtworkReference> Inventory(CancellationToken cancellationToken, IReadOnlyCollection<Guid>? includedItemIds = null, IReadOnlyCollection<Guid>? includedLibraryIds = null, Action<int>? inventoryProgress = null);
 

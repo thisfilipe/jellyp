@@ -72,3 +72,14 @@ library scope includes credited people, not independent copies per library.
 The advanced per-execution image limit bounds work. It is independent of library
 selection. Subsequent triggers resume the pass, so the UI does not need to model
 libraries as a manually curated sequence of batches.
+
+## Exact-item inspection
+
+The administrator selection endpoint reads at most 100 IDs per request using the
+same persisted-item hydration as inventory. It does not render/download images,
+call `UpdateImagesAsync`, or accept filesystem paths. Results expose only item
+identity and per-slot category/state, with no server paths. The UI refreshes this
+inspection on request and after its executions. A preliminary candidate is not a
+shared-reference or conversion approval. Inventory can return immediately when
+all selected items lack usable local slots; any actual candidate still requires
+the complete global reference count.

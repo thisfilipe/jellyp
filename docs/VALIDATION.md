@@ -71,6 +71,18 @@ cancelable metadata waits, serialized native optimize/sync with cancellation, li
 files outside the selected scope and unrelated refresh coexistence. These checks
 do not claim a shared native lock against simultaneous manual uploads.
 
+## Empty selected-item regression (0.3.0.1)
+
+The suite contains 124 passing .NET tests. Added coverage verifies path-free,
+bounded administrator inspection; image-less, remote-only, missing, external and
+already-WebP items; and avoiding global inventory only when no local candidate
+exists. Existing shared-reference checks still inspect references outside scope.
+The browser fixture removes only its synthetic Primary, checks the warning before
+execution, runs a zero-candidate simulation, verifies one inspected item and the
+completed banner, restores the generated image and verifies inspection refresh and
+absent checked types. Conversion, synchronization and exact restoration remain
+covered by the disposable functional exercise.
+
 ## Controlled ARM64 validation
 
 Three singly referenced Primary images were converted individually with retained

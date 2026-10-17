@@ -20,10 +20,16 @@ public sealed class JellyPControllerTests : IDisposable
     private bool _available = true;
     private bool _failQueue;
     private int _queueCalls;
+    private int _inspectionCalls;
 
     public JellyPControllerTests()
     {
-        var store = Proxy<IArtworkStore>((_, _) => null);
+        var store = Proxy<IArtworkStore>((method, args) =>
+        {
+            if (method.Name != "InspectItems") return null;
+            _inspectionCalls++;
+            return ((IReadOnlyCollection<Guid>)args![0]!).Select(id => new ItemArtworkInspection(id, "Synthetic", "Movie", 2026, true, [])).ToArray();
+        });
         _coordinator = new OptimizationCoordinator(store, () => _config, _root, NullLogger<OptimizationCoordinator>.Instance);
         var task = new OptimizeArtworkTask(_coordinator);
         var worker = Proxy<IScheduledTaskWorker>((method, _) => method.Name switch
@@ -43,7 +49,31 @@ public sealed class JellyPControllerTests : IDisposable
             }
             return null;
         });
-        _controller = new JellyPController(_coordinator, manager);
+        _controller = new JellyPController(_coordinator, manager, store);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not-an-id")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    public void InvalidInspectionNeverReadsItemsOrQueuesWork(string? ids)
+    {
+        Assert.IsType<BadRequestObjectResult>(_controller.Selection(ids, default).Result);
+        Assert.Equal(0, _inspectionCalls);
+        Assert.Equal(0, _queueCalls);
+    }
+
+    [Fact]
+    public void InspectionIsBoundedDeduplicatedAndDoesNotQueueWork()
+    {
+        var id = Guid.NewGuid();
+        var result = Assert.IsType<OkObjectResult>(_controller.Selection($"{id},{id}", default).Result);
+        Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<ItemArtworkInspection>>(result.Value));
+        Assert.Equal(1, _inspectionCalls);
+        Assert.Equal(0, _queueCalls);
+        Assert.IsType<BadRequestObjectResult>(_controller.Selection(string.Join(',', Enumerable.Repeat(id, 101)), default).Result);
+        Assert.Equal(1, _inspectionCalls);
     }
 
     [Fact]

@@ -6,6 +6,8 @@ public sealed class InventorySummary
 {
     public int TotalItems { get; set; }
     public int MatchedItems { get; set; }
+    public int ItemsWithoutImages { get; set; }
+    public int RemoteImages { get; set; }
     public int LocalImages { get; set; }
     public int EligibleImages { get; set; }
     public int AlreadyWebpImages { get; set; }

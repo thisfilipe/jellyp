@@ -29,6 +29,54 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
     public JellyfinArtworkStoreTests() => Directory.CreateDirectory(_root);
 
     [Fact]
+    public void SelectedItemWithoutImagesCompletesWithoutGlobalInventory()
+    {
+        var item = new Person { Id = Guid.NewGuid(), Name = "Synthetic empty item" };
+        _items.Add(item);
+        var store = CreateStore();
+        Assert.Empty(store.Inventory(default, [item.Id]));
+        Assert.Equal(0, _snapshotCalls);
+        Assert.Single(_requestedBatches);
+        Assert.Equal(1, store.GetInventorySummary()!.MatchedItems);
+        Assert.Equal(1, store.GetInventorySummary()!.ItemsWithoutImages);
+        Assert.Equal(0, store.GetInventorySummary()!.LocalImages);
+        Assert.Empty(Assert.Single(store.InspectItems([item.Id], default)).Images);
+    }
+
+    [Fact]
+    public void RemoteOnlySelectionIsExplainedWithoutDownloadsOrGlobalInventory()
+    {
+        var item = new Person { Id = Guid.NewGuid(), ImageInfos = [new ItemImageInfo
+            { Type = ImageType.Primary, Path = "https://example.invalid/synthetic.jpg" }] };
+        _items.Add(item);
+        var store = CreateStore();
+        Assert.Empty(store.Inventory(default, [item.Id]));
+        Assert.Equal(0, _snapshotCalls);
+        Assert.Equal(1, store.GetInventorySummary()!.RemoteImages);
+        Assert.Equal(0, store.GetInventorySummary()!.ItemsWithoutImages);
+        var image = Assert.Single(Assert.Single(store.InspectItems([item.Id], default)).Images);
+        Assert.Equal("Remote", image.State);
+        Assert.Equal("People", image.Category);
+    }
+
+    [Fact]
+    public void InspectionDistinguishesReadyWebpMissingExternalAndAbsentItems()
+    {
+        var ready = PersonWithImage(Path.Combine(_root, "metadata", "ready.jpg"));
+        var webp = PersonWithImage(Path.Combine(_root, "metadata", "current.webp"));
+        var missing = new Person { Id = Guid.NewGuid(), ImageInfos = [new ItemImageInfo
+            { Type = ImageType.Primary, Path = Path.Combine(_root, "absent.jpg") }] };
+        _items.Add(missing);
+        var external = PersonWithImage(Path.Combine(_root, "media", "external.png"));
+        var absent = Guid.NewGuid();
+        var result = CreateStore().InspectItems([ready.Id, webp.Id, missing.Id, external.Id, absent], default);
+        Assert.Equal(new[] { "Ready", "AlreadyWebp", "Missing", "Excluded" }, result.Take(4).Select(item => Assert.Single(item.Images).State));
+        Assert.False(result.Last().Found);
+        Assert.Empty(result.Last().Images);
+        Assert.Equal(0, _snapshotCalls);
+    }
+
+    [Fact]
     public void LegacyPeopleArtworkIsEligibleOutsideTheCurrentCanonicalItemDirectory()
     {
         var item = PersonWithImage(Path.Combine(_root, "metadata", "People", "E", "Example Person", "folder.jpg"));
@@ -98,7 +146,7 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
         _items.Add(owned);
         _snapshotIds = [selected.Id, .. Enumerable.Range(0, 499).Select(_ => Guid.NewGuid()), owned.Id];
         Assert.Empty(CreateStore().Inventory(default, [selected.Id]));
-        Assert.Equal(new[] { 500, 1 }, _requestedBatches.Select(b => b.Length));
+        Assert.Equal(new[] { 1, 500, 1 }, _requestedBatches.Select(b => b.Length));
     }
 
     [Fact]

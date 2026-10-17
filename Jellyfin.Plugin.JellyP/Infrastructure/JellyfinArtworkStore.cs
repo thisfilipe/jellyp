@@ -22,6 +22,42 @@ public sealed class JellyfinArtworkStore(ILibraryManager library, IProviderManag
     public InventorySummary? GetInventorySummary() => _inventorySummary;
 
     /// <inheritdoc />
+    public IReadOnlyList<ItemArtworkInspection> InspectItems(IReadOnlyCollection<Guid> itemIds, CancellationToken cancellationToken)
+    {
+        var ids = itemIds.Distinct().ToArray();
+        var items = new Dictionary<Guid, BaseItem>();
+        foreach (var batch in ids.Chunk(500))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var item in ReadItems(batch)) items[item.Id] = item;
+        }
+        var results = new List<ItemArtworkInspection>();
+        foreach (var id in ids)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var item = items.GetValueOrDefault(id);
+            var images = new List<ArtworkImageInspection>();
+            if (item is not null)
+            {
+                foreach (var group in item.ImageInfos.GroupBy(image => image.Type))
+                {
+                    var index = 0;
+                    foreach (var image in group)
+                    {
+                        var reference = new ArtworkReference(id, group.Key, index, image.Path, item is Person);
+                        var state = !image.IsLocalFile ? "Remote" : !File.Exists(image.Path) ? "Missing"
+                            : !IsEligible(item, reference) ? "Excluded"
+                            : Path.GetExtension(image.Path).Equals(".webp", StringComparison.OrdinalIgnoreCase) ? "AlreadyWebp" : "Ready";
+                        images.Add(new ArtworkImageInspection(group.Key, index++, item is Person ? "People" : group.Key.ToString(), state));
+                    }
+                }
+            }
+            results.Add(new ItemArtworkInspection(id, item?.Name, item?.GetType().Name, item?.ProductionYear, item is not null, images));
+        }
+        return results;
+    }
+
+    /// <inheritdoc />
     public void EnsureIdle(Guid? itemId = null)
     {
         if (library.IsScanRunning)
@@ -53,6 +89,24 @@ public sealed class JellyfinArtworkStore(ILibraryManager library, IProviderManag
         var scope = includedLibraryIds is null ? null : ResolveLibraryItems(includedLibraryIds, cancellationToken);
         var summary = new InventorySummary();
         _inventorySummary = summary;
+        // A selected item without usable local images cannot participate in a write.
+        // Avoid a global reference pass in that case; any candidate still requires the full pass below.
+        if (includedItemIds is { Count: > 0 })
+        {
+            var inspection = InspectItems(includedItemIds, cancellationToken)
+                .Where(item => scope is null || scope.Contains(item.ItemId)).ToArray();
+            if (inspection.All(item => item.Images.All(image => image.State is not ("Ready" or "AlreadyWebp"))))
+            {
+                summary.TotalItems = inspection.Length;
+                summary.MatchedItems = inspection.Count(item => item.Found);
+                summary.ItemsWithoutImages = inspection.Count(item => item.Found && item.Images.Count == 0);
+                summary.RemoteImages = inspection.Sum(item => item.Images.Count(image => image.State == "Remote"));
+                summary.LocalImages = inspection.Sum(item => item.Images.Count(image => image.State != "Remote"));
+                summary.ExcludedImages = summary.LocalImages;
+                inventoryProgress?.Invoke(inspection.Length);
+                return [];
+            }
+        }
         var candidates = new List<ArtworkReference>();
         var referenceCounts = new Dictionary<string, int>(PathComparer);
         var totalReferences = 0;
@@ -65,6 +119,7 @@ public sealed class JellyfinArtworkStore(ILibraryManager library, IProviderManag
                 var inScope = (scope is null || scope.Contains(item.Id))
                     && (includedItemIds is null || includedItemIds.Count == 0 || includedItemIds.Contains(item.Id));
                 if (inScope) summary.MatchedItems++;
+                if (inScope && item.ImageInfos.Length == 0) summary.ItemsWithoutImages++;
                 foreach (var group in item.ImageInfos.GroupBy(i => i.Type))
                 {
                     var index = 0;
@@ -85,6 +140,7 @@ public sealed class JellyfinArtworkStore(ILibraryManager library, IProviderManag
                                 else summary.ExcludedImages++;
                             }
                         }
+                        else if (inScope) summary.RemoteImages++;
 
                         index++;
                     }
@@ -176,17 +232,19 @@ public sealed class JellyfinArtworkStore(ILibraryManager library, IProviderManag
         foreach (var batch in ids.Chunk(batchSize))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            yield return library.GetItemList(new InternalItemsQuery
-            {
-                ItemIds = batch,
-                IncludeOwnedItems = true,
-                GroupByPresentationUniqueKey = false,
-                EnableTotalRecordCount = false,
-                DtoOptions = InventoryOptions(),
-            });
+            yield return ReadItems(batch);
             // Unknown types can disappear during hydration; continue from snapshot IDs regardless.
         }
     }
+
+    private IReadOnlyList<BaseItem> ReadItems(Guid[] ids) => library.GetItemList(new InternalItemsQuery
+    {
+        ItemIds = ids,
+        IncludeOwnedItems = true,
+        GroupByPresentationUniqueKey = false,
+        EnableTotalRecordCount = false,
+        DtoOptions = InventoryOptions(),
+    });
 
     /// <inheritdoc />
     public string GetDestination(ArtworkReference reference, string mimeType)

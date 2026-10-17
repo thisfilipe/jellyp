@@ -82,6 +82,24 @@ const categories = ['People','Primary','Thumb','Logo','Backdrop','Art','Banner',
 const categoryNames = { People:'People', Primary:'Covers', Thumb:'Thumbnails', Logo:'Logos', Backdrop:'Backgrounds', Art:'Clear art', Banner:'Banners', Disc:'Discs', Box:'Boxes', BoxRear:'Back of boxes', Menu:'Menus' };
 const categoryHelp = { People:'Photos on person pages; this takes priority over the image type.',Primary:'Main cover for movies, shows, albums and other library items.',Thumb:'Landscape thumbnails used in lists and recommendations.',Logo:'Transparent title and studio logos.',Backdrop:'Background images behind item pages.',Art:'Transparent decorative artwork.',Banner:'Wide promotional banners.',Disc:'Disc artwork for albums or movies.',Box:'Front box artwork.',BoxRear:'Rear box artwork.',Menu:'Artwork used by menus.' };
 const pt = {
+  "Checking registered images…": "Verificando imagens cadastradas…",
+  "This item has no images registered in Jellyfin. Choose an item with its own local artwork; JellyP does not download missing images.": "Este item não tem imagens cadastradas no Jellyfin. Escolha um item com imagens locais próprias; o JellyP não baixa imagens ausentes.",
+  "No images of the checked types are registered on this item.": "Este item não tem imagens dos tipos marcados.",
+  "Item no longer available.": "O item não está mais disponível.",
+  "Image inspection unavailable. Simulation will show the inventory result.": "Não foi possível verificar as imagens agora. A simulação mostrará o resultado do inventário.",
+  "{count} preliminary local candidates": "{count} imagens locais pré-candidatas",
+  "{count} already WebP": "{count} já em WebP",
+  "{count} remote images (not downloaded)": "{count} imagens remotas (não serão baixadas)",
+  "{count} missing local files": "{count} arquivos locais ausentes",
+  "{count} excluded local images": "{count} imagens locais excluídas",
+  "Registered image types: {types}": "Tipos de imagem cadastrados: {types}",
+  "Preliminary candidates still require shared-reference, quality and savings checks during simulation.": "As pré-candidatas ainda passam pelas verificações de referências compartilhadas, qualidade e economia na simulação.",
+  "{count} matching items have no images registered in Jellyfin. Selecting an item does not download artwork.": "{count} itens correspondentes não têm imagens cadastradas no Jellyfin. Selecionar um item não baixa imagens.",
+  "{count} remote image references were left untouched; JellyP only converts existing local metadata artwork.": "{count} referências remotas foram mantidas; o JellyP só converte imagens locais já existentes no metadata.",
+  "Simulation finished: {count} images would convert. See the result below.": "Simulação concluída: {count} imagens seriam convertidas. Confira o resultado abaixo.",
+  "Conversion finished: {count} images converted. See the result below.": "Conversão concluída: {count} imagens convertidas. Confira o resultado abaixo.",
+  "Execution stopped. See the result below.": "Execução interrompida. Confira o resultado abaixo.",
+
   "Recent conversions": "Conversões recentes",
   "Choose libraries, preview the result, then configure automatic processing.": "Selecione bibliotecas, visualize o resultado e configure a automação.",
   "Interface language": "Idioma da interface",
@@ -321,7 +339,8 @@ const pt = {
 };
 let language = localStorage.getItem('jellyp-language') || ((document.documentElement.lang || navigator.language || 'en').toLowerCase().startsWith('pt') ? 'pt' : 'en');
 let configuration, lastStatus, selectedIds = [], dirty = false, visible = false, pollTimer, searchTimer, searchSequence = 0, operation = false, waitingForRun = null, refreshing = false;
-const itemNames = new Map();
+const itemNames = new Map(), itemInspections = new Map();
+let runNoticeId=null;
 let availableLibraries=[], selectedLibraryIds=[];
 const el = id => page.querySelector('#' + id);
 const t = (key, values = {}) => (language === 'pt' ? pt[key] || key : key).replace(/\{(\w+)\}/g, (match,key) => values[key] === undefined ? match : String(values[key]));
@@ -400,16 +419,43 @@ function renderLibraries() {
         container.append(field.container);
     });
 }
+function itemLabel(item,id) {
+    return [item?.Name||id,item?.ProductionYear,item?.Type||item?.ItemType,normalizeId(id).slice(-8)].filter(Boolean).join(' · ');
+}
+function inspectionText(item) {
+    if(!item)return t('Checking registered images…');
+    if(item.Unavailable)return t('Image inspection unavailable. Simulation will show the inventory result.');
+    if(!item.Found)return t('Item no longer available.');
+    if(!item.Images.length)return t('This item has no images registered in Jellyfin. Choose an item with its own local artwork; JellyP does not download missing images.');
+    const checked=new Set(Array.from(page.querySelectorAll('[data-policy-key="Enabled"]:checked')).map(input=>input.closest('[data-category]').dataset.category));
+    const selected=item.Images.filter(image=>checked.has(image.Category)), notes=[];
+    if(!selected.length)notes.push(t('No images of the checked types are registered on this item.'));
+    const states={Ready:'{count} preliminary local candidates',AlreadyWebp:'{count} already WebP',Remote:'{count} remote images (not downloaded)',Missing:'{count} missing local files',Excluded:'{count} excluded local images'};
+    Object.entries(states).forEach(([state,key])=>{const count=selected.filter(image=>image.State===state).length;if(count)notes.push(t(key,{count}));});
+    notes.push(t('Registered image types: {types}',{types:[...new Set(item.Images.map(image=>t(categoryNames[image.Category]||image.Category)))].join(', ')}));
+    return notes.join(' · ');
+}
+async function inspectItems(ids) {
+    const missing=[...new Set(ids.map(normalizeId))].filter(id=>!itemInspections.has(id));
+    for(let offset=0;offset<missing.length;offset+=100){const batch=missing.slice(offset,offset+100);
+        try {const response=await api('JellyP/Selection?ids='+batch.join(','));response.forEach(item=>{const id=normalizeId(item.ItemId);itemInspections.set(id,item);if(item.Found)itemNames.set(id,{Name:item.Name,Type:item.ItemType,ProductionYear:item.ProductionYear});});}
+        catch(_){batch.forEach(id=>itemInspections.set(id,{Unavailable:true}));}
+    }
+}
 function renderSelected() {
     const container=el('SelectedItems');container.replaceChildren();
     if(!selectedIds.length) { const empty=document.createElement('p');empty.className='fieldDescription';empty.textContent=t('Add at least one item for a restricted batch.');container.append(empty); }
-    selectedIds.forEach(id=>{const row=document.createElement('div');row.className='jp-selected';const title=document.createElement('span');title.textContent=itemNames.get(id)?.Name||id;row.append(title);const remove=actionButton(t('Remove'),()=>{selectedIds=selectedIds.filter(i=>i!==id);renderSelected();markDirty();});remove.dataset.editAction='true';remove.setAttribute('aria-label',t('Remove {name}',{name:title.textContent}));row.append(remove);container.append(row);});
+    selectedIds.forEach(id=>{const row=document.createElement('div');row.className='jp-selected';const body=document.createElement('div');
+        const title=document.createElement('span');title.textContent=itemLabel(itemNames.get(id),id);body.append(title);
+        const detail=document.createElement('p');detail.className='fieldDescription';detail.dataset.inspection='true';detail.dataset.inspectionId=id;detail.textContent=inspectionText(itemInspections.get(id));body.append(detail);row.append(body);
+        const remove=actionButton(t('Remove'),()=>{selectedIds=selectedIds.filter(i=>i!==id);renderSelected();markDirty();});remove.dataset.editAction='true';remove.setAttribute('aria-label',t('Remove {name}',{name:itemNames.get(id)?.Name||id}));row.append(remove);container.append(row);});
+    if(selectedIds.length){const note=document.createElement('p');note.className='fieldDescription';note.textContent=t('Preliminary candidates still require shared-reference, quality and savings checks during simulation.');container.append(note);}
 }
 async function resolveNames(ids) {
     const missing=[...new Set(ids.map(normalizeId))].filter(id=>!itemNames.has(id));if(!missing.length)return;
     try { for(let offset=0;offset<missing.length;offset+=100) {const response=await items({Ids:missing.slice(offset,offset+100).join(','),EnableImages:false,EnableUserData:false,Limit:100});(response.Items||[]).forEach(item=>itemNames.set(normalizeId(item.Id),item));} } catch (_) { /* Names are optional; stable IDs remain visible. */ }
 }
-function addItems(ids) { selectedIds=[...new Set([...selectedIds,...ids.map(normalizeId)])];renderSelected();markDirty();resolveNames(ids).then(()=>{if(visible)renderSelected();}); }
+function addItems(ids) { selectedIds=[...new Set([...selectedIds,...ids.map(normalizeId)])];renderSelected();markDirty();Promise.all([resolveNames(ids),inspectItems(ids)]).then(()=>{if(visible){renderSelected();updateControls();}}); }
 async function searchItems() {
     const sequence=++searchSequence, term=el('ItemSearch').value.trim();el('SearchResults').replaceChildren();
     if(term.length<2) {el('SearchState').textContent='';return;}
@@ -418,11 +464,12 @@ async function searchItems() {
         const result=await items({SearchTerm:term,Recursive:true,Limit:8,EnableImages:false,EnableUserData:false});
         if(sequence!==searchSequence||!visible)return;
         const found=(result.Items||[]).filter(item=>!selectedIds.includes(normalizeId(item.Id)));el('SearchState').textContent=found.length?t('Choose an item to add it.'):t('No matching items. You can also add an ID below.');
-        found.forEach(item=>{itemNames.set(normalizeId(item.Id),item);const button=actionButton(item.Name+' · '+item.Type,()=>{addItems([item.Id]);el('ItemSearch').value='';el('SearchResults').replaceChildren();el('SearchState').textContent='';});button.dataset.editAction='true';el('SearchResults').append(button);});
+        found.forEach(item=>{itemNames.set(normalizeId(item.Id),item);const button=actionButton(itemLabel(item,item.Id),()=>{addItems([item.Id]);el('ItemSearch').value='';el('SearchResults').replaceChildren();el('SearchState').textContent='';});button.dataset.editAction='true';el('SearchResults').append(button);});
     } catch(error) {if(sequence===searchSequence)el('SearchState').textContent=t('Search unavailable. Add an item ID below.');}
 }
 function updateControls() {
     if(!configuration)return;
+    page.querySelectorAll('[data-inspection-id]').forEach(node=>node.textContent=inspectionText(itemInspections.get(node.dataset.inspectionId)));
     const report=lastStatus?.LastRun, running=!!report?.Running||report?.Phase==='Queued';
     const busy=operation||running||!!waitingForRun, applying=el('Mode').value==='apply', automatic=el('Automation').value==='apply', permanent=el('Storage').value==='discard';
     el('WholeScope').hidden=el('Scope').value!=='all';el('ItemScope').hidden=el('Scope').value!=='items';el('LibraryScope').hidden=el('Scope').value!=='libraries';
@@ -493,6 +540,10 @@ function renderSamples(report) {
 function renderStatus(status) {
     lastStatus=status;const report=status.LastRun;
     if(waitingForRun&&normalizeId(report.ExecutionId)===normalizeId(waitingForRun.id))waitingForRun=null;
+    if(runNoticeId&&normalizeId(report.ExecutionId)===normalizeId(runNoticeId)&&['Completed','Failed','Cancelled'].includes(report.Phase)){
+        runNoticeId=null;itemInspections.clear();
+        message(report.Phase==='Failed'?(report.Message||t('Operation failed. Check the Jellyfin log for details.')):report.Phase==='Cancelled'?t('Execution stopped. See the result below.'):t(report.DryRun?'Simulation finished: {count} images would convert. See the result below.':'Conversion finished: {count} images converted. See the result below.',{count:report.DryRun?report.WouldConvert:report.Converted}),report.Phase==='Failed');
+    }
     const elapsed=report.StartedUtc?Math.max(0,Math.floor(((report.Running?Date.now():new Date(report.FinishedUtc||report.StartedUtc).getTime())-new Date(report.StartedUtc).getTime())/1000)):0;
     const phases={Queued:'Queued. Progress updates automatically.',Preparing:'Preparing execution…',Inventory:'Checking shared references: {count} items inspected…',WaitingForMetadata:'Waiting for library scans or metadata refreshes. Conversion resumes automatically; you can cancel this wait.',Processing:'Processing the selected batch…',Restoring:'Restoring original…',RetiringOriginals:'Verifying and removing stored originals…'};
     el('PhaseText').textContent=report.Running||report.Phase==='Queued'?t(phases[report.Phase]||'Working…',{count:report.InventoryItems||0}):report.FinishedUtc?t('Last batch: {mode} · {seconds}s',{mode:t(report.DryRun?'simulation':'application'),seconds:elapsed}):t('No batch has run yet. Start with a simulation.');
@@ -501,7 +552,7 @@ function renderStatus(status) {
     el('RunSummary').classList.toggle('jp-notice',report.Phase==='Failed');el('RunSummary').classList.toggle('jp-warning',report.Phase==='Failed');
     el('WouldConvertValue').textContent=String(report.WouldConvert||0);
     const inventory=report.Inventory, explanation=el('InventoryExplanation');explanation.hidden=!inventory||report.Running;
-    if(inventory){const notes=[];if(inventory.MatchedItems===0)notes.push(t('No matching items were found. Review the selected libraries or item IDs; a show ID selects that item only.'));
+    if(inventory){const notes=[];if(inventory.ItemsWithoutImages>0)notes.push(t('{count} matching items have no images registered in Jellyfin. Selecting an item does not download artwork.',{count:inventory.ItemsWithoutImages}));if(inventory.RemoteImages>0)notes.push(t('{count} remote image references were left untouched; JellyP only converts existing local metadata artwork.',{count:inventory.RemoteImages}));if(inventory.MatchedItems===0)notes.push(t('No matching items were found. Review the selected libraries or item IDs; a show ID selects that item only.'));
         if(inventory.AlreadyWebpImages>0)notes.push(t('{count} eligible images are already WebP and are not recompressed by regular optimization. Use policy synchronization if their originals were kept.',{count:inventory.AlreadyWebpImages}));
         notes.push(t('{matched} matching items · {local} local images · {shared} shared · {excluded} excluded',{matched:inventory.MatchedItems,local:inventory.LocalImages,shared:inventory.SharedImages,excluded:inventory.ExcludedImages}));explanation.textContent=notes.join(' ');}
     renderSamples(report);
@@ -524,7 +575,7 @@ function renderRecords(records) {
     });
 }
 async function refresh() {
-    if(refreshing)return;refreshing=true;updateControls();try {const status=await api('JellyP/Status');if(!visible)return;renderStatus(status);const ids=[...status.RecentRecords.map(r=>r.Source.ItemId),...(status.LastRun.Samples||[]).map(sample=>sample.ItemId)];await resolveNames([...ids,...selectedIds]);if(visible){renderRecords(status.RecentRecords);renderSamples(status.LastRun);renderSelected();}}catch(error){if(visible)message(errorText(error),true);}finally{refreshing=false;updateControls();}
+    if(refreshing)return;refreshing=true;updateControls();try {const status=await api('JellyP/Status');if(!visible)return;renderStatus(status);const ids=[...status.RecentRecords.map(r=>r.Source.ItemId),...(status.LastRun.Samples||[]).map(sample=>sample.ItemId)];await Promise.all([resolveNames([...ids,...selectedIds]),inspectItems(selectedIds)]);if(visible){renderRecords(status.RecentRecords);renderSamples(status.LastRun);renderSelected();}}catch(error){if(visible)message(errorText(error),true);}finally{refreshing=false;updateControls();}
 }
 function schedulePoll() { clearTimeout(pollTimer);if(!visible||document.hidden)return;pollTimer=setTimeout(async()=>{await refresh();schedulePoll();},lastStatus?.LastRun.Running||waitingForRun?2000:10000); }
 async function run(synchronize) {
@@ -533,7 +584,7 @@ async function run(synchronize) {
     await save(synchronize?'sync':'run');
     const receipt=await ApiClient.ajax({type:'POST',url:ApiClient.getUrl('JellyP/'+(synchronize?'Sync':'Run'),{dryRun:!applying}),dataType:'json'});
     if(!receipt?.ExecutionId)throw new Error(t('Operation failed. Check the Jellyfin log for details.'));
-    waitingForRun={id:receipt.ExecutionId};message(t('Queued. Progress updates automatically.'));await refresh();schedulePoll();
+    runNoticeId=receipt.ExecutionId;waitingForRun={id:receipt.ExecutionId};message(t('Queued. Progress updates automatically.'));await refresh();schedulePoll();
 }
 async function refreshTasks() {
     try {const tasks=(await api('ScheduledTasks')).filter(task=>task.Category==='JellyP');const container=el('NativeTasks');container.replaceChildren();
@@ -542,8 +593,8 @@ async function refreshTasks() {
 }
 
 page.addEventListener('viewshow',async()=>{
-    visible=true;el('Language').value=language;translate();Dashboard.showLoadingMsg();
-    try {const [config,plugins,libraries]=await Promise.all([ApiClient.getPluginConfiguration(pluginId),api('Plugins'),api('Library/VirtualFolders').catch(()=>[])]);availableLibraries=libraries.filter(library=>library.ItemId);if(!visible)return;populate(config);const plugin=plugins.find(p=>normalizeId(p.Id)===normalizeId(pluginId));el('JellyPVersion').textContent=plugin?'v'+plugin.Version:'';await resolveNames(selectedIds);renderSelected();await refresh();await refreshTasks();}catch(error){message(errorText(error),true);}finally{Dashboard.hideLoadingMsg();schedulePoll();}
+    visible=true;itemInspections.clear();el('Language').value=language;translate();Dashboard.showLoadingMsg();
+    try {const [config,plugins,libraries]=await Promise.all([ApiClient.getPluginConfiguration(pluginId),api('Plugins'),api('Library/VirtualFolders').catch(()=>[])]);availableLibraries=libraries.filter(library=>library.ItemId);if(!visible)return;populate(config);const plugin=plugins.find(p=>normalizeId(p.Id)===normalizeId(pluginId));el('JellyPVersion').textContent=plugin?'v'+plugin.Version:'';await Promise.all([resolveNames(selectedIds),inspectItems(selectedIds)]);renderSelected();await refresh();await refreshTasks();}catch(error){message(errorText(error),true);}finally{Dashboard.hideLoadingMsg();schedulePoll();}
 });
 page.addEventListener('viewhide',()=>{visible=false;clearTimeout(pollTimer);clearTimeout(searchTimer);searchSequence++;});
 document.addEventListener('visibilitychange',()=>{if(visible){if(!document.hidden)refresh().then(schedulePoll);else clearTimeout(pollTimer);}});
@@ -554,7 +605,7 @@ el('Save').addEventListener('click',()=>perform(async()=>{await save('save');mes
 el('SaveAutomation').addEventListener('click',()=>perform(async()=>{await save('save');message(t('Settings saved. Manual run mode did not change scheduled processing.'));}));
 el('Run').addEventListener('click',()=>perform(()=>run(false)));
 el('Sync').addEventListener('click',()=>perform(()=>run(true)));
-el('Refresh').addEventListener('click',()=>refresh());
+el('Refresh').addEventListener('click',()=>{itemInspections.clear();refresh();});
 el('Cancel').addEventListener('click',()=>perform(async()=>{await api('JellyP/Cancel','POST');message(t('Stop requested. The current image transaction will finish safely.'));await refresh();}));
 el('Retire').addEventListener('click',()=>perform(async()=>{if(!window.confirm(t('Permanently delete all verified stored originals? About {bytes} of backup bytes are stored. Their images cannot be restored afterwards.',{bytes:bytes(lastStatus.RetainedBackupBytes)})))return;message(t('Verifying converted images before removing their originals…'));await api('JellyP/Backups/Retire?olderThanDays=0','POST');message(t('Verified stored originals removed. Uncertain originals were kept.'));await refresh();}));
 el('ItemSearch').addEventListener('input',()=>{clearTimeout(searchTimer);searchSequence++;searchTimer=setTimeout(searchItems,350);});

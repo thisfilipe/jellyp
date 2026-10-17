@@ -87,3 +87,13 @@ newly selected types use normal optimization.
 
 See [supported scope](../README.md#supported-scope-and-limits) and
 [recovery](RECOVERY.md).
+
+## Registered images before execution
+
+Exact item selections now show year/type/short ID and a read-only inspection of
+registered image types. Items without artwork, absent checked types, remote
+references, already-WebP, missing and excluded local files are explained before
+running. Preliminary candidates still need global shared-reference, quality and
+savings checks. JellyP does not download missing artwork. Refresh status to repeat
+inspection after external image changes. If no selected item has a usable local
+candidate, the run avoids global inventory; actual candidates retain that check.
