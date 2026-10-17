@@ -70,6 +70,14 @@ public sealed class RunReport
     public Dictionary<string, int> SkipReasons { get; set; } = new();
 }
 
+/// <summary>A scan position bound to its selection and effective conversion policies.</summary>
+internal sealed class ScanCursor
+{
+    public int Version { get; set; } = 1;
+    public string ContextFingerprint { get; set; } = string.Empty;
+    public string LastKey { get; set; } = string.Empty;
+}
+
 /// <summary>Administrator status including honest net storage accounting.</summary>
 public sealed record OptimizerStatus(RunReport LastRun, long RetainedBackupBytes, long VerifiedSavingsBytes,
     long NetReclaimedBytes, IReadOnlyList<MigrationRecord> RecentRecords, int PendingRecovery);

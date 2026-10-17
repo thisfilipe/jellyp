@@ -16,7 +16,9 @@ https://raw.githubusercontent.com/thisfilipe/jellyp/catalog/manifest.json
 
 Open **Catalog**, choose **JellyP**, install the compatible version, then restart
 Jellyfin during an idle window. Open **Dashboard → Plugins → JellyP → Settings**.
-Changes start disabled, with dry run enabled and no task schedule.
+The page starts in **Simulate** mode, with retained originals and no task schedule.
+Choose **Português (Brasil)** or **English** using its language selector.
+[Usage guide](docs/USAGE.md) · [Guia em português](docs/USAGE.pt-BR.md).
 
 [Releases](https://github.com/thisfilipe/jellyp/releases) include the ZIP and SHA256
 for manual installation. This is a third-party repository; adding it does not
@@ -39,8 +41,10 @@ add JellyP to Jellyfin's official repository. See Jellyfin's
   preservation to permanently remove each original **after** the output and
   Jellyfin reference verify. A transient recovery copy is always required until
   verification succeeds.
-- Limit a canary using item IDs and a batch size of one. An empty ID list means
-  the whole library, still subject to category selection and batch limits.
+- Select **Only selected items**, search by name or paste Jellyfin details links,
+  and start with a batch of one. An empty selection in this mode blocks running;
+  **Whole library** must be selected explicitly. Selection is by individual item,
+  not recursively by every descendant of a selected series or folder.
 
 Defaults are deliberately inactive: **dry run on, artwork changes off, no task
 schedule, original preservation on, no resizing**. Global quality is 85; minimum
@@ -52,29 +56,34 @@ gate. A rejected candidate leaves its source unchanged.
 
 After installing, open **Dashboard → Plugins → JellyP → Settings**.
 
-1. Select categories and global or per-category settings. Enter the item IDs of
-   a small canary and set a small batch size. Save and run a dry-run batch.
-2. Review savings and skip reasons. To apply, enable artwork changes, turn off
-   dry run and confirm a maintenance window with uploads/refreshes paused.
-3. Run the next batch. Repeat to resume. Cancellation takes effect between
-   complete image transactions. Progress and errors also appear under
-   **Dashboard → Scheduled Tasks → JellyP**.
-4. Inspect the images in Jellyfin. Use **Restore original** on a transaction to
-   undo it. If preserving originals, the rollback budget eventually stops
-   further writes until verified originals are retired or the budget increases.
-5. **Retire all verified originals** releases backup storage permanently.
-   Alternatively configure a retention period; expiration is processed at the
-   start of an applying optimization run. Zero days means manual retirement.
-6. Clear the maintenance confirmation when finished. Configure a task schedule
-   only for an appropriate idle maintenance window.
+1. **Select images:** choose individual items or the whole library, then check
+   image types. Expand **Settings for this type** only for individual overrides.
+2. **Choose quality and storage:** keep dimensions unless downscaling is wanted.
+   Retained originals support restoration and policy changes but initially use
+   additional space. Removing originals is permanent after verification.
+3. **Simulate or apply:** start in **Simulate**, then **Simulate next batch**.
+   The button saves current settings before queuing; **Save settings** only saves.
+4. Review automatic progress, savings and skip reasons. Choose **Apply**, pause
+   uploads/metadata refreshes, confirm the maintenance window and, when removing
+   originals, acknowledge permanence. **Convert next batch** applies a small batch.
+5. Repeat the batch button to continue. **Stop after current image** finishes
+   the current transaction safely. Changing selected items, enabled types or
+   effective encoding settings restarts that mode's pass. Preview and apply
+   positions are independent. Disabled types do not consume the batch limit.
+6. Inspect images. **Restore original** reverses a retained transaction;
+   **Remove verified stored originals…** permanently releases backup storage.
+   Expiration can also be configured in advanced settings; zero days keeps them
+   until manual removal. Expiration runs at the start of an applying batch.
+7. Return to **Simulate** and save when maintenance ends. No schedule is created
+   by the page; Jellyfin Scheduled Tasks uses the saved execution settings.
 
 Both the optimizer and synchronization task process existing and subsequently
 saved artwork. They do not intercept a download before Jellyfin saves it.
 
 ## Synchronizing changed policies
 
-Change a selected category's policy, save, then run **Sync policies from
-preserved originals**. Dry run previews this operation too.
+Change a selected category's policy, save, then run **Sync changed quality
+settings**. The selected Simulate/Apply mode applies to synchronization too.
 
 JellyP compares a fingerprint of the effective encoding settings, verifies that
 current artwork still matches its journal and reads the preserved original. It
@@ -142,15 +151,15 @@ dotnet test JellyP.slnx --configuration Release --no-build --no-restore
 python3 scripts/package.py
 ```
 
-The local archive is `artifacts/JellyP_0.1.0.0.zip` with a SHA256 file. It contains
+The local archive is `artifacts/JellyP_0.2.0.0.zip` with a SHA256 file. It contains
 only the plugin DLL, `meta.json` and license. Jellyfin supplies its matching
 SkiaSharp 3.119.4 managed/native stack. No server or duplicate native dependencies
-are bundled. A WebP codec probe runs before any scan. The package script builds locally; the trusted tag workflow publishes releases
+are bundled. A WebP codec probe runs before any scan. The package script packages the local Release build; the trusted tag workflow publishes releases
 and updates the catalog after checking their assets. See
 [releasing](docs/RELEASING.md).
 
 Stop Jellyfin during installation, extract the archive to
-`<Jellyfin data>/plugins/JellyP_0.1.0.0/`, ensure ownership matches the server,
+`<Jellyfin data>/plugins/JellyP_0.2.0.0/`, ensure ownership matches the server,
 then restart and verify the plugin is active. Back up the server first. Do not
 restart during playback or another maintenance task. For uninstall and retained
 originals, follow [recovery instructions](docs/RECOVERY.md).

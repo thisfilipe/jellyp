@@ -1,7 +1,8 @@
 # Contributing
 
 Bug reports, documentation fixes and focused pull requests are welcome. Use English
-for repository discussions and documentation. Be respectful, explain disagreements
+for repository discussions and primary documentation; localized usage guides and UI
+translations are welcome. Be respectful, explain disagreements
 with evidence, and avoid harassment or personal attacks.
 
 ## Before opening an issue

@@ -3,7 +3,8 @@
 
 Start a fresh Jellyfin 12.1 bound to 127.0.0.1:18096, with data/config/cache/logs
 under --root. Create .jellyp-smoke-root there explicitly. Run --phase install,
-restart that disposable process, then run --phase verify. No production support.
+restart that disposable process, then run --phase verify. To upgrade an older fixture, run --phase upgrade instead
+of install, restart, then verify; saved configuration must survive. No production support.
 """
 import argparse
 import json
@@ -15,7 +16,7 @@ import package
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--root', required=True, type=Path)
-parser.add_argument('--phase', required=True, choices=('install', 'verify'))
+parser.add_argument('--phase', required=True, choices=('install', 'upgrade', 'verify'))
 args = parser.parse_args()
 root = args.root.resolve()
 if not (root / '.jellyp-smoke-root').is_file():
@@ -47,8 +48,14 @@ token = request('Users/AuthenticateByName', {'Username': 'jellyp-catalog-admin',
 assert Path(request('System/Info')['ProgramDataPath']).resolve() == root / 'data', 'Server does not match disposable root.'
 meta = package.metadata()
 plugin_id = meta['guid'].replace('-', '')
-if args.phase == 'install':
-    assert not any(p['Id'].replace('-', '') == plugin_id for p in request('Plugins'))
+if args.phase in ('install', 'upgrade'):
+    installed = [p for p in request('Plugins') if p['Id'].replace('-', '') == plugin_id]
+    if args.phase == 'install':
+        assert not installed
+    else:
+        assert any(p['Status'] == 'Active' and p['Version'] != meta['version'] for p in installed), 'Expected an older active plugin.'
+        previous = request('Plugins/' + meta['guid'] + '/Configuration')
+        (root / 'catalog-previous-settings.json').write_text(json.dumps(previous))
     url = f'https://raw.githubusercontent.com/{package.REPOSITORY}/catalog/manifest.json'
     request('Repositories', [{'Name': 'JellyP disposable validation', 'Url': url, 'Enabled': True}])
     found = next(p for p in request('Packages') if p['guid'].replace('-', '') == plugin_id)
@@ -61,13 +68,18 @@ if args.phase == 'install':
     assert installed['version'] == meta['version']
     print('Native Jellyfin catalog download, checksum and extraction passed. Restart this disposable process, then run --phase verify.')
 else:
-    plugin = next(p for p in request('Plugins') if p['Id'].replace('-', '') == plugin_id)
+    plugin = next(p for p in request('Plugins') if p['Id'].replace('-', '') == plugin_id and p['Version'] == meta['version'])
     assert plugin['Status'] == 'Active' and plugin['Version'] == meta['version']
     config = request('Plugins/' + meta['guid'] + '/Configuration')
-    assert not config['Enabled'] and config['DryRun'] and config['PreserveOriginals']
+    snapshot = root / 'catalog-previous-settings.json'
+    if snapshot.exists():
+        assert config == json.loads(snapshot.read_text()), 'Saved configuration changed during upgrade.'
+    else:
+        assert not config['Enabled'] and config['DryRun'] and config['PreserveOriginals']
     assert len(config['ImagePolicies']) == 11
     assert request('JellyP/Status')['PendingRecovery'] == 0
-    assert b'JellyPPolicies' in request('web/ConfigurationPage?name=jellyp')
+    page = request('web/ConfigurationPage?name=jellyp')
+    assert b'JellyPPolicies' in page and b'Execution mode' in page and b'PrepareEmergency' in page
     tasks = [t for t in request('ScheduledTasks') if t['Category'] == 'JellyP']
     assert len(tasks) == 2 and all(not t['Triggers'] for t in tasks)
     print('Catalog-installed plugin active after restart; configuration, embedded UI, recovery status and empty schedules verified.')

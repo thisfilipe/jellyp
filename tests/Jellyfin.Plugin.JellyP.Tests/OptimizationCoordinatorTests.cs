@@ -239,7 +239,201 @@ public sealed class OptimizationCoordinatorTests : IDisposable
         await Run();
         Assert.Equal(1, _store.SaveCalls);
         Assert.True(Assert.Single(_coordinator.GetStatus().RecentRecords).Source.IsPerson);
-        Assert.Equal(1, _coordinator.GetStatus().LastRun.SkipReasons["CategoryDisabled"]);
+        Assert.Equal(1, _coordinator.GetStatus().LastRun.InventoryImages);
+        Assert.Equal(1, _coordinator.GetStatus().LastRun.Examined);
+        Assert.Empty(_coordinator.GetStatus().LastRun.SkipReasons);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DisabledCategoriesNeverConsumeSelectedBatch(bool synchronize)
+    {
+        var unselected = _store.Add(itemId: ItemId(1));
+        var selected = _store.Add(isPerson: true, itemId: ItemId(2));
+        _store.Add(isPerson: true, itemId: ItemId(3));
+        if (synchronize) await Run();
+        var untouched = File.ReadAllBytes(_store.GetCurrent(unselected)!.Path);
+        _config.ImagePolicies.Single(p => p.Category == "Primary").Enabled = false;
+        _config.Quality = 60;
+        _config.MinimumSsim = 0;
+        _config.BatchSize = 1;
+
+        await _coordinator.RunAsync(new Progress<double>(), default, synchronize);
+
+        var report = _coordinator.GetStatus().LastRun;
+        Assert.Equal(2, report.InventoryImages);
+        Assert.Equal(1, report.Examined);
+        Assert.Equal(1, report.Converted);
+        Assert.Equal(0, report.Skipped);
+        Assert.Equal(selected.Key, report.Cursor);
+        Assert.Equal(untouched, File.ReadAllBytes(_store.GetCurrent(unselected)!.Path));
+    }
+
+    [Fact]
+    public async Task ChangingIncludedItemsRestartsBeforePreviousCursor()
+    {
+        var first = _store.Add(itemId: ItemId(1));
+        var second = _store.Add(itemId: ItemId(2));
+        var third = _store.Add(itemId: ItemId(3));
+        _config.DryRun = true;
+        _config.BatchSize = 1;
+        _config.IncludedItemIds = [second.ItemId, third.ItemId];
+        await Run();
+        Assert.Equal(second.Key, _coordinator.GetStatus().LastRun.Cursor);
+
+        _config.IncludedItemIds = [third.ItemId, first.ItemId, second.ItemId];
+        await Run();
+        Assert.Equal(first.Key, _coordinator.GetStatus().LastRun.Cursor);
+        Assert.Equal(0, _store.SaveCalls);
+    }
+
+    [Fact]
+    public async Task EnablingCategoryRestartsBeforePreviousCursor()
+    {
+        var first = _store.Add(itemId: ItemId(1));
+        var second = _store.Add(isPerson: true, itemId: ItemId(2));
+        _store.Add(isPerson: true, itemId: ItemId(3));
+        _config.DryRun = true;
+        _config.BatchSize = 1;
+        var primary = _config.ImagePolicies.Single(p => p.Category == "Primary");
+        primary.Enabled = false;
+        await Run();
+        Assert.Equal(second.Key, _coordinator.GetStatus().LastRun.Cursor);
+
+        primary.Enabled = true;
+        await Run();
+        Assert.Equal(first.Key, _coordinator.GetStatus().LastRun.Cursor);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ChangingEffectivePolicyRestartsCursor(bool categoryOverride)
+    {
+        var first = _store.Add(itemId: ItemId(1));
+        _store.Add(itemId: ItemId(2));
+        _store.Add(itemId: ItemId(3));
+        _config.DryRun = true;
+        _config.BatchSize = 1;
+        var policy = _config.ImagePolicies.Single(p => p.Category == "Primary");
+        policy.OverrideGlobal = categoryOverride;
+        await Run();
+        Assert.Equal(first.Key, _coordinator.GetStatus().LastRun.Cursor);
+
+        if (categoryOverride) policy.Quality = 60;
+        else _config.Quality = 60;
+        await Run();
+        Assert.Equal(first.Key, _coordinator.GetStatus().LastRun.Cursor);
+    }
+
+    [Fact]
+    public async Task BatchSizeAndAuthorizationChangesKeepCursor()
+    {
+        _store.Add(itemId: ItemId(1));
+        _store.Add(itemId: ItemId(2));
+        var third = _store.Add(itemId: ItemId(3));
+        _store.Add(itemId: ItemId(4));
+        _config.DryRun = true;
+        _config.BatchSize = 1;
+        await Run();
+
+        _config.Enabled = false;
+        _config.MaintenanceWindowConfirmed = false;
+        _config.BatchSize = 2;
+        await Run();
+        Assert.Equal(2, _coordinator.GetStatus().LastRun.Examined);
+        Assert.Equal(third.Key, _coordinator.GetStatus().LastRun.Cursor);
+        Assert.Equal(0, _store.SaveCalls);
+    }
+
+    [Fact]
+    public async Task ReorderedSelectionAndUnusedGlobalQualityKeepCursor()
+    {
+        var first = _store.Add(itemId: ItemId(1));
+        var second = _store.Add(itemId: ItemId(2));
+        var third = _store.Add(itemId: ItemId(3));
+        _config.DryRun = true;
+        _config.BatchSize = 1;
+        _config.IncludedItemIds = [first.ItemId, second.ItemId, third.ItemId];
+        foreach (var policy in _config.ImagePolicies) policy.Enabled = policy.Category == "Primary";
+        _config.ImagePolicies.Single(p => p.Category == "Primary").OverrideGlobal = true;
+        await Run();
+
+        _config.IncludedItemIds = [third.ItemId, first.ItemId, second.ItemId, first.ItemId];
+        _config.ImagePolicies = _config.ImagePolicies.Reverse().ToArray();
+        _config.Quality = 60;
+        await Run();
+        Assert.Equal(second.Key, _coordinator.GetStatus().LastRun.Cursor);
+    }
+
+    [Fact]
+    public async Task PreviewAndApplyMaintainIndependentCursors()
+    {
+        var first = _store.Add(itemId: ItemId(1));
+        var second = _store.Add(itemId: ItemId(2));
+        _store.Add(itemId: ItemId(3));
+        _config.BatchSize = 1;
+        _config.DryRun = true;
+        await Run();
+        Assert.Equal(first.Key, _coordinator.GetStatus().LastRun.Cursor);
+        _config.DryRun = false;
+        await Run();
+        Assert.Equal(first.Key, _coordinator.GetStatus().LastRun.Cursor);
+        Assert.Equal(first.Key, Assert.Single(_coordinator.GetStatus().RecentRecords).Source.Key);
+        _config.DryRun = true;
+        await Run();
+        Assert.Equal(second.Key, _coordinator.GetStatus().LastRun.Cursor);
+    }
+
+    [Fact]
+    public async Task LegacyStringCursorRestartsAndMigratesWithoutLosingJournal()
+    {
+        var converted = _store.Add(itemId: ItemId(1));
+        await Run();
+        var journal = Assert.Single(_coordinator.GetStatus().RecentRecords);
+        var first = _store.Add(itemId: ItemId(2));
+        var last = _store.Add(itemId: ItemId(3));
+        _config.DryRun = true;
+        _config.BatchSize = 1;
+        var cursorPath = Path.Combine(_root, "data", "optimize-cursor-preview.json");
+        DurableFiles.WriteJson(cursorPath, last.Key);
+
+        await Run();
+
+        Assert.Equal(first.Key, _coordinator.GetStatus().LastRun.Cursor);
+        Assert.Equal(journal.Id, Assert.Single(_coordinator.GetStatus().RecentRecords).Id);
+        Assert.EndsWith(".webp", _store.GetCurrent(converted)!.Path);
+        var cursor = DurableFiles.ReadJson<System.Text.Json.JsonElement>(cursorPath);
+        Assert.Equal(1, cursor.GetProperty("Version").GetInt32());
+        Assert.Equal(first.Key, cursor.GetProperty("LastKey").GetString());
+        Assert.NotEmpty(cursor.GetProperty("ContextFingerprint").GetString()!);
+    }
+
+    [Fact]
+    public async Task SyncPolicyAndUnchangedSettingChangesRestartSyncCursor()
+    {
+        var first = _store.Add(itemId: ItemId(1));
+        var second = _store.Add(itemId: ItemId(2));
+        _store.Add(itemId: ItemId(3));
+        await Run();
+        _config.DryRun = true;
+        _config.BatchSize = 1;
+        await _coordinator.RunAsync(new Progress<double>(), default, synchronize: true);
+        Assert.Equal(first.Key, _coordinator.GetStatus().LastRun.Cursor);
+        Assert.Equal(1, _coordinator.GetStatus().LastRun.SkipReasons["PolicyUnchanged"]);
+
+        _config.SyncUnchangedPolicies = true;
+        await _coordinator.RunAsync(new Progress<double>(), default, synchronize: true);
+        Assert.Equal(first.Key, _coordinator.GetStatus().LastRun.Cursor);
+        Assert.Empty(_coordinator.GetStatus().LastRun.SkipReasons);
+        await _coordinator.RunAsync(new Progress<double>(), default, synchronize: true);
+        Assert.Equal(second.Key, _coordinator.GetStatus().LastRun.Cursor);
+
+        _config.Quality = 60;
+        await _coordinator.RunAsync(new Progress<double>(), default, synchronize: true);
+        Assert.Equal(first.Key, _coordinator.GetStatus().LastRun.Cursor);
+        Assert.Equal(3, _store.SaveCalls);
     }
 
     [Fact]
@@ -407,6 +601,7 @@ public sealed class OptimizationCoordinatorTests : IDisposable
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
     private Task Run() => _coordinator.RunAsync(new Progress<double>(), default);
+    private static Guid ItemId(int value) => Guid.Parse($"00000000-0000-0000-0000-{value:D12}");
 
     private sealed class FakeArtworkStore(string root) : IArtworkStore
     {
@@ -416,9 +611,9 @@ public sealed class OptimizationCoordinatorTests : IDisposable
         public bool Busy { get; set; }
         public bool FailNextSaveBeforeReference { get; set; }
         public bool WritePartialOutput { get; set; }
-        public ArtworkReference Add(bool isPerson = false)
+        public ArtworkReference Add(bool isPerson = false, Guid? itemId = null)
         {
-            var reference = new ArtworkReference(Guid.NewGuid(), ImageType.Primary, 0, Path.Combine(root, Guid.NewGuid().ToString("N"), "poster.png"), isPerson);
+            var reference = new ArtworkReference(itemId ?? Guid.NewGuid(), ImageType.Primary, 0, Path.Combine(root, Guid.NewGuid().ToString("N"), "poster.png"), isPerson);
             Directory.CreateDirectory(Path.GetDirectoryName(reference.Path)!);
             using var bitmap = new SKBitmap(512, 512);
             var random = new Random(42);

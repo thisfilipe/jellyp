@@ -1,136 +1,465 @@
 <!DOCTYPE html>
-<html><head><title>JellyP</title></head><body>
-<div id="JellyPConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+<html><head><meta charset="utf-8"><title>JellyP</title></head><body>
+<div id="JellyPConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+<style>
+#JellyPConfigPage .content-primary { max-width:86em; }
+#JellyPConfigPage #JellyPForm { max-width:none; }
+#JellyPConfigPage [hidden] { display:none !important; }
+#JellyPConfigPage .jp-header { max-width:none;display:flex;justify-content:space-between;align-items:start;gap:1em;flex-wrap:wrap; }
+#JellyPConfigPage .jp-language { width:12em; }
+#JellyPConfigPage .jp-grid { max-width:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,25em),1fr));gap:1.5em;align-items:start; }
+#JellyPConfigPage .jp-panel { padding:1.25em;margin:0 0 1.5em;border-radius:.3em;min-width:0; }
+#JellyPConfigPage .jp-panel h2,#JellyPConfigPage .jp-panel h3 { margin-top:0; }
+#JellyPConfigPage .jp-panel .inputContainer,#JellyPConfigPage .jp-panel .selectContainer { margin-bottom:1.25em; }
+#JellyPConfigPage .jp-notice { border-inline-start:3px solid #00a4dc;padding:.8em 1em;margin:1em 0;line-height:1.5; }
+#JellyPConfigPage .jp-warning { border-color:#de9a30; }
+#JellyPConfigPage .jp-actions { display:flex;flex-wrap:wrap;gap:.65em;align-items:center;margin:1em 0; }
+#JellyPConfigPage .jp-actions .emby-button { margin:0;white-space:normal; }
+#JellyPConfigPage #PrepareEmergency { white-space:normal;max-width:100%; }
+#JellyPConfigPage .jp-policy { border-top:1px solid rgba(128,128,128,.25);padding:.9em 0; }
+#JellyPConfigPage .jp-policy .checkboxContainer { margin-bottom:.35em; }
+#JellyPConfigPage .jp-policy-body { padding:.75em 0 .2em 1.5em; }
+#JellyPConfigPage .jp-policy-summary { margin:.4em 0 .4em 2em; }
+#JellyPConfigPage details > summary { cursor:pointer;padding:.75em 0;font-weight:600; }
+#JellyPConfigPage details > .jp-details { padding:.8em 0; }
+#JellyPConfigPage .jp-columns { display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13em),1fr));gap:0 1.5em; }
+#JellyPConfigPage .jp-metrics { display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,12em),1fr));gap:1em;margin:1em 0; }
+#JellyPConfigPage .jp-metric { border:1px solid rgba(128,128,128,.25);border-radius:.3em;padding:1em;min-width:0; }
+#JellyPConfigPage .jp-value { font-size:1.35em;font-weight:600;display:block;margin:.2em 0;overflow-wrap:anywhere; }
+#JellyPConfigPage .jp-record { padding:1em 0;border-top:1px solid rgba(128,128,128,.25);overflow-wrap:anywhere; }
+#JellyPConfigPage .jp-record h4 { margin:.2em 0; }
+#JellyPConfigPage .jp-selected { display:flex;justify-content:space-between;align-items:center;gap:1em;padding:.5em 0;overflow-wrap:anywhere; }
+#JellyPConfigPage .jp-selected .emby-button { flex-shrink:0; }
+#JellyPConfigPage .jp-search-results .emby-button { width:100%;text-align:start;margin:.25em 0;white-space:normal; }
+#JellyPConfigPage .jp-message { white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5; }
+#JellyPConfigPage .jp-small { font-size:.9em; }
+#JellyPConfigPage progress { width:100%;height:.5em;accent-color:#00a4dc; }
+#JellyPConfigPage code { overflow-wrap:anywhere; }
+@media(max-width:45em) { #JellyPConfigPage .jp-panel { padding:1em; } #JellyPConfigPage .jp-policy-body { padding-left:.5em; } }
+</style>
 <div data-role="content"><div class="content-primary">
-<h2>JellyP — Image Optimizer</h2>
-<p>Preview savings, then optimize internal library artwork in resumable batches. New downloads are processed on subsequent runs. Media-folder artwork, shared files and unsupported images are excluded.</p>
-<p>Originals remain in bounded rollback storage. Disk space is released when verified backups are retired. Retiring an original permanently ends rollback for that image.</p>
+<div class="jp-header"><div><h1>JellyP <small id="JellyPVersion" class="secondaryText jp-small"></small></h1><p data-i18n="Choose images, simulate the result, then apply a small batch." >Choose images, simulate the result, then apply a small batch.</p></div><div class="jp-language"><div class="selectContainer"><label class="selectLabel" for="Language" data-i18n="Interface language">Interface language</label><select is="emby-select" class="emby-select-withcolor emby-select" id="Language"><option value="pt" data-i18n="Português (Brasil)">Português (Brasil)</option><option value="en" data-i18n="English">English</option></select></div></div></div>
+<details id="QuickGuide"><summary><span data-i18n="Need to free space now? Start here." >Need to free space now? Start here.</span></summary><div class="jp-notice"><ol><li><span data-i18n="Choose the scope and image types. Start with a few items; an empty selection never silently means the whole library." >Choose the scope and image types. Start with a few items; an empty selection never silently means the whole library.</span></li><li><span data-i18n="For immediate savings, choose Remove originals after verification. Start with 25 images, quality 85 and original dimensions. This permanently ends restoration for those images." >For immediate savings, choose Remove originals after verification. Start with 25 images, quality 85 and original dimensions. This permanently ends restoration for those images.</span></li><li><span data-i18n="Simulate first. Review savings and skipped images. A simulation never changes artwork." >Simulate first. Review savings and skipped images. A simulation never changes artwork.</span></li><li><span data-i18n="Then choose Apply, pause uploads and metadata refreshes, confirm the window and run the next batch. Repeat to continue. When finished, return to Simulate and save." >Then choose Apply, pause uploads and metadata refreshes, confirm the window and run the next batch. Repeat to continue. When finished, return to Simulate and save.</span></li></ol><button is="emby-button" type="button" id="PrepareEmergency" class="raised" ><span data-i18n="Prepare a 25-image simulation without stored originals" >Prepare a 25-image simulation without stored originals</span></button><p class="fieldDescription"><span data-i18n="This shortcut only changes storage, batch size and execution mode. It keeps your scope, categories and quality settings. Nothing is saved or converted yet." >This shortcut only changes storage, batch size and execution mode. It keeps your scope, categories and quality settings. Nothing is saved or converted yet.</span></p></div></details>
+<p id="JellyPMessage" class="jp-message" role="status" aria-live="polite"></p>
 <form id="JellyPForm">
-<div class="checkboxContainer checkboxContainer-withDescription"><label><input is="emby-checkbox" type="checkbox" id="Enabled"><span>Enable artwork changes</span></label></div>
-<div class="checkboxContainer checkboxContainer-withDescription"><label><input is="emby-checkbox" type="checkbox" id="DryRun"><span>Dry run (estimate only)</span></label></div>
-<div class="checkboxContainer checkboxContainer-withDescription"><label><input is="emby-checkbox" type="checkbox" id="MaintenanceWindowConfirmed"><span>I have paused uploads and metadata refreshes for this maintenance window</span></label><div class="fieldDescription">Jellyfin has no shared image lock. Scans and queued refreshes block changes, but a simultaneous manual upload cannot be excluded. Clear this when maintenance ends.</div></div>
-<div class="inputContainer"><label class="inputLabel" for="Quality">WebP quality (0–100)</label><input is="emby-input" type="number" id="Quality" min="0" max="100" required></div>
-<div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" id="PreserveOriginals"><span>Preserve originals for rollback and policy synchronization</span></label><div class="fieldDescription">When unchecked, the temporary original is permanently removed after the image and its reference verify. Existing retained backups remain until explicitly retired.</div></div>
-<div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" id="Lossless"><span>Lossless WebP (quality 100 alone is still lossy)</span></label></div>
-<div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" id="ResizeImages"><span>Allow downscaling; disabled preserves dimensions</span></label></div>
-<div class="inputContainer"><label class="inputLabel" for="MaximumDimension">Longest edge when downscaling (256–8192 px)</label><input is="emby-input" type="number" id="MaximumDimension" min="256" max="8192" required></div>
-<div class="inputContainer"><label class="inputLabel" for="IncludedItemIds">Optional item IDs (comma-separated; empty means entire library)</label><input is="emby-input" type="text" id="IncludedItemIds"><div class="fieldDescription">Use item IDs from Jellyfin details URLs to limit a canary to named items.</div></div>
-<h3>Artwork categories</h3><p>Choose categories and optionally override global encoding settings. People applies to person items before the normal image type. Alpha is always verified exactly against the source at the output size.</p><div id="JellyPPolicies"></div>
-<div class="inputContainer"><label class="inputLabel" for="MinimumSsim">Minimum windowed luminance SSIM (0–1; 0.96 default)</label><input is="emby-input" type="number" step="0.001" id="MinimumSsim" min="0" max="1" required></div>
-<div class="inputContainer"><label class="inputLabel" for="MinimumSavingsRatio">Minimum fractional savings (0–0.9)</label><input is="emby-input" type="number" step="0.01" id="MinimumSavingsRatio" min="0" max="0.9" required></div>
-<div class="inputContainer"><label class="inputLabel" for="MinimumSavingsBytes">Minimum savings per image (bytes)</label><input is="emby-input" type="number" id="MinimumSavingsBytes" min="0" required></div>
-<div class="inputContainer"><label class="inputLabel" for="BatchSize">Images evaluated per run (1–10000)</label><input is="emby-input" type="number" id="BatchSize" min="1" max="10000" required></div>
-<div class="inputContainer"><label class="inputLabel" for="MinimumFreeSpaceBytes">Free-space reserve (bytes; default 2147483648, Jellyfin startup minimum 2 GiB)</label><input is="emby-input" type="number" id="MinimumFreeSpaceBytes" min="67108864" required></div>
-<div class="inputContainer"><label class="inputLabel" for="MaximumBackupBytes">Rollback backup budget (bytes, at least 33554432)</label><input is="emby-input" type="number" id="MaximumBackupBytes" min="33554432" required></div>
-<div class="inputContainer"><label class="inputLabel" for="BackupRetentionDays">Automatically retire verified originals after days (0 = retain until manually retired)</label><input is="emby-input" type="number" id="BackupRetentionDays" min="0" max="3650" required></div>
-<div class="checkboxContainer"><label><input is="emby-checkbox" type="checkbox" id="SyncUnchangedPolicies"><span>Policy sync also regenerates unchanged policies</span></label></div>
-<button is="emby-button" type="submit" class="raised button-submit block"><span>Save settings</span></button>
-</form>
-<p>Save settings before running. Tasks have no schedule by default; add a schedule under Dashboard → Scheduled Tasks after reviewing the preview.</p>
-<div><button is="emby-button" type="button" id="Run" class="raised">Run next batch</button> <button is="emby-button" type="button" id="Cancel" class="raised">Cancel after current image</button> <button is="emby-button" type="button" id="Sync" class="raised">Sync policies from preserved originals</button> <button is="emby-button" type="button" id="Refresh" class="raised">Refresh status</button></div>
-<p id="JellyPMessage" role="status"></p><pre id="JellyPStatus" style="white-space:pre-wrap"></pre>
-<h3>Rollback and recovery</h3><p>The most recent 100 transactions are listed below. Interrupted records must be recovered before applying more batches. To restore, save settings with artwork changes enabled, dry run off and the maintenance window confirmed. Each restore verifies the current slot and refuses to overwrite different artwork.</p><div id="JellyPRecords"></div>
-<h3>Release disk space</h3><p>This permanently deletes only originals whose converted artwork and reference still verify. Uncertain backups remain available. Rollback is unavailable after retirement.</p><button is="emby-button" type="button" id="Retire" class="raised">Retire all verified originals…</button>
+<div class="jp-grid">
+<section class="paperList jp-panel" aria-labelledby="ScopeHeading"><h2 id="ScopeHeading"><span data-i18n="1. Select images" >1. Select images</span></h2><div class="selectContainer"><label class="selectLabel" for="Scope" data-i18n="Scope">Scope</label><select is="emby-select" class="emby-select-withcolor emby-select" id="Scope"><option value="items" data-i18n="Only selected items">Only selected items</option><option value="all" data-i18n="Whole library">Whole library</option></select></div>
+<div id="WholeScope" class="jp-notice"><span data-i18n="All library items are in scope, limited to the image types selected below and the batch size. Media-folder artwork, shared paths and unsupported images stay excluded." >All library items are in scope, limited to the image types selected below and the batch size. Media-folder artwork, shared paths and unsupported images stay excluded.</span></div>
+<div id="ItemScope" hidden><div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="ItemSearch" data-i18n="Find an item">Find an item</label><input is="emby-input" id="ItemSearch" type="search" autocomplete="off"><div data-i18n="Search movies, shows, people or other library items. Select a result to add it." class="fieldDescription">Search movies, shows, people or other library items. Select a result to add it.</div></div><div id="SearchState" role="status" class="fieldDescription"></div><div id="SearchResults" class="jp-search-results"></div><div id="SelectedItems"></div>
+<details><summary><span data-i18n="Add by item ID or Jellyfin link" >Add by item ID or Jellyfin link</span></summary><div class="jp-details"><div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="ItemIds" data-i18n="Item IDs or details URLs">Item IDs or details URLs</label><input is="emby-input" id="ItemIds" type="text" autocomplete="off"><div data-i18n="Paste one or more IDs or Jellyfin details links." class="fieldDescription">Paste one or more IDs or Jellyfin details links.</div></div><div class="jp-actions"><button is="emby-button" type="button" id="AddItems" class="raised" ><span data-i18n="Add items" >Add items</span></button></div></div></details></div>
+<h3><span data-i18n="Image types" >Image types</span></h3><p class="fieldDescription"><span data-i18n="Only checked types are evaluated. Individual settings are optional; otherwise each type uses the global settings." >Only checked types are evaluated. Individual settings are optional; otherwise each type uses the global settings.</span></p><div id="JellyPPolicies"></div>
+</section>
+<section class="paperList jp-panel" aria-labelledby="EncodingHeading"><h2 id="EncodingHeading"><span data-i18n="2. Choose quality and storage" >2. Choose quality and storage</span></h2>
+<div class="selectContainer"><label class="selectLabel" for="Encoding" data-i18n="Encoding">Encoding</label><select is="emby-select" class="emby-select-withcolor emby-select" id="Encoding"><option value="lossy" data-i18n="Lossy WebP (smaller files)">Lossy WebP (smaller files)</option><option value="lossless" data-i18n="Lossless WebP (exact pixels)">Lossless WebP (exact pixels)</option></select><div data-i18n="Transparency is always checked exactly. Some files are skipped when safe conversion is not possible." class="fieldDescription">Transparency is always checked exactly. Some files are skipped when safe conversion is not possible.</div></div><div id="QualityField"><div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="Quality" data-i18n="WebP quality">WebP quality</label><input is="emby-input" id="Quality" type="number" min="0" max="100" step="1" required><div data-i18n="85 is a starting point. 100 is still lossy; choose Lossless for exact pixels." class="fieldDescription">85 is a starting point. 100 is still lossy; choose Lossless for exact pixels.</div></div></div><div class="checkboxContainer checkboxContainer-withDescription"><label class="emby-checkbox-label"><input is="emby-checkbox" type="checkbox" id="ResizeImages"><span data-i18n="Allow downscaling" >Allow downscaling</span></label><div data-i18n="Off keeps the original dimensions. Small images are never enlarged." class="fieldDescription checkboxFieldDescription">Off keeps the original dimensions. Small images are never enlarged.</div></div><div id="ResizeField" hidden><div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="MaximumDimension" data-i18n="Longest edge (pixels)">Longest edge (pixels)</label><input is="emby-input" id="MaximumDimension" type="number" min="256" max="8192" step="1" required><div data-i18n="Used only when downscaling is allowed." class="fieldDescription">Used only when downscaling is allowed.</div></div></div>
+<div class="selectContainer"><label class="selectLabel" for="Storage" data-i18n="Original images">Original images</label><select is="emby-select" class="emby-select-withcolor emby-select" id="Storage"><option value="keep" data-i18n="Keep originals">Keep originals</option><option value="discard" data-i18n="Remove originals after verification">Remove originals after verification</option></select></div><div id="StorageNotice" class="jp-notice"></div><div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="BatchSize" data-i18n="Images per batch">Images per batch</label><input is="emby-input" id="BatchSize" type="number" min="1" max="10000" step="1" required><div data-i18n="Only selected image types count. Start with 25; run another batch to continue." class="fieldDescription">Only selected image types count. Start with 25; run another batch to continue.</div></div>
+<details id="AdvancedSettings"><summary><span data-i18n="Advanced limits and quality filters" >Advanced limits and quality filters</span></summary><div class="jp-details"><div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="MinimumSsim" data-i18n="Minimum similarity (SSIM)">Minimum similarity (SSIM)</label><input is="emby-input" id="MinimumSsim" type="number" min="0" max="1" step="any" required><div data-i18n="Independent of encoder quality. Default 0.96. A lower encoding quality may be skipped by this filter; do not lower it without reviewing image quality." class="fieldDescription">Independent of encoder quality. Default 0.96. A lower encoding quality may be skipped by this filter; do not lower it without reviewing image quality.</div></div><div class="jp-columns"><div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="SavingsPercent" data-i18n="Minimum savings (%)">Minimum savings (%)</label><input is="emby-input" id="SavingsPercent" type="number" min="0" max="90" step="any" required></div> <div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="SavingsKiB" data-i18n="Minimum savings (KiB)">Minimum savings (KiB)</label><input is="emby-input" id="SavingsKiB" type="number" min="0" step="any" required></div></div><div class="jp-columns"><div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="ReserveGiB" data-i18n="Free-space reserve (GiB)">Free-space reserve (GiB)</label><input is="emby-input" id="ReserveGiB" type="number" min="0.0625" step="any" required><div data-i18n="Default 2 GiB. The batch stops before using this reserve. Lowering it does not free space." class="fieldDescription">Default 2 GiB. The batch stops before using this reserve. Lowering it does not free space.</div></div> <div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="QuotaMiB" data-i18n="Stored-original budget (MiB)">Stored-original budget (MiB)</label><input is="emby-input" id="QuotaMiB" type="number" min="32" step="any" required><div data-i18n="Stops further conversion when full. Default 512 MiB; verified originals can be removed below." class="fieldDescription">Stops further conversion when full. Default 512 MiB; verified originals can be removed below.</div></div></div><div class="inputContainer"><label class="inputLabel inputLabelUnfocused" for="BackupRetentionDays" data-i18n="Remove verified originals after days">Remove verified originals after days</label><input is="emby-input" id="BackupRetentionDays" type="number" min="0" max="3650" step="1" required><div data-i18n="0 keeps them until you explicitly remove them. Expiration is processed at the start of an applying optimization batch." class="fieldDescription">0 keeps them until you explicitly remove them. Expiration is processed at the start of an applying optimization batch.</div></div> <div class="checkboxContainer checkboxContainer-withDescription"><label class="emby-checkbox-label"><input is="emby-checkbox" type="checkbox" id="SyncUnchangedPolicies"><span data-i18n="Synchronization also regenerates unchanged policies" >Synchronization also regenerates unchanged policies</span></label><div data-i18n="Normally synchronization only regenerates images whose effective policy changed." class="fieldDescription checkboxFieldDescription">Normally synchronization only regenerates images whose effective policy changed.</div></div></div></details>
+</section></div>
+<section class="paperList jp-panel" aria-labelledby="RunHeading"><h2 id="RunHeading"><span data-i18n="3. Simulate or apply" >3. Simulate or apply</span></h2><div class="jp-columns"><div><div class="selectContainer"><label class="selectLabel" for="Mode" data-i18n="Execution mode">Execution mode</label><select is="emby-select" class="emby-select-withcolor emby-select" id="Mode"><option value="preview" data-i18n="Simulate (no image changes)">Simulate (no image changes)</option><option value="apply" data-i18n="Apply (convert images)">Apply (convert images)</option></select></div></div><div id="SelectionSummary" class="jp-notice"></div></div>
+<div id="MaintenanceField" hidden><div class="checkboxContainer checkboxContainer-withDescription"><label class="emby-checkbox-label"><input is="emby-checkbox" type="checkbox" id="Maintenance"><span data-i18n="Uploads and metadata refreshes are paused for this window" >Uploads and metadata refreshes are paused for this window</span></label><div data-i18n="Jellyfin cannot lock out a simultaneous manual upload. Scans and queued refreshes block applying." class="fieldDescription checkboxFieldDescription">Jellyfin cannot lock out a simultaneous manual upload. Scans and queued refreshes block applying.</div></div></div><div id="PermanentField" hidden><div class="checkboxContainer checkboxContainer-withDescription"><label class="emby-checkbox-label"><input is="emby-checkbox" type="checkbox" id="PermanentAck"><span data-i18n="I understand that removing originals permanently ends restoration" >I understand that removing originals permanently ends restoration</span></label><div data-i18n="This batch only removes each original after its converted image and Jellyfin reference verify." class="fieldDescription checkboxFieldDescription">This batch only removes each original after its converted image and Jellyfin reference verify.</div></div></div>
+<p class="fieldDescription"><span data-i18n="Save stores settings only. Running a batch first saves the displayed settings, then queues the task." >Save stores settings only. Running a batch first saves the displayed settings, then queues the task.</span></p><div class="jp-actions"><button is="emby-button" type="button" id="Save" class="raised" ><span data-i18n="Save settings" >Save settings</span></button> <button is="emby-button" type="button" id="Run" class="raised button-submit" ><span data-i18n="Simulate next batch" >Simulate next batch</span></button> <button is="emby-button" type="button" id="Cancel" class="raised" ><span data-i18n="Stop after current image" >Stop after current image</span></button> <button is="emby-button" type="button" id="Refresh" class="raised" ><span data-i18n="Refresh status" >Refresh status</span></button></div><span id="DirtyState" class="fieldDescription"></span>
+<p class="fieldDescription"><span data-i18n="No schedule is created here. Tasks in Jellyfin Scheduled Tasks use the saved execution mode and settings. Return to Simulate and save when maintenance ends." >No schedule is created here. Tasks in Jellyfin Scheduled Tasks use the saved execution mode and settings. Return to Simulate and save when maintenance ends.</span></p></section></form>
+<section class="paperList jp-panel" aria-labelledby="StatusHeading"><h2 id="StatusHeading"><span data-i18n="Progress and disk space" >Progress and disk space</span></h2><p id="PhaseText" role="status" aria-live="polite"></p><progress id="RunProgress" hidden></progress><p id="RunSummary"></p>
+<div class="jp-metrics"><div class="jp-metric"><span data-i18n="Image reduction in the last batch" >Image reduction in the last batch</span><strong id="SavingsValue" class="jp-value">—</strong></div><div class="jp-metric"><span data-i18n="Stored originals" >Stored originals</span><strong id="BackupsValue" class="jp-value">—</strong></div><div class="jp-metric"><span data-i18n="Net space reclaimed" >Net space reclaimed</span><strong id="NetValue" class="jp-value">—</strong></div></div>
+<p id="AccountingHelp" class="fieldDescription"></p><div id="RecoveryNotice" class="jp-notice jp-warning" hidden></div><div id="SkipReasons"></div>
+<details><summary><span data-i18n="Technical run details" >Technical run details</span></summary><pre id="TechnicalStatus" class="jp-message jp-small"></pre></details></section>
+<section class="paperList jp-panel" aria-labelledby="RecoveryHeading"><h2 id="RecoveryHeading"><span data-i18n="Restore or release stored originals" >Restore or release stored originals</span></h2><p><span data-i18n="To restore or delete stored originals, choose Apply mode and confirm the maintenance window above. Restoring does not queue another conversion batch." >To restore or delete stored originals, choose Apply mode and confirm the maintenance window above. Restoring does not queue another conversion batch.</span></p><div class="jp-actions"><button is="emby-button" type="button" id="Sync" class="raised" ><span data-i18n="Sync changed quality settings" >Sync changed quality settings</span></button> <button is="emby-button" type="button" id="Retire" class="raised" ><span data-i18n="Remove verified stored originals…" >Remove verified stored originals…</span></button></div><p class="fieldDescription"><span data-i18n="Synchronization uses stored originals to regenerate WebP after quality or size changes. Removing those originals frees space permanently and disables restoration and future original-based synchronization. The latest 100 transactions are listed below." >Synchronization uses stored originals to regenerate WebP after quality or size changes. Removing those originals frees space permanently and disables restoration and future original-based synchronization. The latest 100 transactions are listed below.</span></p><details id="HistoryDetails"><summary data-i18n="Recent conversions">Recent conversions</summary><div id="JellyPRecords"></div></details></section>
+</div></div>
 <script>
 (function () {
-    'use strict';
-    const pluginId = '0928e334-8971-4205-a455-f42a76527f9e';
-    const page = document.querySelector('#JellyPConfigPage');
-    const booleanFields = ['Enabled', 'DryRun', 'MaintenanceWindowConfirmed', 'PreserveOriginals', 'Lossless', 'ResizeImages', 'SyncUnchangedPolicies'];
-    const numberFields = ['Quality', 'MaximumDimension', 'MinimumSsim', 'MinimumSavingsRatio', 'MinimumSavingsBytes', 'BatchSize', 'MinimumFreeSpaceBytes', 'MaximumBackupBytes', 'BackupRetentionDays'];
-    let configuration;
-    function policies() {
-        const container = page.querySelector('#JellyPPolicies'); container.replaceChildren();
-        configuration.ImagePolicies.forEach((policy, index) => {
-            const section = document.createElement('fieldset');
-            section.style.marginBottom = '1em';
-            const legend = document.createElement('legend'); legend.textContent = policy.Category; section.append(legend);
-            [['Enabled', 'Process this category', 'checkbox'], ['OverrideGlobal', 'Override global settings', 'checkbox'], ['Quality', 'Quality (0–100)', 'number'], ['Lossless', 'Lossless', 'checkbox'], ['ResizeImages', 'Allow downscaling', 'checkbox'], ['MaximumDimension', 'Longest edge (256–8192 px)', 'number'], ['MinimumSsim', 'Minimum SSIM (0–1)', 'number']].forEach(([key, caption, type]) => {
-                const label = document.createElement('label'); label.style.display = 'block'; label.style.margin = '.5em 0';
-                const input = document.createElement('input'); input.type = type; input.dataset.policyIndex = String(index); input.dataset.policyKey = key;
-                if (type === 'checkbox') { input.checked = policy[key]; label.append(input, document.createTextNode(' ' + caption)); }
-                else {
-                    input.value = policy[key]; input.required = true;
-                    input.min = key === 'MaximumDimension' ? '256' : '0'; input.max = key === 'Quality' ? '100' : key === 'MaximumDimension' ? '8192' : '1'; input.step = key === 'MinimumSsim' ? '0.001' : '1';
-                    label.append(document.createTextNode(caption + ' '), input);
-                }
-                section.append(label);
-            });
-            container.append(section);
+'use strict';
+const page = document.querySelector('#JellyPConfigPage');
+if (page.dataset.jellypInitialized) return;
+page.dataset.jellypInitialized = 'true';
+const pluginId = '0928e334-8971-4205-a455-f42a76527f9e';
+const GiB = 1073741824, MiB = 1048576;
+const categories = ['People','Primary','Thumb','Logo','Backdrop','Art','Banner','Disc','Box','BoxRear','Menu'];
+const categoryNames = { People:'People', Primary:'Covers', Thumb:'Thumbnails', Logo:'Logos', Backdrop:'Backgrounds', Art:'Clear art', Banner:'Banners', Disc:'Discs', Box:'Boxes', BoxRear:'Back of boxes', Menu:'Menus' };
+const categoryHelp = { People:'Photos on person pages; this takes priority over the image type.',Primary:'Main cover for movies, shows, albums and other library items.',Thumb:'Landscape thumbnails used in lists and recommendations.',Logo:'Transparent title and studio logos.',Backdrop:'Background images behind item pages.',Art:'Transparent decorative artwork.',Banner:'Wide promotional banners.',Disc:'Disc artwork for albums or movies.',Box:'Front box artwork.',BoxRear:'Rear box artwork.',Menu:'Artwork used by menus.' };
+const pt = {
+  "Recent conversions": "Conversões recentes",
+  "Choose images, simulate the result, then apply a small batch.": "Escolha as imagens, simule o resultado e aplique um lote pequeno.",
+  "Interface language": "Idioma da interface",
+  "Need to free space now? Start here.": "Precisa liberar espaço agora? Comece por aqui.",
+  "Choose the scope and image types. Start with a few items; an empty selection never silently means the whole library.": "Escolha o escopo e os tipos de imagem. Comece com poucos itens; uma seleção vazia nunca muda silenciosamente para a biblioteca inteira.",
+  "For immediate savings, choose Remove originals after verification. Start with 25 images, quality 85 and original dimensions. This permanently ends restoration for those images.": "Para liberar espaço de imediato, escolha Remover originais após verificar. Comece com 25 imagens, qualidade 85 e dimensões originais. Isso elimina permanentemente a restauração dessas imagens.",
+  "Simulate first. Review savings and skipped images. A simulation never changes artwork.": "Simule primeiro. Confira a redução estimada e as imagens ignoradas. A simulação não altera as imagens.",
+  "Then choose Apply, pause uploads and metadata refreshes, confirm the window and run the next batch. Repeat to continue. When finished, return to Simulate and save.": "Depois escolha Aplicar, pause envios e atualizações de metadata, confirme a janela e execute o lote. Repita para continuar. Ao terminar, volte para Simular e salve.",
+  "Prepare a 25-image simulation without stored originals": "Preparar simulação de 25 imagens sem guardar originais",
+  "This shortcut only changes storage, batch size and execution mode. It keeps your scope, categories and quality settings. Nothing is saved or converted yet.": "O atalho só muda o armazenamento, o tamanho do lote e o modo de execução. Mantém o escopo, os tipos e a qualidade. Nada é salvo ou convertido ainda.",
+  "1. Select images": "1. Selecione as imagens",
+  "Scope": "Escopo",
+  "Only selected items": "Somente os itens selecionados",
+  "Whole library": "Biblioteca inteira",
+  "All library items are in scope, limited to the image types selected below and the batch size. Media-folder artwork, shared paths and unsupported images stay excluded.": "Todos os itens da biblioteca entram no escopo, respeitando os tipos abaixo e o tamanho do lote. Imagens na pasta da mídia, arquivos compartilhados e formatos incompatíveis ficam de fora.",
+  "Find an item": "Buscar um item",
+  "Search movies, shows, people or other library items. Select a result to add it.": "Busque filmes, séries, pessoas ou outros itens. Selecione um resultado para adicioná-lo.",
+  "Add by item ID or Jellyfin link": "Adicionar por ID ou link do Jellyfin",
+  "Item IDs or details URLs": "IDs ou links dos itens",
+  "Paste one or more IDs or Jellyfin details links.": "Cole um ou mais IDs ou links da página de detalhes do Jellyfin.",
+  "Add items": "Adicionar itens",
+  "Image types": "Tipos de imagem",
+  "Only checked types are evaluated. Individual settings are optional; otherwise each type uses the global settings.": "Só os tipos marcados serão avaliados. Ajustes individuais são opcionais; por padrão, cada tipo usa os ajustes globais.",
+  "2. Choose quality and storage": "2. Escolha a qualidade e o armazenamento",
+  "Encoding": "Codificação",
+  "Lossy WebP (smaller files)": "WebP com perdas (arquivos menores)",
+  "Lossless WebP (exact pixels)": "WebP sem perdas (pixels idênticos)",
+  "Transparency is always checked exactly. Some files are skipped when safe conversion is not possible.": "A transparência é sempre verificada de forma exata. Alguns arquivos são ignorados quando não é possível convertê-los com segurança.",
+  "WebP quality": "Qualidade do WebP",
+  "85 is a starting point. 100 is still lossy; choose Lossless for exact pixels.": "85 é um ponto de partida. 100 ainda tem perdas; escolha Sem perdas para pixels idênticos.",
+  "Allow downscaling": "Permitir redução das dimensões",
+  "Off keeps the original dimensions. Small images are never enlarged.": "Desmarcado mantém as dimensões originais. Imagens pequenas nunca são ampliadas.",
+  "Longest edge (pixels)": "Maior lado (pixels)",
+  "Used only when downscaling is allowed.": "Usado apenas quando a redução de dimensões está permitida.",
+  "Original images": "Imagens originais",
+  "Keep originals": "Guardar originais",
+  "Remove originals after verification": "Remover originais após verificar",
+  "Images per batch": "Imagens por lote",
+  "Only selected image types count. Start with 25; run another batch to continue.": "Só os tipos selecionados contam. Comece com 25; execute outro lote para continuar.",
+  "Advanced limits and quality filters": "Limites e filtros de qualidade avançados",
+  "Minimum similarity (SSIM)": "Semelhança mínima (SSIM)",
+  "Independent of encoder quality. Default 0.96. A lower encoding quality may be skipped by this filter; do not lower it without reviewing image quality.": "Independente da qualidade de codificação. Padrão: 0,96. Uma qualidade menor pode ser rejeitada por este filtro; não o reduza sem conferir o resultado visual.",
+  "Minimum savings (%)": "Redução mínima (%)",
+  "Minimum savings (KiB)": "Redução mínima (KiB)",
+  "Free-space reserve (GiB)": "Reserva de espaço livre (GiB)",
+  "Default 2 GiB. The batch stops before using this reserve. Lowering it does not free space.": "Padrão: 2 GiB. O lote para antes de consumir essa reserva. Diminuir este valor não libera espaço.",
+  "Stored-original budget (MiB)": "Limite para originais guardados (MiB)",
+  "Stops further conversion when full. Default 512 MiB; verified originals can be removed below.": "Para novas conversões ao atingir o limite. Padrão: 512 MiB. Os originais verificados podem ser removidos abaixo.",
+  "Remove verified originals after days": "Remover originais verificados após quantos dias",
+  "0 keeps them until you explicitly remove them. Expiration is processed at the start of an applying optimization batch.": "0 guarda até remoção manual. A expiração é processada no início de um lote de otimização em modo Aplicar.",
+  "Synchronization also regenerates unchanged policies": "Sincronizar também as políticas que não mudaram",
+  "Normally synchronization only regenerates images whose effective policy changed.": "Normalmente, a sincronização só regenera imagens cujos ajustes efetivos mudaram.",
+  "3. Simulate or apply": "3. Simule ou aplique",
+  "Execution mode": "Modo de execução",
+  "Simulate (no image changes)": "Simular (não altera as imagens)",
+  "Apply (convert images)": "Aplicar (converte as imagens)",
+  "Uploads and metadata refreshes are paused for this window": "Os envios e as atualizações de metadata estão pausados nesta janela",
+  "Jellyfin cannot lock out a simultaneous manual upload. Scans and queued refreshes block applying.": "O Jellyfin não bloqueia um envio manual simultâneo. Varreduras e atualizações na fila impedem a aplicação.",
+  "I understand that removing originals permanently ends restoration": "Entendo que remover os originais elimina permanentemente a restauração",
+  "This batch only removes each original after its converted image and Jellyfin reference verify.": "Este lote só remove cada original depois de verificar a imagem convertida e a referência no Jellyfin.",
+  "Save stores settings only. Running a batch first saves the displayed settings, then queues the task.": "Salvar apenas grava os ajustes. Executar um lote primeiro salva o que está na tela e depois enfileira a tarefa.",
+  "Save settings": "Salvar ajustes",
+  "Simulate next batch": "Simular próximo lote",
+  "Convert next batch": "Converter próximo lote",
+  "Stop after current image": "Parar após a imagem atual",
+  "Refresh status": "Atualizar andamento",
+  "No schedule is created here. Tasks in Jellyfin Scheduled Tasks use the saved execution mode and settings. Return to Simulate and save when maintenance ends.": "Nenhum agendamento é criado aqui. As Tarefas agendadas do Jellyfin usam o modo e os ajustes salvos. Ao encerrar a manutenção, volte para Simular e salve.",
+  "Progress and disk space": "Andamento e espaço em disco",
+  "Image reduction in the last batch": "Redução nas imagens do último lote",
+  "Stored originals": "Originais guardados",
+  "Net space reclaimed": "Espaço líquido liberado",
+  "Technical run details": "Detalhes técnicos do lote",
+  "Restore or release stored originals": "Restaurar ou liberar originais guardados",
+  "To restore or delete stored originals, choose Apply mode and confirm the maintenance window above. Restoring does not queue another conversion batch.": "Para restaurar ou excluir originais guardados, escolha Aplicar e confirme a janela acima. Restaurar não enfileira outro lote de conversão.",
+  "Sync changed quality settings": "Sincronizar mudanças de qualidade",
+  "Remove verified stored originals…": "Remover originais guardados verificados…",
+  "Synchronization uses stored originals to regenerate WebP after quality or size changes. Removing those originals frees space permanently and disables restoration and future original-based synchronization. The latest 100 transactions are listed below.": "A sincronização usa os originais guardados para gerar outro WebP após mudanças de qualidade ou tamanho. Removê-los libera espaço permanentemente e impede restauração e sincronização a partir deles. As 100 transações mais recentes estão abaixo.",
+  "People": "Pessoas",
+  "Covers": "Capas principais",
+  "Thumbnails": "Miniaturas",
+  "Logos": "Logotipos",
+  "Backgrounds": "Fundos",
+  "Clear art": "Arte transparente",
+  "Banners": "Banners",
+  "Discs": "Discos",
+  "Boxes": "Caixas",
+  "Back of boxes": "Verso das caixas",
+  "Menus": "Menus",
+  "Photos on person pages; this takes priority over the image type.": "Fotografias nas páginas de pessoas; tem prioridade sobre o tipo da imagem.",
+  "Main cover for movies, shows, albums and other library items.": "Capa principal de filmes, séries, álbuns e outros itens.",
+  "Landscape thumbnails used in lists and recommendations.": "Miniaturas horizontais usadas em listas e recomendações.",
+  "Transparent title and studio logos.": "Logos transparentes de títulos e estúdios.",
+  "Background images behind item pages.": "Imagens de fundo nas páginas dos itens.",
+  "Transparent decorative artwork.": "Arte decorativa com transparência.",
+  "Wide promotional banners.": "Banners promocionais horizontais.",
+  "Disc artwork for albums or movies.": "Imagens de discos de álbuns ou filmes.",
+  "Front box artwork.": "Frente de caixas.",
+  "Rear box artwork.": "Verso de caixas.",
+  "Artwork used by menus.": "Imagens usadas em menus.",
+  "More image types": "Mais tipos de imagem",
+  "Settings for this type": "Ajustes para este tipo",
+  "Use individual settings": "Usar ajustes individuais",
+  "Lossless encoding": "Codificação sem perdas",
+  "Not selected": "Não selecionado",
+  "Individual settings": "Ajustes individuais",
+  "Uses global settings": "Usa os ajustes globais",
+  "Lossless": "Sem perdas",
+  "Quality {quality}": "Qualidade {quality}",
+  "Downscaling allowed": "Pode reduzir dimensões",
+  "Original dimensions": "Dimensões originais",
+  "Remove": "Remover",
+  "Remove {name}": "Remover {name}",
+  "Add at least one item for a restricted batch.": "Adicione ao menos um item para um lote restrito.",
+  "Searching…": "Buscando…",
+  "Choose an item to add it.": "Selecione um item para adicioná-lo.",
+  "No matching items. You can also add an ID below.": "Nenhum item encontrado. Também é possível adicionar por ID abaixo.",
+  "Search unavailable. Add an item ID below.": "Busca indisponível. Adicione o ID do item abaixo.",
+  "Unsaved changes. Running a batch saves them first.": "Há alterações não salvas. Executar um lote as salva primeiro.",
+  "Settings loaded.": "Ajustes carregados.",
+  "Settings saved.": "Ajustes salvos.",
+  "Settings saved. No batch was started.": "Ajustes salvos. Nenhum lote foi iniciado.",
+  "Originals are deleted only after the WebP and its Jellyfin reference verify. This is permanent: no restore or future regeneration from the original.": "Os originais só são excluídos depois de verificar o WebP e sua referência no Jellyfin. É permanente: não será possível restaurar ou gerar outra versão a partir do original.",
+  "Keeps an exact original for restoration and later quality changes. This initially uses MORE disk space; release it later by deleting verified stored originals.": "Guarda uma cópia exata para restaurar ou mudar a qualidade depois. Inicialmente usa MAIS espaço; libere-o depois removendo os originais guardados verificados.",
+  "{types} types · up to {batch} images per batch · {scope}": "{types} tipos · até {batch} imagens por lote · {scope}",
+  "whole library": "biblioteca inteira",
+  "{count} selected items": "{count} itens selecionados",
+  "Check the highlighted fields.": "Confira os campos destacados.",
+  "Add at least one item, or explicitly select the whole library.": "Adicione ao menos um item ou selecione explicitamente a biblioteca inteira.",
+  "Pause image uploads and metadata refreshes, then confirm the maintenance window.": "Pause os envios de imagens e as atualizações de metadata, depois confirme a janela de manutenção.",
+  "Confirm that removing originals is permanent before applying.": "Confirme que a remoção dos originais é permanente antes de aplicar.",
+  "Select at least one image type.": "Selecione ao menos um tipo de imagem.",
+  "Operation failed. Check the Jellyfin log for details.": "A operação falhou. Confira os detalhes no log do Jellyfin.",
+  "Quality below the similarity limit": "Qualidade abaixo do limite de semelhança",
+  "Savings below the minimum": "Redução abaixo do mínimo",
+  "Color profile not supported": "Perfil de cor não compatível",
+  "Orientation not supported": "Orientação não compatível",
+  "Animated image": "Imagem animada",
+  "Invalid or incomplete image": "Imagem inválida ou incompleta",
+  "Image exceeds size limits": "Imagem excede os limites de tamanho",
+  "Unsupported format": "Formato não compatível",
+  "Transparency changed": "Transparência alterada",
+  "Lossless pixel verification failed": "A verificação dos pixels sem perdas falhou",
+  "Output verification failed": "A verificação da imagem gerada falhou",
+  "Policy already current": "Ajustes já estão atualizados",
+  "Original no longer available": "Original não está mais disponível",
+  "Artwork changed outside JellyP": "Imagem alterada fora do JellyP",
+  "Shared or excluded image": "Imagem compartilhada ou fora do escopo",
+  "Invalid image data": "Dados de imagem inválidos",
+  "Unsupported image": "Imagem não compatível",
+  "Image type not selected": "Tipo de imagem não selecionado",
+  "Pass complete. The next batch starts a new pass and includes new artwork.": "Passe concluído. O próximo lote inicia outro passe e inclui imagens novas.",
+  "Batch complete. Run again to continue where it stopped.": "Lote concluído. Execute outro lote para continuar de onde parou.",
+  "Stopped between images. You can resume with another batch.": "Parado entre imagens. Você pode continuar com outro lote.",
+  "The batch stopped after an error. Review the technical details and recovery records before applying again.": "O lote parou após um erro. Confira os detalhes técnicos e os registros de recuperação antes de aplicar novamente.",
+  "Working…": "Processando…",
+  "Queued. Waiting for Jellyfin to start the batch…": "Na fila. Aguardando o Jellyfin iniciar o lote…",
+  "Checking references across the library…": "Verificando referências na biblioteca…",
+  "Processing the selected batch…": "Processando o lote selecionado…",
+  "Last batch: {mode} · {seconds}s": "Último lote: {mode} · {seconds}s",
+  "simulation": "simulação",
+  "application": "aplicação",
+  "No batch has run yet. Start with a simulation.": "Nenhum lote executado ainda. Comece com uma simulação.",
+  "This checks the whole library for shared image files, even for a small batch. Large libraries can take several minutes; no image is being changed during this check.": "Esta etapa verifica toda a biblioteca para detectar arquivos compartilhados, mesmo em lotes pequenos. Bibliotecas grandes podem levar alguns minutos; nenhuma imagem está sendo alterada nesta conferência.",
+  "{examined} examined · {converted} converted · {skipped} skipped · {failed} failed": "{examined} avaliadas · {converted} convertidas · {skipped} ignoradas · {failed} falhas",
+  "{bytes} extra used": "{bytes} a mais em uso",
+  "The batch estimate is image reduction, not free disk space. Stored originals consume space. The net figure subtracts them; it does not include logs, caches or filesystem overhead.": "A estimativa do lote é a redução das imagens, não o espaço livre no disco. Originais guardados ocupam espaço. O saldo líquido os desconta; não inclui logs, caches ou o custo do sistema de arquivos.",
+  "{count} operations need recovery. Restore their originals below before applying another batch.": "{count} operações precisam de recuperação. Restaure seus originais abaixo antes de aplicar outro lote.",
+  "No conversions yet. Restorable originals will appear here.": "Ainda não há conversões. Os originais que puderem ser restaurados aparecerão aqui.",
+  "Library item": "Item da biblioteca",
+  "Converted · original removed": "Convertido · original removido",
+  "Converted · original available": "Convertido · original disponível",
+  "Original restored": "Original restaurado",
+  "Recovery required": "Recuperação necessária",
+  "Identifiers and details": "Identificadores e detalhes",
+  "Item: {id}": "Item: {id}",
+  "Transaction: {id}": "Transação: {id}",
+  "Restore original": "Restaurar original",
+  "Choose Apply mode and confirm maintenance before restoring.": "Escolha Aplicar e confirme a manutenção antes de restaurar.",
+  "Restore this item from its verified original?": "Restaurar este item a partir do original verificado?",
+  "Restoring the original. Keep this page open…": "Restaurando o original. Mantenha esta página aberta…",
+  "Original restored.": "Original restaurado.",
+  "Convert this batch and permanently remove each verified original? Restoring these images will not be possible.": "Converter este lote e remover permanentemente cada original verificado? Não será possível restaurar essas imagens.",
+  "Another JellyP operation is running.": "Outra operação do JellyP está em andamento.",
+  "Synchronization queued.": "Sincronização na fila.",
+  "Batch queued. Progress updates automatically.": "Lote na fila. O andamento é atualizado automaticamente.",
+  "Stop requested. The current image transaction will finish safely.": "Parada solicitada. A transação da imagem atual será concluída com segurança.",
+  "Choose Apply mode and confirm maintenance before removing stored originals.": "Escolha Aplicar e confirme a manutenção antes de remover originais guardados.",
+  "Permanently delete all verified stored originals? About {bytes} of backup bytes are stored. Their images cannot be restored afterwards.": "Excluir permanentemente todos os originais guardados verificados? Há cerca de {bytes} guardados. Depois não será possível restaurar essas imagens.",
+  "Verifying converted images before removing their originals…": "Verificando as imagens convertidas antes de remover os originais…",
+  "Verified stored originals removed. Uncertain originals were kept.": "Originais guardados verificados removidos. Os que não puderam ser verificados foram mantidos.",
+  "Paste a valid Jellyfin item ID or its details URL.": "Cole um ID de item válido ou o link de seus detalhes no Jellyfin.",
+  "Prepared a simulation with batches of 25 and no retained originals. Your scope, categories and image quality were kept. Review them before running.": "Simulação preparada com lotes de 25, sem guardar originais. Seu escopo, tipos e qualidade foram mantidos. Confira tudo antes de executar."
+};
+let language = localStorage.getItem('jellyp-language') || ((document.documentElement.lang || navigator.language || 'en').toLowerCase().startsWith('pt') ? 'pt' : 'en');
+let configuration, lastStatus, selectedIds = [], dirty = false, visible = false, pollTimer, searchTimer, searchSequence = 0, operation = false, waitingForRun = null, refreshing = false;
+const itemNames = new Map();
+const el = id => page.querySelector('#' + id);
+const t = (key, values = {}) => (language === 'pt' ? pt[key] || key : key).replace(/\{(\w+)\}/g, (match,key) => values[key] === undefined ? match : String(values[key]));
+const normalizeId = id => String(id).replace(/-/g,'').toLowerCase();
+function bytes(value) { const negative = value < 0; let n=Math.abs(value), unit='B'; for(const next of ['KiB','MiB','GiB','TiB']) { if(n<1024) break; n/=1024; unit=next; } return (negative?'-':'')+new Intl.NumberFormat(language === 'pt'?'pt-BR':'en',{maximumFractionDigits:2}).format(n)+' '+unit; }
+function message(key, error=false) { el('JellyPMessage').textContent=key; el('JellyPMessage').classList.toggle('jp-notice',!!key); el('JellyPMessage').classList.toggle('jp-warning',error); }
+function translate(root=page) { root.querySelectorAll('[data-i18n]').forEach(node=>node.textContent=t(node.dataset.i18n)); root.querySelectorAll('[data-i18n-placeholder]').forEach(node=>node.placeholder=t(node.dataset.i18nPlaceholder)); }
+function api(path,method,body) { return ApiClient.ajax({type:method||'GET',url:ApiClient.getUrl(path),dataType:method?undefined:'json',...(body === undefined?{}:{data:JSON.stringify(body),contentType:'application/json'})}); }
+function items(params) { return ApiClient.ajax({type:'GET',url:ApiClient.getUrl('Items',params),dataType:'json'}); }
+function errorText(error) { return error.responseJSON?.detail || error.responseText || error.message || t('Operation failed. Check the Jellyfin log for details.'); }
+function markDirty() { dirty=true; el('DirtyState').textContent=t('Unsaved changes. Running a batch saves them first.'); updateControls(); }
+function nativeField(kind,id,label,options={}) {
+    const wrapper=document.createElement('div');
+    if(kind==='checkbox') wrapper.innerHTML='<div class="checkboxContainer checkboxContainer-withDescription"><label class="emby-checkbox-label"><input is="emby-checkbox" type="checkbox"><span></span></label></div>';
+    else wrapper.innerHTML='<div class="inputContainer"><label class="inputLabel inputLabelUnfocused"></label><input is="emby-input" type="number"></div>';
+    const container=wrapper.firstElementChild, input=container.querySelector('input'); input.id=id;
+    const labelNode=container.querySelector(kind==='checkbox'?'span':'label'); labelNode.dataset.i18n=label; labelNode.textContent=t(label);
+    if(kind!=='checkbox') { labelNode.htmlFor=id; Object.entries(options).forEach(([key,value])=>input.setAttribute(key,value)); input.required=true; }
+    return {container,input};
+}
+function actionButton(label,callback) {
+    const holder=document.createElement('div');holder.innerHTML='<button is="emby-button" type="button" class="raised"><span></span></button>';
+    const button=holder.firstElementChild;button.querySelector('span').textContent=label;button.addEventListener('click',callback);return button;
+}
+function policyFromRow(row) {
+    const original=configuration.ImagePolicies.find(p=>p.Category===row.dataset.category);
+    const result={...original};row.querySelectorAll('[data-policy-key]').forEach(input=>result[input.dataset.policyKey]=input.type==='checkbox'?input.checked:Number(input.value));return result;
+}
+function readPolicies() { return Array.from(page.querySelectorAll('[data-policy-category]')).map(policyFromRow); }
+function renderPolicies(policies) {
+    const container=el('JellyPPolicies');container.replaceChildren();
+    const more=document.createElement('details');more.id='AdditionalCategories';const summary=document.createElement('summary');summary.dataset.i18n='More image types';summary.textContent=t('More image types');more.append(summary);
+    categories.forEach((category,index)=>{
+        const policy=policies.find(p=>p.Category===category) || {Category:category,Enabled:false,OverrideGlobal:false,Quality:85,Lossless:false,ResizeImages:false,MaximumDimension:2400,MinimumSsim:.96};
+        const row=document.createElement('div');row.className='jp-policy';row.dataset.policyCategory='true';row.dataset.category=category;
+        const selected=nativeField('checkbox','PolicyEnabled'+index,categoryNames[category]);selected.input.dataset.policyKey='Enabled';selected.input.checked=policy.Enabled;row.append(selected.container);
+        const description=document.createElement('div');description.className='fieldDescription checkboxFieldDescription';description.dataset.i18n=categoryHelp[category];description.textContent=t(categoryHelp[category]);row.append(description);
+        const effective=document.createElement('p');effective.className='fieldDescription jp-policy-summary';effective.dataset.policySummary='true';row.append(effective);
+        const details=document.createElement('details');details.dataset.policyDetails='true';const title=document.createElement('summary');title.dataset.i18n='Settings for this type';title.textContent=t('Settings for this type');details.append(title);
+        const body=document.createElement('div');body.className='jp-policy-body';details.append(body);
+        const override=nativeField('checkbox','PolicyOverride'+index,'Use individual settings');override.input.dataset.policyKey='OverrideGlobal';override.input.checked=policy.OverrideGlobal;body.append(override.container);
+        const controls=document.createElement('div');controls.className='jp-columns';controls.dataset.policyOverrides='true';body.append(controls);
+        [['Quality','WebP quality',{min:0,max:100,step:1}],['Lossless','Lossless encoding',null],['ResizeImages','Allow downscaling',null],['MaximumDimension','Longest edge (pixels)',{min:256,max:8192,step:1}],['MinimumSsim','Minimum similarity (SSIM)',{min:0,max:1,step:'any'}]].forEach(([key,label,attrs])=>{
+            const field=nativeField(attrs?'number':'checkbox','Policy'+key+index,label,attrs||{});field.input.dataset.policyKey=key; if(attrs)field.input.value=policy[key];else field.input.checked=policy[key];controls.append(field.container);
         });
-    }
-    const message = text => { page.querySelector('#JellyPMessage').textContent = text; };
-    const bytes = value => (value / (1024 * 1024)).toFixed(2) + ' MiB';
-    async function request(path, method) {
-        return ApiClient.ajax({ type: method || 'GET', url: ApiClient.getUrl('JellyP/' + path), dataType: method ? undefined : 'json' });
-    }
-    async function refresh() {
-        const status = await request('Status');
-        const r = status.LastRun;
-        page.querySelector('#JellyPStatus').textContent = [
-            r.Running ? 'Running' : 'Idle', r.DryRun ? 'Last run: dry run' : 'Last run: apply',
-            'Eligible images: ' + r.InventoryImages, 'Examined: ' + r.Examined + ', converted: ' + r.Converted + ', skipped: ' + r.Skipped + ', failed: ' + r.Failed,
-            'Estimated savings in last batch: ' + bytes(r.EstimatedSavingsBytes),
-            'Verified savings before backups: ' + bytes(status.VerifiedSavingsBytes),
-            'Retained originals: ' + bytes(status.RetainedBackupBytes),
-            'Net reclaimed by plugin: ' + bytes(status.NetReclaimedBytes),
-            'Pending recovery: ' + status.PendingRecovery, r.Message || '',
-            'Skip reasons: ' + JSON.stringify(r.SkipReasons || {})
-        ].join('\n');
-        const container = page.querySelector('#JellyPRecords');
-        container.replaceChildren();
-        status.RecentRecords.forEach(record => {
-            const row = document.createElement('p');
-            row.append(document.createTextNode('Item ' + record.Source.ItemId + ' · ' + record.Source.Type + '/' + record.Source.Index + ' · transaction ' + record.Id + ' · ' + record.State + ' · ' + bytes(record.OriginalBytes - record.OutputBytes) + (record.Error ? ' · ' + record.Error : '') + ' '));
-            if (!record.BackupDeleted && record.State !== 'RolledBack') {
-                const button = document.createElement('button');
-                button.type = 'button'; button.className = 'raised emby-button'; button.textContent = 'Restore original';
-                button.addEventListener('click', () => perform(async () => {
-                    if (window.confirm('Restore this original through Jellyfin? The current artwork must still match the transaction.')) {
-                        await request('Rollback/' + encodeURIComponent(record.Id), 'POST'); await refresh();
-                    }
-                }));
-                row.append(button);
-            }
-            container.append(row);
-        });
-    }
-    async function perform(action) {
-        Dashboard.showLoadingMsg();
-        try { await action(); message('Operation completed.'); }
-        catch (error) { message(error.responseJSON?.detail || error.responseText || error.message || 'Operation failed. Check Jellyfin logs.'); }
-        finally { Dashboard.hideLoadingMsg(); }
-    }
-    page.addEventListener('viewshow', () => perform(async () => {
-        configuration = await ApiClient.getPluginConfiguration(pluginId);
-        booleanFields.forEach(key => { page.querySelector('#' + key).checked = configuration[key]; });
-        numberFields.forEach(key => { page.querySelector('#' + key).value = configuration[key]; });
-        page.querySelector('#IncludedItemIds').value = (configuration.IncludedItemIds || []).join(', ');
-        policies();
-        await refresh();
-    }));
-    page.querySelector('#JellyPForm').addEventListener('submit', event => {
-        event.preventDefault();
-        perform(async () => {
-            booleanFields.forEach(key => { configuration[key] = page.querySelector('#' + key).checked; });
-            numberFields.forEach(key => { configuration[key] = Number(page.querySelector('#' + key).value); });
-            page.querySelectorAll('[data-policy-key]').forEach(input => {
-                configuration.ImagePolicies[Number(input.dataset.policyIndex)][input.dataset.policyKey] = input.type === 'checkbox' ? input.checked : Number(input.value);
-            });
-            configuration.IncludedItemIds = page.querySelector('#IncludedItemIds').value.split(/[\s,]+/).filter(Boolean);
-            if (configuration.IncludedItemIds.some(id => !/^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(id))) throw new Error('Enter valid Jellyfin item IDs.');
-            await ApiClient.updatePluginConfiguration(pluginId, configuration);
-        });
+        row.append(details);row.addEventListener('change',()=>{updatePolicy(row);markDirty();});
+        if(index<4)container.append(row);else {more.append(row);if(policy.Enabled)more.open=true;}
+    });container.append(more);updatePolicyRows();
+}
+function updatePolicy(row) {
+    const read=key=>row.querySelector('[data-policy-key="'+key+'"]');
+    const selected=read('Enabled').checked, overridden=read('OverrideGlobal').checked;
+    row.querySelector('[data-policy-details]').hidden=!selected;
+    row.querySelector('[data-policy-overrides]').hidden=!overridden;
+    row.querySelectorAll('[data-policy-key]').forEach(input=>{
+        const key=input.dataset.policyKey;
+        input.disabled=operation||lastStatus?.LastRun.Running||!!waitingForRun || (key!=='Enabled' && !selected) || (!['Enabled','OverrideGlobal'].includes(key) && !overridden) || (key==='Quality'&&read('Lossless').checked) || (key==='MaximumDimension'&&!read('ResizeImages').checked);
     });
-    page.querySelector('#Run').addEventListener('click', () => perform(async () => { await request('Run', 'POST'); message('Batch queued; refresh status to follow progress.'); }));
-    page.querySelector('#Sync').addEventListener('click', () => perform(async () => { await request('Sync', 'POST'); }));
-    page.querySelector('#Cancel').addEventListener('click', () => perform(async () => { await request('Cancel', 'POST'); await refresh(); }));
-    page.querySelector('#Refresh').addEventListener('click', () => perform(refresh));
-    page.querySelector('#Retire').addEventListener('click', () => perform(async () => {
-        if (window.confirm('Permanently delete all verified rollback originals and release their disk space? This cannot be undone.')) {
-            await request('Backups/Retire?olderThanDays=0', 'POST'); await refresh();
-        }
-    }));
+    const lossless=overridden?read('Lossless').checked:el('Encoding').value==='lossless';
+    const quality=overridden?read('Quality').value:el('Quality').value;
+    const resized=overridden?read('ResizeImages').checked:el('ResizeImages').checked;
+    row.querySelector('[data-policy-summary]').textContent=!selected?t('Not selected'):(overridden?t('Individual settings'):t('Uses global settings'))+' · '+(lossless?t('Lossless'):t('Quality {quality}',{quality}))+' · '+(resized?t('Downscaling allowed'):t('Original dimensions'));
+}
+function updatePolicyRows() { page.querySelectorAll('[data-policy-category]').forEach(updatePolicy); }
+function renderSelected() {
+    const container=el('SelectedItems');container.replaceChildren();
+    if(!selectedIds.length) { const empty=document.createElement('p');empty.className='fieldDescription';empty.textContent=t('Add at least one item for a restricted batch.');container.append(empty); }
+    selectedIds.forEach(id=>{const row=document.createElement('div');row.className='jp-selected';const title=document.createElement('span');title.textContent=itemNames.get(id)?.Name||id;row.append(title);const remove=actionButton(t('Remove'),()=>{selectedIds=selectedIds.filter(i=>i!==id);renderSelected();markDirty();});remove.dataset.editAction='true';remove.setAttribute('aria-label',t('Remove {name}',{name:title.textContent}));row.append(remove);container.append(row);});
+}
+async function resolveNames(ids) {
+    const missing=[...new Set(ids.map(normalizeId))].filter(id=>!itemNames.has(id));if(!missing.length)return;
+    try { for(let offset=0;offset<missing.length;offset+=100) {const response=await items({Ids:missing.slice(offset,offset+100).join(','),EnableImages:false,EnableUserData:false,Limit:100});(response.Items||[]).forEach(item=>itemNames.set(normalizeId(item.Id),item));} } catch (_) { /* Names are optional; stable IDs remain visible. */ }
+}
+function addItems(ids) { selectedIds=[...new Set([...selectedIds,...ids.map(normalizeId)])];renderSelected();markDirty();resolveNames(ids).then(()=>{if(visible)renderSelected();}); }
+async function searchItems() {
+    const sequence=++searchSequence, term=el('ItemSearch').value.trim();el('SearchResults').replaceChildren();
+    if(term.length<2) {el('SearchState').textContent='';return;}
+    el('SearchState').textContent=t('Searching…');
+    try {
+        const result=await items({SearchTerm:term,Recursive:true,Limit:8,EnableImages:false,EnableUserData:false});
+        if(sequence!==searchSequence||!visible)return;
+        const found=(result.Items||[]).filter(item=>!selectedIds.includes(normalizeId(item.Id)));el('SearchState').textContent=found.length?t('Choose an item to add it.'):t('No matching items. You can also add an ID below.');
+        found.forEach(item=>{itemNames.set(normalizeId(item.Id),item);const button=actionButton(item.Name+' · '+item.Type,()=>{addItems([item.Id]);el('ItemSearch').value='';el('SearchResults').replaceChildren();el('SearchState').textContent='';});button.dataset.editAction='true';el('SearchResults').append(button);});
+    } catch(error) {if(sequence===searchSequence)el('SearchState').textContent=t('Search unavailable. Add an item ID below.');}
+}
+function updateControls() {
+    if(!configuration)return;
+    const running=!!lastStatus?.LastRun.Running, busy=operation||running||!!waitingForRun, applying=el('Mode').value==='apply', permanent=el('Storage').value==='discard';
+    el('WholeScope').hidden=el('Scope').value!=='all';el('ItemScope').hidden=el('Scope').value!=='items';
+    el('ResizeField').hidden=!el('ResizeImages').checked;el('QualityField').hidden=el('Encoding').value==='lossless';
+    el('MaintenanceField').hidden=!applying;el('PermanentField').hidden=!(applying&&permanent);
+    el('StorageNotice').textContent=permanent?t('Originals are deleted only after the WebP and its Jellyfin reference verify. This is permanent: no restore or future regeneration from the original.'):t('Keeps an exact original for restoration and later quality changes. This initially uses MORE disk space; release it later by deleting verified stored originals.');
+    el('StorageNotice').classList.toggle('jp-warning',permanent);
+    const count=page.querySelectorAll('[data-policy-key="Enabled"]:checked').length;
+    el('SelectionSummary').textContent=t('{types} types · up to {batch} images per batch · {scope}',{types:count,batch:el('BatchSize').value,scope:el('Scope').value==='all'?t('whole library'):t('{count} selected items',{count:selectedIds.length})});
+    page.querySelectorAll('#JellyPForm input,#JellyPForm select,#JellyPForm button,[data-edit-action]').forEach(input=>input.disabled=busy);
+    el('MaximumDimension').disabled=busy||!el('ResizeImages').checked;el('Quality').disabled=busy||el('Encoding').value==='lossless';
+    el('Run').querySelector('span').textContent=t(applying?'Convert next batch':'Simulate next batch');
+    el('Run').disabled=busy || (applying && (!el('Maintenance').checked || (permanent&&!el('PermanentAck').checked) || (lastStatus?.PendingRecovery||0)>0));
+    el('Cancel').disabled=!running||operation;el('Refresh').disabled=refreshing;
+    el('Sync').disabled=busy;el('Retire').disabled=busy||!(lastStatus?.RetainedBackupBytes>0);
+    page.querySelectorAll('[data-restore]').forEach(button=>button.disabled=busy);
+    el('PrepareEmergency').disabled=busy;updatePolicyRows();
+}
+function populate(config) {
+    configuration=JSON.parse(JSON.stringify(config));
+    configuration.ImagePolicies=categories.map(category=>({Category:category,Enabled:false,OverrideGlobal:false,Quality:85,Lossless:false,ResizeImages:false,MaximumDimension:2400,MinimumSsim:.96,...configuration.ImagePolicies.find(p=>p.Category===category)}));
+    selectedIds=(config.IncludedItemIds||[]).map(normalizeId);
+    el('Scope').value=selectedIds.length?'items':'all';el('Mode').value=config.Enabled&&!config.DryRun?'apply':'preview';el('Encoding').value=config.Lossless?'lossless':'lossy';el('Storage').value=config.PreserveOriginals?'keep':'discard';
+    ['Quality','MaximumDimension','BatchSize','MinimumSsim','BackupRetentionDays'].forEach(key=>el(key).value=config[key]);
+    el('ResizeImages').checked=config.ResizeImages;el('Maintenance').checked=config.MaintenanceWindowConfirmed;el('PermanentAck').checked=false;el('SyncUnchangedPolicies').checked=config.SyncUnchangedPolicies;
+    el('SavingsPercent').value=config.MinimumSavingsRatio*100;el('SavingsKiB').value=config.MinimumSavingsBytes/1024;el('ReserveGiB').value=config.MinimumFreeSpaceBytes/GiB;el('QuotaMiB').value=config.MaximumBackupBytes/MiB;
+    renderPolicies(configuration.ImagePolicies);renderSelected();dirty=false;el('DirtyState').textContent=t('Settings loaded.');updateControls();
+}
+function collect(action) {
+    const inProgress=operation; operation=false; updateControls();
+    let valid; try { valid=el('JellyPForm').reportValidity(); } finally { operation=inProgress; updateControls(); }
+    if(!valid)throw new Error(t('Check the highlighted fields.'));
+    const selected=el('Scope').value==='items';if(selected&&!selectedIds.length)throw new Error(t('Add at least one item, or explicitly select the whole library.'));
+    const applying=el('Mode').value==='apply';if(applying&&!el('Maintenance').checked)throw new Error(t('Pause image uploads and metadata refreshes, then confirm the maintenance window.'));
+    if(applying&&el('Storage').value==='discard'&&!el('PermanentAck').checked&&action!=='restore'&&action!=='retire')throw new Error(t('Confirm that removing originals is permanent before applying.'));
+    const result={...configuration,ImagePolicies:readPolicies(),IncludedItemIds:selected?[...selectedIds]:[],Enabled:applying,DryRun:!applying,MaintenanceWindowConfirmed:applying&&el('Maintenance').checked,Lossless:el('Encoding').value==='lossless',PreserveOriginals:el('Storage').value==='keep',ResizeImages:el('ResizeImages').checked,SyncUnchangedPolicies:el('SyncUnchangedPolicies').checked};
+    ['Quality','MaximumDimension','BatchSize','MinimumSsim','BackupRetentionDays'].forEach(key=>result[key]=Number(el(key).value));
+    result.MinimumSavingsRatio=Number(el('SavingsPercent').value)/100;result.MinimumSavingsBytes=Math.round(Number(el('SavingsKiB').value)*1024);result.MinimumFreeSpaceBytes=Math.round(Number(el('ReserveGiB').value)*GiB);result.MaximumBackupBytes=Math.round(Number(el('QuotaMiB').value)*MiB);
+    if(!result.ImagePolicies.some(p=>p.Enabled))throw new Error(t('Select at least one image type.'));
+    return result;
+}
+async function save(action) { const next=collect(action);await ApiClient.updatePluginConfiguration(pluginId,next);configuration=next;dirty=false;el('DirtyState').textContent=t('Settings saved.'); }
+async function perform(callback) { if(operation)return;operation=true;updateControls();try {await callback();}catch(error){message(errorText(error),true);}finally{operation=false;updateControls();} }
+const reasons={ QualityBelowThreshold:'Quality below the similarity limit',InsufficientSavings:'Savings below the minimum',UnsupportedColorProfile:'Color profile not supported',UnsupportedOrientation:'Orientation not supported',AnimatedImage:'Animated image',InvalidInput:'Invalid or incomplete image',InputLimitExceeded:'Image exceeds size limits',UnsupportedFormat:'Unsupported format',AlphaChanged:'Transparency changed',PixelsChanged:'Lossless pixel verification failed',InvalidOutput:'Output verification failed',PolicyUnchanged:'Policy already current',OriginalUnavailable:'Original no longer available',ArtworkChanged:'Artwork changed outside JellyP',SharedOrIneligibleImage:'Shared or excluded image',InvalidDataException:'Invalid image data',NotSupportedException:'Unsupported image',CategoryDisabled:'Image type not selected' };
+function finishedMessage(report) {
+    if(!report.Message)return '';
+    if(report.Message.startsWith('Inventory pass complete'))return t('Pass complete. The next batch starts a new pass and includes new artwork.');
+    if(report.Message.startsWith('Batch complete'))return t('Batch complete. Run again to continue where it stopped.');
+    if(report.Message.startsWith('Cancelled'))return t('Stopped between images. You can resume with another batch.');
+    if(report.Failed)return t('The batch stopped after an error. Review the technical details and recovery records before applying again.');
+    return report.Message;
+}
+function renderStatus(status) {
+    lastStatus=status;const report=status.LastRun;
+    if(waitingForRun && (report.StartedUtc!==waitingForRun.started || report.FinishedUtc!==waitingForRun.finished))waitingForRun=null;
+    const elapsed=report.StartedUtc?Math.max(0,Math.floor(((report.Running?Date.now():new Date(report.FinishedUtc||report.StartedUtc).getTime())-new Date(report.StartedUtc).getTime())/1000)):0;
+    el('PhaseText').textContent=operation?t('Working…'):waitingForRun?t('Queued. Waiting for Jellyfin to start the batch…'):report.Running?(report.Examined===0&&report.InventoryImages===0?t('Checking references across the library…'):t('Processing the selected batch…')):report.FinishedUtc?t('Last batch: {mode} · {seconds}s',{mode:t(report.DryRun?'simulation':'application'),seconds:elapsed}):t('No batch has run yet. Start with a simulation.');
+    if(report.Running&&report.Examined===0&&report.InventoryImages===0)el('RunSummary').textContent=t('This checks the whole library for shared image files, even for a small batch. Large libraries can take several minutes; no image is being changed during this check.');
+    else el('RunSummary').textContent=t('{examined} examined · {converted} converted · {skipped} skipped · {failed} failed',{examined:report.Examined,converted:report.Converted,skipped:report.Skipped,failed:report.Failed})+(finishedMessage(report)?' — '+finishedMessage(report):'');
+    const progress=el('RunProgress');progress.hidden=!report.Running;if(report.InventoryImages>0){progress.max=Math.max(1,Math.min(report.InventoryImages,Number(el('BatchSize').value)||1));progress.value=Math.min(report.Examined,progress.max);}else progress.removeAttribute('value');
+    el('SavingsValue').textContent=bytes(report.EstimatedSavingsBytes);el('BackupsValue').textContent=bytes(status.RetainedBackupBytes);el('NetValue').textContent=status.NetReclaimedBytes<0?t('{bytes} extra used',{bytes:bytes(-status.NetReclaimedBytes)}):bytes(status.NetReclaimedBytes);
+    el('AccountingHelp').textContent=t('The batch estimate is image reduction, not free disk space. Stored originals consume space. The net figure subtracts them; it does not include logs, caches or filesystem overhead.');
+    if(status.PendingRecovery)el('HistoryDetails').open=true;
+    el('RecoveryNotice').hidden=!status.PendingRecovery;el('RecoveryNotice').textContent=t('{count} operations need recovery. Restore their originals below before applying another batch.',{count:status.PendingRecovery});
+    const skips=el('SkipReasons');skips.replaceChildren();Object.entries(report.SkipReasons||{}).forEach(([reason,count])=>{const p=document.createElement('p');p.className='fieldDescription';p.textContent=count+' × '+t(reasons[reason]||reason);skips.append(p);});
+    el('TechnicalStatus').textContent=JSON.stringify(report,null,2);renderRecords(status.RecentRecords);updateControls();
+}
+function renderRecords(records) {
+    const container=el('JellyPRecords');container.replaceChildren();
+    if(!records.length){const empty=document.createElement('p');empty.className='fieldDescription';empty.textContent=t('No conversions yet. Restorable originals will appear here.');container.append(empty);return;}
+    records.forEach(record=>{const row=document.createElement('div');row.className='jp-record';const name=itemNames.get(normalizeId(record.Source.ItemId))?.Name;const title=document.createElement('h4');title.textContent=(name||t('Library item'))+' · '+t(categoryNames[record.Source.IsPerson?'People':record.Source.Type]||record.Source.Type);row.append(title);
+        const state=record.State==='Committed'?(record.BackupDeleted?t('Converted · original removed'):t('Converted · original available')):record.State==='RolledBack'?t('Original restored'):t('Recovery required');const info=document.createElement('p');info.className='fieldDescription';info.textContent=state+' · '+bytes(record.OriginalBytes)+' → '+bytes(record.OutputBytes);row.append(info);
+        const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent=t('Identifiers and details');details.append(summary);const detail=document.createElement('div');detail.className='fieldDescription jp-message';detail.textContent=t('Item: {id}',{id:record.Source.ItemId})+'\n'+t('Transaction: {id}',{id:record.Id})+(record.Error?'\n'+record.Error:'');details.append(detail);row.append(details);
+        if(!record.BackupDeleted&&record.State!=='RolledBack'){const button=actionButton(t('Restore original'),()=>perform(async()=>{if(el('Mode').value!=='apply'||!el('Maintenance').checked)throw new Error(t('Choose Apply mode and confirm maintenance before restoring.'));if(!window.confirm(t('Restore this item from its verified original?')))return;await save('restore');message(t('Restoring the original. Keep this page open…'));await api('JellyP/Rollback/'+encodeURIComponent(record.Id),'POST');message(t('Original restored.'));await refresh();}));button.dataset.restore='true';row.append(button);}
+        container.append(row);
+    });
+}
+async function refresh() {
+    if(refreshing)return;refreshing=true;updateControls();try {const status=await api('JellyP/Status');if(!visible)return;renderStatus(status);const ids=status.RecentRecords.map(r=>r.Source.ItemId);await resolveNames([...ids,...selectedIds]);if(visible){renderRecords(status.RecentRecords);renderSelected();}}catch(error){if(visible)message(errorText(error),true);}finally{refreshing=false;updateControls();}
+}
+function schedulePoll() { clearTimeout(pollTimer);if(!visible||document.hidden)return;pollTimer=setTimeout(async()=>{await refresh();schedulePoll();},lastStatus?.LastRun.Running||waitingForRun?2000:10000); }
+async function run(synchronize) {
+    const applying=el('Mode').value==='apply';if(applying&&el('Storage').value==='discard'&&!window.confirm(t('Convert this batch and permanently remove each verified original? Restoring these images will not be possible.')))return;
+    await save(synchronize?'sync':'run');const before=await api('JellyP/Status');if(before.LastRun.Running)throw new Error(t('Another JellyP operation is running.'));
+    await api('JellyP/'+(synchronize?'Sync':'Run'),'POST');waitingForRun={started:before.LastRun.StartedUtc,finished:before.LastRun.FinishedUtc};message(t(synchronize?'Synchronization queued.':'Batch queued. Progress updates automatically.'));await refresh();schedulePoll();
+}
+page.addEventListener('viewshow',async()=>{
+    visible=true;el('Language').value=language;translate();Dashboard.showLoadingMsg();
+    try {const [config,plugins]=await Promise.all([ApiClient.getPluginConfiguration(pluginId),api('Plugins')]);if(!visible)return;populate(config);const plugin=plugins.find(p=>normalizeId(p.Id)===normalizeId(pluginId));el('JellyPVersion').textContent=plugin?'v'+plugin.Version:'';await resolveNames(selectedIds);renderSelected();await refresh();}catch(error){message(errorText(error),true);}finally{Dashboard.hideLoadingMsg();schedulePoll();}
+});
+page.addEventListener('viewhide',()=>{visible=false;clearTimeout(pollTimer);clearTimeout(searchTimer);searchSequence++;});
+document.addEventListener('visibilitychange',()=>{if(visible){if(!document.hidden)refresh().then(schedulePoll);else clearTimeout(pollTimer);}});
+el('Language').addEventListener('change',()=>{if(configuration)configuration.ImagePolicies=readPolicies();message('');el('SearchState').textContent='';el('SearchResults').replaceChildren();language=el('Language').value;localStorage.setItem('jellyp-language',language);translate();if(configuration){renderPolicies(configuration.ImagePolicies);renderSelected();updateControls();if(lastStatus)renderStatus(lastStatus);}el('DirtyState').textContent=t(dirty?'Unsaved changes. Running a batch saves them first.':'Settings loaded.');});
+el('JellyPForm').addEventListener('input',markDirty);el('JellyPForm').addEventListener('change',()=>{updateControls();markDirty();});
+el('JellyPForm').addEventListener('submit',event=>event.preventDefault());
+el('Save').addEventListener('click',()=>perform(async()=>{await save('save');message(t('Settings saved. No batch was started.'));}));
+el('Run').addEventListener('click',()=>perform(()=>run(false)));
+el('Sync').addEventListener('click',()=>perform(()=>run(true)));
+el('Refresh').addEventListener('click',()=>refresh());
+el('Cancel').addEventListener('click',()=>perform(async()=>{await api('JellyP/Cancel','POST');message(t('Stop requested. The current image transaction will finish safely.'));await refresh();}));
+el('Retire').addEventListener('click',()=>perform(async()=>{if(el('Mode').value!=='apply'||!el('Maintenance').checked)throw new Error(t('Choose Apply mode and confirm maintenance before removing stored originals.'));if(!window.confirm(t('Permanently delete all verified stored originals? About {bytes} of backup bytes are stored. Their images cannot be restored afterwards.',{bytes:bytes(lastStatus.RetainedBackupBytes)})))return;await save('retire');message(t('Verifying converted images before removing their originals…'));await api('JellyP/Backups/Retire?olderThanDays=0','POST');message(t('Verified stored originals removed. Uncertain originals were kept.'));await refresh();}));
+el('ItemSearch').addEventListener('input',()=>{clearTimeout(searchTimer);searchSequence++;searchTimer=setTimeout(searchItems,350);});
+el('AddItems').addEventListener('click',()=>{const value=el('ItemIds').value;const matches=value.match(/\b(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})\b/gi)||[];if(!matches.length){message(t('Paste a valid Jellyfin item ID or its details URL.'),true);return;}addItems(matches);el('ItemIds').value='';message('');});
+el('PrepareEmergency').addEventListener('click',()=>{el('Storage').value='discard';el('BatchSize').value=25;el('Mode').value='preview';el('Maintenance').checked=false;el('PermanentAck').checked=false;markDirty();message(t('Prepared a simulation with batches of 25 and no retained originals. Your scope, categories and image quality were kept. Review them before running.'));el('RunHeading').scrollIntoView({behavior:'smooth',block:'start'});});
 })();
-</script>
-</div></div></div></body></html>
+</script></div></body></html>

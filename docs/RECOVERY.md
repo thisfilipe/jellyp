@@ -33,12 +33,12 @@ review. Temporary files from an interrupted atomic write also count toward quota
 ## Reversing a canary
 
 1. Keep the canary item allowlist and original preservation enabled. Pause
-   uploads/refreshes. In JellyP enable artwork changes, turn off dry run, confirm
+   uploads/refreshes. In JellyP choose **Apply**, confirm
    the maintenance window and save settings.
 2. In the JellyP settings page locate the canary transaction and select
    **Restore original**. Refresh status, then reload the item's images in
    Jellyfin. A successful restore records `RolledBack` and releases the backup.
-3. Leave dry run enabled and artwork changes disabled after the canary. Do not
+3. Return to **Simulate** and save after the canary. Do not
    clear the allowlist until deliberately approving a broader migration.
 
 An authenticated administrator can also call
@@ -54,7 +54,7 @@ synchronization cannot reconstruct the original quality or dimensions.
 
 Disable schedules for both JellyP tasks and cancel/finish the current batch.
 Resolve pending recovery. Restore any originals you want back **before** removing
-the plugin. Stop Jellyfin, remove only `plugins/JellyP_0.1.0.0/`, restart and check
+the plugin. Stop Jellyfin, remove only `plugins/JellyP_<installed-version>/`, restart and check
 health. Retain the plugin data directory and its originals until recovery is no
 longer needed; deleting the DLL folder does not undo conversions.
 

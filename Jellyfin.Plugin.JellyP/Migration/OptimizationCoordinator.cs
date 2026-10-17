@@ -92,8 +92,8 @@ public sealed class OptimizationCoordinator
             }
 
             var cursorPath = Path.Combine(_root, (synchronize ? "sync-" : "optimize-") + (config.DryRun ? "cursor-preview.json" : "cursor-apply.json"));
-            var cursor = File.Exists(cursorPath) ? DurableFiles.ReadJson<string>(cursorPath) : string.Empty;
-            report = new RunReport { DryRun = config.DryRun, Running = true, StartedUtc = DateTime.UtcNow, Cursor = cursor };
+            var cursor = ReadCursor(cursorPath, CursorContext(config, synchronize));
+            report = new RunReport { DryRun = config.DryRun, Running = true, StartedUtc = DateTime.UtcNow, Cursor = cursor.LastKey };
             SaveReport(report);
             var eligible = _artwork.Inventory(cancellationToken, config.IncludedItemIds);
             var syncRecords = synchronize ? Records().Where(r => r.State == "Committed")
@@ -103,8 +103,11 @@ public sealed class OptimizationCoordinator
                 : eligible.Where(r => !Path.GetExtension(r.Path).Equals(".webp", StringComparison.OrdinalIgnoreCase)).ToArray();
             if (config.IncludedItemIds.Length > 0)
                 inventory = inventory.Where(r => config.IncludedItemIds.Contains(r.ItemId)).ToArray();
+            // A batch represents selected categories, rather than unrelated artwork that would only be skipped.
+            inventory = inventory.Where(r => config.PolicyFor(r) is { Enabled: true })
+                .OrderBy(r => r.Key, StringComparer.Ordinal).ToArray();
             report.InventoryImages = inventory.Count;
-            var candidates = inventory.Where(r => string.CompareOrdinal(r.Key, cursor) > 0).Take(config.BatchSize).ToArray();
+            var candidates = inventory.Where(r => string.CompareOrdinal(r.Key, cursor.LastKey) > 0).Take(config.BatchSize).ToArray();
             var converter = new WebpImageConverter();
             foreach (var reference in candidates)
             {
@@ -113,7 +116,7 @@ public sealed class OptimizationCoordinator
                 try
                 {
                     var policy = config.PolicyFor(reference);
-                    string? earlySkip = policy is not { Enabled: true } ? "CategoryDisabled" : null;
+                    string? earlySkip = null;
                     MigrationRecord? syncRecord = null;
                     if (synchronize && earlySkip is null)
                     {
@@ -136,7 +139,8 @@ public sealed class OptimizationCoordinator
                         report.SkipReasons[earlySkip] = report.SkipReasons.GetValueOrDefault(earlySkip) + 1;
                         report.Examined++;
                         report.Cursor = reference.Key;
-                        DurableFiles.WriteJson(cursorPath, reference.Key);
+                        cursor.LastKey = reference.Key;
+                        DurableFiles.WriteJson(cursorPath, cursor);
                         SaveReport(report);
                         continue;
                     }
@@ -185,7 +189,8 @@ public sealed class OptimizationCoordinator
 
                 report.Examined++;
                 report.Cursor = reference.Key;
-                DurableFiles.WriteJson(cursorPath, reference.Key);
+                cursor.LastKey = reference.Key;
+                DurableFiles.WriteJson(cursorPath, cursor);
                 SaveReport(report);
                 progress.Report(100d * report.Examined / Math.Max(1, candidates.Length));
             }
@@ -193,7 +198,8 @@ public sealed class OptimizationCoordinator
             if (candidates.Length < config.BatchSize || candidates.LastOrDefault()?.Key == inventory.LastOrDefault()?.Key)
             {
                 report.Cursor = string.Empty;
-                DurableFiles.WriteJson(cursorPath, string.Empty);
+                cursor.LastKey = string.Empty;
+                DurableFiles.WriteJson(cursorPath, cursor);
                 report.Message = "Inventory pass complete. The next run starts a new pass, including newly downloaded artwork.";
             }
             else
@@ -229,6 +235,27 @@ public sealed class OptimizationCoordinator
             }
             finally { _gate.Release(); }
         }
+    }
+
+    private static string CursorContext(PluginConfiguration config, bool synchronize) => DurableFiles.Hash(
+        JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            IncludedItemIds = config.IncludedItemIds.Select(id => id.ToString("N")).Distinct(StringComparer.Ordinal)
+                .OrderBy(id => id, StringComparer.Ordinal).ToArray(),
+            Policies = config.ImagePolicies.Where(policy => policy.Enabled).OrderBy(policy => policy.Category, StringComparer.Ordinal)
+                .Select(policy => new { policy.Category, Fingerprint = config.Fingerprint(policy) }).ToArray(),
+            SyncUnchangedPolicies = synchronize && config.SyncUnchangedPolicies,
+        }));
+
+    private static ScanCursor ReadCursor(string path, string contextFingerprint)
+    {
+        var fresh = new ScanCursor { ContextFingerprint = contextFingerprint };
+        if (!File.Exists(path)) return fresh;
+        var payload = DurableFiles.ReadJson<JsonElement>(path);
+        // Old versions stored only the key, which cannot safely be associated with the current selection.
+        if (payload.ValueKind == JsonValueKind.String) return fresh;
+        var saved = payload.Deserialize<ScanCursor>() ?? throw new InvalidDataException("Invalid JellyP scan cursor.");
+        return saved.Version == 1 && saved.ContextFingerprint == contextFingerprint && saved.LastKey is not null ? saved : fresh;
     }
 
     /// <summary>Restores a committed or interrupted transaction through Jellyfin services.</summary>

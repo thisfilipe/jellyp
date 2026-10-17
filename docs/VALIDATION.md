@@ -6,11 +6,12 @@ remain unvalidated.
 
 ## Automated checks
 
-The initial integrated .NET suite contains 76 passing tests. Coverage includes
+The 0.2.0.0 integrated .NET suite contains 87 passing tests. Coverage includes
 baseline/progressive JPEG completeness, PNG/WebP structure, exact alpha,
 lossless pixels, resizing, savings and SSIM gates, interrupted saves, recovery,
 retirement, policy synchronization, shared references, owned/alternate items,
-ID snapshots and canary isolation. Release builds treat warnings as errors.
+ID snapshots, canary isolation, category-aware batch limits, scope/policy cursor
+resets, independent modes and legacy cursor upgrades. Release builds treat warnings as errors.
 
 Nine Python release tests verify catalog checksums, archive layout, version alignment,
 history preservation and rejection of modified existing releases. CI performs a
@@ -21,8 +22,26 @@ locked restore, Release build, both test suites, packaging and publication audit
 A disposable real Jellyfin instance on localhost was used to verify plugin
 loading, administrator-only APIs, the embedded settings page, preview, migration,
 policy synchronization, exact rollback and references surviving a process restart.
-A browser exercise checked all 11 categories, saved global/per-category values,
-original preservation and task buttons without JavaScript errors.
+The 0.2.0.0 browser exercise uses native Jellyfin controls at desktop and mobile
+widths, with no horizontal overflow or JavaScript errors. It checks all 11
+categories, saved global/per-category values, byte-unit conversions, reload
+persistence, language changes retaining unsaved edits, conditional fields,
+numeric validation, empty restricted selection, item search, apply guards,
+canceling permanence confirmation, simulation auto-save/polling, and the emergency
+shortcut's unsaved behavior. An optional controlled case converts the single
+synthetic image through the UI and restores its exact SHA256.
+
+Reproduce after `smoke-local.py` with Node.js, Playwright and an installed browser:
+
+```sh
+node scripts/smoke-ui.cjs --root <marked-fixture-root> --apply-fixture
+```
+
+Set `JELLYP_PLAYWRIGHT_MODULE` if Playwright is installed outside Node's module
+search path, and `JELLYP_BROWSER_CHANNEL` for an installed Edge/Chrome channel.
+Omit `--apply-fixture` to exercise settings and simulation only. Optional
+`--screenshots <directory>` writes synthetic desktop/mobile screenshots. These
+browser integration checks require a disposable server; they are not run by CI.
 
 The generated 512×512 PNG fixture was 471893 bytes; at quality 60 its WebP was
 2648 bytes. This synthetic gradient is not a whole-library savings forecast.

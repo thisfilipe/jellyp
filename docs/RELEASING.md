@@ -9,7 +9,7 @@ The plugin GUID is permanent across versions.
 1. Review changes and run the commands in [CONTRIBUTING.md](../CONTRIBUTING.md).
    Run `python3 scripts/audit-publication.py` against the Git index before pushing.
 2. Merge the reviewed source to `main`; wait for **Build and validate** to pass.
-3. Create and push a version tag, for example `v0.1.0.0`. The tag must equal `v`
+3. Create and push a version tag, for example `v0.2.0.0`. The tag must equal `v`
    plus the project version. Do not move or replace an existing tag.
 4. The **Publish release and catalog** workflow builds/tests the tagged source,
    validates the package and publishes its ZIP and SHA256 file on GitHub Releases.
@@ -37,7 +37,9 @@ marked disposable server on localhost:18096, run `--root <fixture-root> --phase
 install`, restart only that disposable process, then run the same command with
 `--phase verify`. It registers the public repository, invokes Jellyfin's native
 installer and checks the installed plugin after restart. Test credentials stay
-private under the disposable root and are never printed.
+private under the disposable root and are never printed. For a fixture with an older
+JellyP release, use `--phase upgrade` instead of `install`, restart and verify.
+The upgrade exercise snapshots the saved configuration and checks exact preservation.
 
 ## Failure and retry
 
@@ -52,7 +54,7 @@ To retry only catalog publication from a trusted checkout of the release tag,
 download the existing release ZIP and SHA256, verify them, then run:
 
 ```sh
-python3 scripts/publish-catalog.py --repository thisfilipe/jellyp --archive artifacts/JellyP_0.1.0.0.zip
+python3 scripts/publish-catalog.py --repository thisfilipe/jellyp --archive artifacts/JellyP_0.2.0.0.zip
 ```
 
 This requires authenticated `gh` with repository contents write access. Normal
