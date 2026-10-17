@@ -70,6 +70,14 @@ After restarting that instance, JellyP loaded active with its embedded settings
 page, all 11 policies, changes disabled, dry run enabled, retained originals and
 both tasks unscheduled. No production library was involved in this exercise.
 
+The `v0.2.0.1` workflow also passed. Its public archive and SHA256 were
+downloaded independently, its MD5 matched the raw manifest, and previous catalog
+entries were preserved unchanged. A disposable instance running the public
+`0.1.0.0` release upgraded through Jellyfin's native installer to `0.2.0.1`.
+After restart, the plugin was active with its new embedded page, no pending
+recovery and no task triggers. Non-default global quality, batch size, item
+allowlist and per-type settings matched the pre-upgrade configuration exactly.
+
 Reproduce with [smoke-catalog.py](../scripts/smoke-catalog.py), following the
 marked-root and two-phase instructions in its docstring and
 [RELEASING.md](RELEASING.md).
