@@ -101,6 +101,16 @@ After restart, the plugin was active with its new embedded page, no pending
 recovery and no task triggers. Non-default global quality, batch size, item
 allowlist and per-type settings matched the pre-upgrade configuration exactly.
 
+The `v0.3.0.0` build and release workflows passed with all 116 .NET and nine
+release checks. The public archive/SHA256 and canonical raw catalog were downloaded
+independently: ZIP layout, SHA256, catalog MD5 and versioned URL matched, and all
+previous catalog entries remained unchanged. A fresh disposable instance installed
+public `0.2.0.1`, saved non-default global quality, execution limit, individual-item
+scope and a per-type override, then upgraded natively through the same catalog to
+`0.3.0.0`. After restart all prior configuration values survived, the new scope
+remained `legacy` with no selected libraries, both native tasks stayed unscheduled,
+the embedded library/automation UI loaded and recovery status was clear.
+
 Reproduce with [smoke-catalog.py](../scripts/smoke-catalog.py), following the
 marked-root and two-phase instructions in its docstring and
 [RELEASING.md](RELEASING.md).
