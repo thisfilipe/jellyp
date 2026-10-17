@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "0.2.0.1",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/thisfilipe/jellyp/releases/download/v0.2.0.1/JellyP_0.2.0.1.zip",
+        "checksum": "b4cb9924bff24b06a4fd7f329defcdea",
+        "timestamp": "2026-10-17T02:39:32Z",
+        "changelog": "- Let Jellyfin initialize select labels and dropdown arrows; preserve translated\n  labels without duplicating the native markup.\n- Extend the browser exercise to verify native arrows and translated select labels."
+      },
+      {
         "version": "0.2.0.0",
         "targetAbi": "12.1.0.0",
         "sourceUrl": "https://github.com/thisfilipe/jellyp/releases/download/v0.2.0.0/JellyP_0.2.0.0.zip",
