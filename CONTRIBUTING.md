@@ -17,6 +17,10 @@ Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## Development
 
+For dashboard work, read [PLAN.md](docs/PLAN.md) and its linked UX specification to
+distinguish existing behavior from proposed contracts and pending validation.
+The planning checklist is not an instruction to implement or deploy it.
+
 Install .NET SDK 10 and Python 3. The plugin targets Jellyfin 12.1. Linux tests
 use the matching SkiaSharp native library from the test project's locked packages.
 

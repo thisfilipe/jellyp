@@ -1,5 +1,10 @@
 # Execution and scope
 
+This document describes the current implementation. The proposed UX and state
+refactor is recorded in [PLAN.md](PLAN.md) and the
+[detailed design plan](UX-REFACTOR-PLAN.pt-BR.md). That proposal is not implemented
+and does not authorize implementation or deployment by itself.
+
 JellyP uses Jellyfin's existing scheduler. It does not install another process,
 filesystem watcher, patched saver or production database writer.
 

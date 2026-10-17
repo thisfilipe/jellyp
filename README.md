@@ -147,6 +147,15 @@ filesystem blocks and subsequent changes by other plugins affect total usage.
 No savings percentage is promised for a complete library.
 The default free-space reserve is 2 GiB; the retained-original budget is 512 MiB.
 
+## UX refactor planning
+
+The dashboard has a documented refactor proposal covering navigation, manual
+analysis/application, automation, history and originals. Start at [PLAN.md](docs/PLAN.md)
+for status and handoff instructions, or read the
+[detailed plan in Portuguese](docs/UX-REFACTOR-PLAN.pt-BR.md).
+The proposal is not implemented; the current request authorizes planning and
+documentation only.
+
 ## Build, test and package
 
 Requires .NET SDK 10.0. The pinned runtime target is Jellyfin 12.1.x.
