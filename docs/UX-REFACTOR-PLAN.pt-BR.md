@@ -511,13 +511,20 @@ contexto continua sendo de P2.
 ### P2 — Desenhar e validar os fluxos antes de implementar o runtime
 
 Dependência: P1. Artefatos de desenho/protótipo também precisam estar no escopo autorizado.
+Autorizada em 17/10/2026 (artefatos + exercício). Artefatos entregues; exercício
+pendente de sessão com pessoa sem contexto.
 
-- [ ] Criar wireframes das cinco áreas, incluindo celular e navegação por teclado.
-- [ ] Representar seleção, editor por tipo, lista de resultado e revisão de execução.
-- [ ] Representar todos os estados definidos em P1, não apenas o caminho de sucesso.
+- [x] Criar wireframes das cinco áreas, incluindo celular e navegação por teclado.
+- [x] Representar seleção, editor por tipo, lista de resultado e revisão de execução.
+- [x] Representar todos os estados definidos em P1, não apenas o caminho de sucesso.
 - [ ] Validar D1/D2 com tarefas descritas pelo objetivo, sem ensinar nomes de botões.
 - [ ] Registrar onde o participante hesitou, procurou feedback ou interpretou alcance errado.
 - [ ] Revisar o fluxo antes de considerar a quantidade de telas e seus textos fechados.
+
+**Artefatos:** [UX-P2-DESIGN.pt-BR.md](UX-P2-DESIGN.pt-BR.md) ·
+[ux-prototype/jellyp-p2.html](ux-prototype/jellyp-p2.html) ·
+[UX-P2-EXERCISE.pt-BR.md](UX-P2-EXERCISE.pt-BR.md) (roteiro + template de registro).
+P2 só é marcada como concluída após o exercício.
 
 **Aceite:** uma pessoa sem contexto consegue localizar o caminho completo de
 simular uma mudança em WebP, revisar, aplicar e restaurar. Dúvidas recorrentes

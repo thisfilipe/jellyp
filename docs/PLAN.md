@@ -1,8 +1,9 @@
 # JellyP UX refactor: handoff and authorization boundary
 
-Status: **P1 product/state contract recorded; implementation is not authorized**.
-P0 and P1 are complete under explicit owner authorization. P2–P8 remain pending
-a phase-specific instruction.
+Status: **P1 product/state contract recorded; P2 design artifacts delivered;
+the P2 usability exercise awaits a session with a person without context.
+Implementation is not authorized.** P0–P1 are complete under explicit owner
+authorization. P3–P8 remain pending a phase-specific instruction.
 Baseline: JellyP **0.3.0.1**, Jellyfin **12.1**, .NET **10**.
 Recorded: 2026-10-17.
 
@@ -58,7 +59,7 @@ requirements; they are not implemented in 0.3.0.1.
 |---|---|---|
 | P0 | Context, baseline, constraints and this specification | Documentation recorded; no implementation started |
 | P1 | Resolve product/state decisions and map the existing behavior | Delivered: [UX-P1-CONTRACT.pt-BR.md](UX-P1-CONTRACT.pt-BR.md); P2 awaits authorization |
-| P2 | Reviewable screen flows and prototype usability exercises | P1; validate before runtime implementation |
+| P2 | Reviewable screen flows and prototype usability exercises | Artifacts delivered: [design + prototype + script](UX-P2-DESIGN.pt-BR.md); exercise pending a session |
 | P3 | Analysis/execution/state contracts and migration design | P1 + validated P2 |
 | P4 | Backend support for reviewed selections and independent state | P3 |
 | P5 | Jellyfin-native UI, navigation and contextual progress | P2 + P4 |
