@@ -28,7 +28,8 @@ documentos públicos do repositório.
    - Anotar hesitações, idas e vindas, e frases sobre alcance ("acho que isso
      vale para tudo…").
    - Para trocar de estado, use a **bancada tracejada** no topo (não faz parte
-     do produto; diga isso antes de usá-la quando necessário).
+     do produto; diga isso antes de usá-la quando necessário). Ativar um estado
+     também **abre a área afetada**, o que dispensa explicar onde olhar.
 
 ## 2. Bloco A — estrutura "Páginas internas" (~20 min)
 
@@ -61,15 +62,17 @@ Tarefas por objetivo, na ordem. Cada uma começa no estado indicado.
 
 ## 3. Bloco B — estrutura "Abas" (~7 min)
 
-Trocar a estrutura para **Abas** (botão no topo) e repetir:
+Trocar a estrutura para **Abas** (controle "Estrutura de navegação (D1)" na
+bancada do topo) e repetir:
 
 1. "Você estava em Executar. Vá para Configurações e volte para onde estava,
    usando o navegador (botão voltar)." — observar se voltar/avançar funciona e
    se a pessoa reencontra o que estava fazendo.
 2. Repetir rapidamente as tarefas **1** e **4** na estrutura de abas.
-3. Viewport estreito (360×640, modo dispositivo do navegador): "Encontre cada
-   uma das cinco áreas e diga qual é a ação principal de cada uma." — observar
-   se algo essencial fica fora da tela ou depende de hover.
+3. Viewport estreito (360×640, modo dispositivo do navegador): **recolha a
+   bancada** (clique no resumo dela) e peça: "Encontre cada uma das cinco áreas
+   e diga qual é a ação principal de cada uma." — observar se algo essencial
+   fica fora da tela ou depende de hover.
 
 ## 4. Perguntas finais (2 min)
 

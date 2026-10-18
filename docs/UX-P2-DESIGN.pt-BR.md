@@ -18,9 +18,13 @@ SINTÉTICO" sempre visível; nenhuma ação é real.
 - **Bancada de estados** (barra tracejada, fora do produto): permite ao
   facilitador colocar a tela em cada estado do contrato sem depender de dados
   reais — vazio, indisponível, conflito, espera, cancelamento, sucesso parcial,
-  recuperação necessária.
-- **Seletor de estrutura (D1)**: alterna a mesma interface entre *Páginas* e
-  *Abas*, sem mudar o conteúdo. É o insumo central do exercício.
+  recuperação necessária. Ativar um estado **abre a área afetada**; cada item
+  indica onde aparece e tem atalho "ver".
+- **Seletor de estrutura (D1)**: fica na bancada e alterna a mesma interface
+  entre *Páginas internas* e *Abas*, sem mudar o conteúdo e preservando o
+  rascunho. Em Páginas: barra lateral de áreas + breadcrumb + URL simulada da
+  página. Em Abas: barra de abas com indicador, uma única página. É o insumo
+  central do exercício.
 - **Idioma**: protótipo só em pt-BR (a implementação final terá a alternância
   existente en↔pt-BR); anotado para P5.
 - **Dados sintéticos**: bibliotecas "Filmes" e "Séries"; itens "Viagem
@@ -97,10 +101,12 @@ métricas por execução vs. totais separadas; remoção de originais é seletiv
 
 ## 5. Acessibilidade e responsividade embutidas
 
-- Estrutura *Abas*: `role=tablist/tab/tabpanel`, setas ←/→, `aria-selected`,
-  foco no painel após troca (padrão W3C APG).
-- Estrutura *Páginas*: navegação com `aria-current`, foco no título da área.
+- Estrutura *Abas*: `role=tablist/tab/tabpanel`, setas ←/→, `aria-selected`.
+- Estrutura *Páginas*: navegação lateral com `aria-current` e breadcrumb da área.
 - Foco visível em todos os controles; link "pular para o conteúdo".
+- Ao concluir uma análise ou iniciar/terminar uma execução, o foco vai para o
+  título do resultado/andamento, que é anunciado sem depender de rolagem
+  manual.
 - Alvos de toque ≥ 2.5em em viewport estreita; nenhum conteúdo essencial
   depende de hover; layout em coluna abaixo de 45em.
 - Mensagens de progresso/resultado em regiões `aria-live` (a implementação

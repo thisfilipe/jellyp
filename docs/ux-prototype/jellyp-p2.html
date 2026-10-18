@@ -26,17 +26,38 @@ a{color:var(--accent)}
 .brand{font-weight:700;display:flex;gap:.6em;align-items:center}
 .tag{font-size:.72em;font-weight:700;letter-spacing:.04em;color:var(--bad);border:1px dashed var(--bad);padding:.15em .5em;border-radius:.3em}
 .bench{margin:1em;padding:.8em 1em;background:var(--bench);border:1px dashed var(--bench-line);border-radius:.4em}
-.bench h2{margin:.1em 0 .6em;font-size:.95em}
+.bench summary{cursor:pointer;font-size:.95em;padding:.15em 0}
+.bench[open] summary{margin-bottom:.6em}
 .bench .row{display:flex;gap:1.2em;flex-wrap:wrap;align-items:center}
 .bench label{font-size:.9em;display:inline-flex;gap:.4em;align-items:center}
 .wrap{max-width:76em;margin:0 auto;padding:1em}
-.shellnav{background:var(--panel);border:1px solid var(--line);border-radius:.4em;margin-bottom:1em}
-.shellnav ul{list-style:none;display:flex;gap:.2em;margin:0;padding:.4em;flex-wrap:wrap}
-.shellnav a,.shellnav button{display:inline-block;padding:.55em .9em;border-radius:.35em;border:0;background:none;
-  color:var(--ink);text-decoration:none;font:inherit;cursor:pointer}
-.shellnav a[aria-current="page"],.shellnav button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+.layout{display:grid;gap:1.1em;align-items:start}
+body[data-shell="paginas"] .layout{grid-template-columns:15em minmax(0,1fr)}
+body[data-shell="abas"] .layout{grid-template-columns:minmax(0,1fr)}
+aside.sidebar{background:var(--panel);border:1px solid var(--line);border-radius:.4em;padding:.6em;position:sticky;top:5.2em}
+aside.sidebar h2{font-size:.78em;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:.3em .7em .6em}
+aside.sidebar ul{list-style:none;margin:0;padding:0}
+aside.sidebar a{display:block;padding:.6em .7em;border-radius:.35em;text-decoration:none;color:var(--ink)}
+aside.sidebar a[aria-current="page"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.pagehead{display:flex;justify-content:space-between;gap:1em;align-items:baseline;flex-wrap:wrap;margin:0 0 .7em}
+.crumb{font-weight:600}
+.url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.75em;color:var(--muted);background:var(--chip);padding:.2em .5em;border-radius:.3em}
+.tabs{background:var(--panel);border:1px solid var(--line);border-radius:.4em .4em 0 0;padding:.3em .5em 0;margin-bottom:1.1em;overflow-x:auto}
+.tabs ul{display:flex;gap:.15em;list-style:none;margin:0;padding:0}
+.tabs button{border:0;background:none;color:var(--ink);font:inherit;padding:.6em .9em;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+.tabs button[aria-selected="true"]{border-bottom-color:var(--accent);font-weight:600}
+.cell{border:1px solid var(--line);border-radius:.4em;padding:.75em}
+.lbl{display:block;font-weight:600;margin-bottom:.35em}
+.bench .lnk{border:0;background:none;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline;padding:0 .25em}
+@media(max-width:60em){
+  body[data-shell="paginas"] .layout{grid-template-columns:minmax(0,1fr)}
+  aside.sidebar{position:static}
+  aside.sidebar ul{display:flex;gap:.15em;overflow-x:auto}
+  aside.sidebar h2{display:none}
+  aside.sidebar a{white-space:nowrap}
+}
 main{outline:none}
-main:focus-visible,.shellnav :focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,a:focus-visible
+main:focus-visible,aside.sidebar :focus-visible,.tabs :focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,a:focus-visible
   {outline:3px solid var(--accent);outline-offset:2px}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:.4em;padding:1.1em;margin:0 0 1.2em}
 .panel h2{margin-top:0}
@@ -52,6 +73,7 @@ button.btn{font:inherit;padding:.55em 1em;border-radius:.35em;border:1px solid v
 button.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 button.btn:disabled{opacity:.5;cursor:not-allowed}
 table{width:100%;border-collapse:collapse}
+.tablewrap{overflow-x:auto;max-width:100%}
 th,td{text-align:start;padding:.5em .4em;border-top:1px solid var(--line);vertical-align:top}
 th{font-size:.85em;color:var(--muted);font-weight:600}
 tbody tr{--row:1}
@@ -74,20 +96,17 @@ footer{padding:1.4em 1em 3em;text-align:center;color:var(--muted);font-size:.85e
   <div class="brand">JellyP
     <span class="tag">PROTÓTIPO SINTÉTICO — nenhuma ação é real</span>
   </div>
-  <div role="group" aria-label="Estrutura de navegação (decisão D1)">
-    <button class="btn" data-act="shell" data-value="paginas" id="shellPaginas">Páginas internas</button>
-    <button class="btn" data-act="shell" data-value="abas" id="shellAbas">Abas</button>
-  </div>
+  <div class="small muted">desenho das 5 áreas · D1: páginas internas × abas</div>
 </header>
 
-<section class="bench" aria-label="Bancada de estados do protótipo (não faz parte do produto)">
-  <h2>Bancada do facilitador — força estados do contrato (não é interface do produto)</h2>
+<details class="bench" id="bench" open>
+  <summary><b>Bancada do facilitador</b> — ativar um estado abre a área afetada (controle do protótipo; recolha durante o teste em tela estreita)</summary>
   <div class="row">
-    <label><input type="checkbox" data-bench="empty"> Escopo vazio / sem bibliotecas</label>
-    <label><input type="checkbox" data-bench="unavailable"> Inspeção indisponível</label>
-    <label><input type="checkbox" data-bench="conflict"> Outra operação em andamento</label>
-    <label><input type="checkbox" data-bench="recovery"> Recuperação pendente</label>
-    '<label>Execução:
+    <label><input type="checkbox" data-bench="empty"> Escopo vazio <span class="small muted">Simular</span> <button class="lnk" data-act="go" data-value="simular">ver</button></label>
+    <label><input type="checkbox" data-bench="unavailable"> Inspeção indisponível <span class="small muted">Simular · itens</span> <button class="lnk" data-act="go" data-value="simular">ver</button></label>
+    <label><input type="checkbox" data-bench="conflict"> Outra operação em andamento <span class="small muted">Executar</span> <button class="lnk" data-act="go" data-value="executar">ver</button></label>
+    <label><input type="checkbox" data-bench="recovery"> Recuperação pendente <span class="small muted">Executar · Histórico</span> <button class="lnk" data-act="go" data-value="executar">ver</button></label>
+    <label>Execução:
       <select data-bench="exec">
         <option value="idle">ociosa</option>
         <option value="running">em execução</option>
@@ -97,11 +116,19 @@ footer{padding:1.4em 1em 3em;text-align:center;color:var(--muted);font-size:.85e
       </select>
     </label>
   </div>
-</section>
+  <div class="row" style="margin-top:.6em">
+    <span class="small"><b>Estrutura de navegação (D1):</b></span>
+    <button class="btn" data-act="shell" data-value="paginas" id="shellPaginas">Páginas internas</button>
+    <button class="btn" data-act="shell" data-value="abas" id="shellAbas">Abas</button>
+    <span class="small muted">troca a casca da navegação mantendo o mesmo conteúdo; o estado do rascunho é preservado</span>
+  </div>
+</details>
 
 <div class="wrap">
-  <nav id="shellnav" class="shellnav" aria-label="Áreas do JellyP"></nav>
-  <main id="conteudo" tabindex="-1"></main>
+  <div class="layout">
+    <div id="shellhost"></div>
+    <main id="conteudo" tabindex="-1"></main>
+  </div>
 </div>
 <footer>
   Protótipo de desenho da fase P2 · dados sintéticos · não é a implementação e não se comunica com o Jellyfin ·<br>
@@ -130,6 +157,7 @@ const S = {
     {id:'h1', op:'Aplicação manual · 14/10 09:12', item:'Viagem Sintética (2024)', tipo:'Capa principal', estado:'Convertido · original disponível', fmt:'JPEG', dim:'1920×1080', bytes:'486 KiB → 141 KiB', hash:'8f3a…c21', incerto:false},
     {id:'h2', op:'Agendada · 13/10 03:00', item:'Cidade Exemplo (2021)', tipo:'Fundo', estado:'Convertido · original removido', fmt:'JPEG', dim:'3840×2160', bytes:'1,4 MiB → 402 KiB', hash:'77be…904', incerto:false},
     {id:'h3', op:'Restauração manual · 12/10 21:40', item:'Série Demonstração', tipo:'Miniatura', estado:'Original restaurado', fmt:'PNG', dim:'1280×720', bytes:'220 KiB', hash:'d0c1…3aa', incerto:false},
+    {id:'h5', op:'Agendada · 10/10 03:00', item:'Cidade Exemplo (2021)', tipo:'Fundo', estado:'Convertido · original disponível', fmt:'JPEG', dim:'3840×2160', bytes:'1,4 MiB → 410 KiB', hash:'22aa…5e1', incerto:false},
     {id:'h4', op:'Aplicação manual · 11/10 08:05', item:'Pessoa Exemplo', tipo:'Pessoas', estado:'Recuperação necessária', fmt:'JPEG', dim:'900×900', bytes:'96 KiB → 61 KiB', hash:'1b2c…77f', incerto:true}
   ]
 };
@@ -157,8 +185,8 @@ document.addEventListener('click', e => {
   if (act === 'allRows') { S.selection = proposedRows().map(r => r.k); render(); return; }
   if (act === 'noRows') { S.selection = []; render(); return; }
   if (act === 'review') { S.exec.selected = S.selection.length; S.exec.phase = 'idle'; S.bench.exec = 'idle'; go('executar'); return; }
-  if (act === 'apply') { S.exec.phase = 'running'; S.bench.exec = 'running'; S.exec.result = null; render(); return; }
-  if (act === 'cancel') { S.exec.phase = 'cancelled'; S.bench.exec = 'cancelled'; render(); return; }
+  if (act === 'apply') { S.exec.phase = 'running'; S.bench.exec = 'running'; S.exec.result = null; render(); byId('andamento'); return; }
+  if (act === 'cancel') { S.exec.phase = 'cancelled'; S.bench.exec = 'cancelled'; render(); byId('execResultado'); return; }
   if (act === 'restore') { const h = S.hist.find(x => x.id === b.dataset.id); h.estado = 'Original restaurado'; h.incerto = false; render(); return; }
   if (act === 'purge') { S.hist.forEach(h => { if (S.purgeSel?.has(h.id)) { h.estado = 'Convertido · original removido'; } }); S.purgeSel = new Set(); render(); return; }
   if (act === 'purgeAll') { S.hist.forEach(h => { if (h.estado === 'Convertido · original disponível') h.estado = 'Convertido · original removido'; }); render(); return; }
@@ -201,7 +229,11 @@ document.addEventListener('change', e => {
   if (lib) { S[lib.dataset.lib === 'filmes' ? 'libFilmes' : 'libSeries'] = lib.checked; S.draftMsg = 'Rascunho alterado.'; render(); return; }
   const bn = e.target.closest('[data-bench]');
   if (bn) { const k = bn.dataset.bench;
-    if (k === 'exec') S.bench.exec = bn.value; else S.bench[k] = bn.checked; render(); return; }
+    if (k === 'exec') { S.bench.exec = bn.value; if (bn.value !== 'idle' && S.area !== 'executar') { go('executar'); return; } render(); return; }
+    S.bench[k] = bn.checked;
+    const dest = (k === 'conflict' || k === 'recovery') ? 'executar' : 'simular';
+    if (bn.checked && S.area !== dest) { go(dest); return; }
+    render(); return; }
   const ps = e.target.closest('[data-purge]');
   if (ps) { S.purgeSel ??= new Set(); ps.checked ? S.purgeSel.add(ps.dataset.purge) : S.purgeSel.delete(ps.dataset.purge); render(); return; }
 });
@@ -216,6 +248,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ---------- helpers ----------
+const byId = id => document.getElementById(id)?.focus?.();
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const bytes = n => n >= 1048576 ? (n/1048576).toFixed(1).replace('.',',') + ' MiB' : Math.round(n/1024) + ' KiB';
 const fmt = (n, d=2) => n.toFixed(d).replace('.', ',');
@@ -255,34 +288,35 @@ const resumo = id => S.custom[id]
   ? 'Personalizado — substitui a política completa do tipo · ' + (S.custom[id].lossless ? 'Sem perdas' : 'Qualidade ' + S.custom[id].quality) +
     ' · ' + (S.custom[id].resize ? 'reduz até ' + S.custom[id].dimension + ' px' : 'Dimensões originais')
   : 'Usa os ajustes globais · ' + (S.lossless ? 'Sem perdas' : 'Qualidade ' + S.quality) + ' · ' + (S.resize ? 'reduz até ' + S.dimension + ' px' : 'Dimensões originais');
-function analyse(){ S.analysis = rows(); S.selection = proposedRows().map(r => r.k); S.analysedAt = 'agora'; S.draftMsg = ''; render(); }
+function analyse(){ S.analysis = rows(); S.selection = proposedRows().map(r => r.k); S.analysedAt = 'agora'; S.draftMsg = ''; render(); byId('resultadoAnalise'); }
 function toggleRow(k){ const i = S.selection.indexOf(k); i >= 0 ? S.selection.splice(i,1) : S.selection.push(k); render(); }
 const selCount = () => (S.analysis || []).filter(r => S.selection.includes(r.k) && r.prop).length;
 
 // ---------- render ----------
 function render(moveFocus, keepScroll){
   const y = keepScroll ? scrollY : 0;
+  document.body.dataset.shell = S.shell;
   document.querySelectorAll('[data-bench]').forEach(n => {
     if (n.dataset.bench === 'exec') n.value = S.bench.exec; else n.checked = !!S.bench[n.dataset.bench];
   });
   document.getElementById('shellPaginas').setAttribute('aria-pressed', S.shell === 'paginas');
   document.getElementById('shellAbas').setAttribute('aria-pressed', S.shell === 'abas');
-  document.getElementById('shellnav').innerHTML = S.shell === 'paginas' ? navPages() : navTabs();
+  document.getElementById('shellhost').innerHTML = S.shell === 'paginas'
+    ? '<aside id="shellnav" class="sidebar" aria-label="Áreas do JellyP"><h2>JellyP</h2><ul>' +
+      ARQUIVOS.map(([id, nome]) => '<li><a href="#/p2/paginas/' + id + '"' + (S.area === id ? ' aria-current="page"' : '') + '>' + nome + '</a></li>').join('') + '</ul></aside>'
+    : '<div id="shellnav" class="tabs"><ul role="tablist" aria-label="Áreas do JellyP">' +
+      ARQUIVOS.map(([id, nome]) => '<li role="none"><button role="tab" id="tab-' + id + '" data-act="tab" data-value="' + id + '"' +
+        ' aria-selected="' + (S.area === id) + '" aria-controls="panel-' + id + '" tabindex="' + (S.area === id ? 0 : -1) + '">' + nome + '</button></li>').join('') + '</ul></div>';
+  const head = S.shell === 'paginas'
+    ? '<div class="pagehead"><span class="crumb">JellyP <span aria-hidden="true">›</span> ' + AREA(S.area) + '</span>' +
+      '<span class="url">/web/#/configurationpage?name=jellyp-' + S.area + '</span></div>'
+    : '';
   const main = document.getElementById('conteudo');
-  main.innerHTML = (S.shell === 'abas'
+  main.innerHTML = head + (S.shell === 'abas'
       ? '<div role="tabpanel" id="panel-' + S.area + '" aria-labelledby="tab-' + S.area + '">' + area(S.area) + '</div>'
       : area(S.area));
   if (moveFocus) main.focus();
   if (keepScroll) scrollTo(0, y);
-}
-function navPages(){
-  return '<ul>' + ARQUIVOS.map(([id, nome]) =>
-    '<li><a href="#/p2/paginas/' + id + '"' + (S.area === id ? ' aria-current="page"' : '') + '>' + nome + '</a></li>').join('') + '</ul>';
-}
-function navTabs(){
-  return '<ul role="tablist" aria-label="Áreas do JellyP">' + ARQUIVOS.map(([id, nome]) =>
-    '<li role="none"><button role="tab" id="tab-' + id + '" data-act="tab" data-value="' + id + '"' +
-    ' aria-selected="' + (S.area === id) + '" aria-controls="panel-' + id + '" tabindex="' + (S.area === id ? 0 : -1) + '">' + nome + '</button></li>').join('') + '</ul>';
 }
 function area(id){
   if (id === 'simular') return viewSimular();
@@ -334,23 +368,30 @@ function viewSimular(){
   });
   out += '</div>';
   out += '<fieldset><legend>Ajustes desejados (rascunho — não grava)</legend><div class="grid">' +
-    '<div><label class="inline">Qualidade do WebP <input type="number" min="0" max="100" data-field="quality" value="' + S.quality + '"' + (S.lossless?' disabled':'') + '></label>' +
-    '<p class="small muted">100 ainda tem perdas; escolha "sem perdas" para pixels idênticos.</p></div>' +
-    '<div><label class="inline"><input type="checkbox" data-field="lossless" ' + (S.lossless?'checked':'') + '> Codificação sem perdas</label>' +
-    '<label class="inline"><input type="checkbox" data-field="resize" ' + (S.resize?'checked':'') + '> Permitir redução de dimensões</label></div>' +
-    '<div><label class="inline">Limite de análise <input type="number" min="1" data-field="batch" value="' + S.batch + '"></label>' +
-    '<p class="small muted">Limite global de segurança: ' + S.cfg.batch + ' imagens por execução; um valor menor aqui vale só para este teste.</p></div>' +
-    '<div><label class="inline"><input type="radio" name="storage" data-select="storage" value="guardar" ' + (S.storage==='guardar'?'checked':'') + '> Guardar originais</label>' +
+    '<div class="cell"><span class="lbl">Qualidade do WebP</span>' +
+    '<input type="number" min="0" max="100" data-field="quality" value="' + S.quality + '"' + (S.lossless?' disabled':'') + ' aria-label="Qualidade do WebP">' +
+    '<p class="small muted">100 ainda tem perdas; "sem perdas" mantém pixels idênticos.</p></div>' +
+    '<div class="cell"><span class="lbl">Codificação</span>' +
+    '<label class="inline"><input type="checkbox" data-field="lossless" ' + (S.lossless?'checked':'') + '> Sem perdas</label>' +
+    '<p class="small muted">A verificação exata de pixels continua sempre ativa.</p></div>' +
+    '<div class="cell"><span class="lbl">Dimensões</span>' +
+    '<label class="inline"><input type="checkbox" data-field="resize" ' + (S.resize?'checked':'') + '> Permitir redução</label>' +
+    '<p class="small muted">' + (S.resize ? 'Reduz até ' + S.dimension + ' px (valor em Configurações).' : 'Mantém as dimensões originais; imagens pequenas nunca são ampliadas.') + '</p></div>' +
+    '<div class="cell"><span class="lbl">Limite de análise</span>' +
+    '<input type="number" min="1" data-field="batch" value="' + S.batch + '" aria-label="Limite de análise">' +
+    '<p class="small muted">Limite global de segurança: ' + S.cfg.batch + ' imagens por execução; menor aqui vale só para este teste.</p></div>' +
+    '<div class="cell"><span class="lbl">Originais desta operação</span>' +
+    '<label class="inline"><input type="radio" name="storage" data-select="storage" value="guardar" ' + (S.storage==='guardar'?'checked':'') + '> Guardar</label>' +
     '<label class="inline"><input type="radio" name="storage" data-select="storage" value="remover" ' + (S.storage==='remover'?'checked':'') + '> Remover após verificar</label>' +
     '<p class="small muted">' + (S.storage==='guardar'
-      ? 'Guarda uma cópia exata para restaurar e mudar a qualidade depois; usa mais espaço inicialmente.'
+      ? 'Permite restaurar e mudar a qualidade depois; usa mais espaço inicialmente.'
       : 'Remoção permanente após verificação: encerra a restauração destas imagens.') + '</p></div>' +
     '</div><p class="small muted">Reserva de espaço, limite de originais guardados e retenção são globais (Configurações) e não mudam por rascunho.</p>' +
     '<p><button class="btn primary" data-act="analyse"' + (tiposOk ? '' : ' disabled') + '>Analisar as imagens</button>' +
     (tiposOk ? '' : ' <span class="small bad">Selecione ao menos um tipo.</span>') +
     (S.draftMsg ? ' <span class="small warn">' + esc(S.draftMsg) + '</span>' : '') + '</p></fieldset></section>';
 
-  out += '<section class="panel"><h2>Resultado da análise</h2>';
+  out += '<section class="panel"><h2 id="resultadoAnalise" tabindex="-1">Resultado da análise</h2>';
   if (!tiposOk) out += '<p class="muted">Nenhum tipo selecionado — nada a analisar.</p>';
   else if (!S.analysis) out += '<p class="muted">Execute a análise para ver, por imagem, o que aconteceria e por quê. Nada foi alterado.</p>';
   else {
@@ -366,14 +407,14 @@ function viewSimular(){
     out += '<p class="small"><button class="btn" data-act="allRows">Selecionar todas as propostas</button> ' +
       '<button class="btn" data-act="noRows">Limpar seleção</button> ' +
       '<span class="muted">' + selCount() + ' de ' + prop + ' propostas selecionadas para execução</span></p>';
-    out += '<table><thead><tr><th>Usar</th><th>Item · tipo</th><th>Ação proposta</th><th>Detalhe</th><th>Origem → saída</th><th>Original</th></tr></thead><tbody>';
+    out += '<div class="tablewrap"><table><thead><tr><th>Usar</th><th>Item · tipo</th><th>Ação proposta</th><th>Detalhe</th><th>Origem → saída</th><th>Original</th></tr></thead><tbody>';
     rs.forEach(r => {
       out += '<tr><td>' + (r.prop ? '<input type="checkbox" data-act="toggleRow" data-id="' + r.k + '"' + (S.selection.includes(r.k)?' checked':'') + ' aria-label="Usar ' + esc(r.item) + ' ' + esc(r.tipo) + '">' : '<span class="muted">—</span>') + '</td>' +
         '<td>' + esc(r.item) + '<br><span class="small muted">' + esc(r.tipo) + '</span></td>' +
         '<td>' + esc(r.acao) + '</td><td class="small muted">' + esc(r.motivo) + '</td>' +
         '<td class="small">' + esc(r.src) + ' → ' + esc(r.dst) + '</td><td class="small">' + esc(r.orig) + '</td></tr>';
     });
-    out += '</tbody></table>';
+    out += '</tbody></table></div>';
     out += '<p><button class="btn primary" data-act="review"' + (selCount() ? '' : ' disabled') + '>Revisar e executar ' + selCount() + ' imagens selecionadas</button> ' +
       '<span class="small muted">A execução usará exatamente esta seleção; ela será revalidada antes de alterar.</span></p>';
   }
@@ -388,7 +429,8 @@ function viewExecutar(){
   if (S.bench.conflict) out += '<p class="notice warnb">Outra operação do JellyP está em andamento ou na fila. Esta aplicação não pode ser admitida agora (conflito).</p>';
   const n = S.exec.selected || selCount();
   const done = S.bench.exec === 'cancelled' || S.bench.exec === 'partial';
-  if (!S.analysis && !done) {
+  const active = S.exec.phase === 'running' || S.bench.exec === 'running' || S.bench.exec === 'waiting';
+  if (!S.analysis && !done && !active) {
     out += '<section class="panel"><p class="muted">Nenhuma análise aguardando execução. <button class="btn" data-act="go" data-value="simular">Voltar a Simular</button> — o rascunho permanece como você deixou.</p></section>';
     return out;
   }
@@ -398,8 +440,9 @@ function viewExecutar(){
     (S.storage==='remover' ? '<p class="notice warnb">Remoção permanente autorizada para estas imagens: os originais serão excluídos após verificar cada conversão. Não será possível restaurá-las.</p>' : '<p class="small">Originais serão guardados e poderão ser restaurados ou usados para regenerar depois.</p>') +
     '<p><label class="inline"><input type="checkbox" id="reviewOk"> Revisei o alcance e as consequências desta aplicação</label></p>' +
     '<p><button class="btn primary" data-act="apply"' + (S.bench.conflict || S.bench.recovery ? ' disabled' : '') + '>Aplicar às ' + n + ' imagens selecionadas</button></p></section>';
-  if (S.exec.phase === 'running' && !done) {
-    out += '<section class="panel"><h2>Andamento</h2>' +
+  if (active && !done) {
+    out += '<section class="panel"><h2 id="andamento" tabindex="-1">Andamento</h2>' +
+      (S.exec.phase !== 'running' ? '<p class="small muted">(operação sintética ativada pela bancada do facilitador)</p>' : '') +
       '<p role="status" aria-live="polite"><b>Fase atual:</b> ' + (S.bench.exec==='waiting'
         ? 'Aguardando varredura de metadata — a conversão retoma sozinha. <button class="btn" data-act="cancel">Interromper a espera</button>'
         : 'Processando: verificando referências compartilhadas e convertendo…') + '</p>' +
@@ -408,11 +451,11 @@ function viewExecutar(){
       '<p><button class="btn" data-act="cancel">Parar após a imagem atual</button></p></section>';
   }
   if (S.bench.exec === 'cancelled') {
-    out += '<section class="panel"><h2>Resultado</h2><p class="notice">Parada solicitada entre imagens. A transação da imagem atual terminou com segurança; o restante pode ser retomado com uma nova execução.</p>' +
+    out += '<section class="panel"><h2 id="execResultado" tabindex="-1">Resultado</h2><p class="notice">Parada solicitada entre imagens. A transação da imagem atual terminou com segurança; o restante pode ser retomado com uma nova execução.</p>' +
       '<p class="small muted">2 convertidas antes da parada · 0 falhas</p></section>';
   }
   if (S.bench.exec === 'partial' || S.exec.result === 'partial') {
-    out += '<section class="panel"><h2>Resultado</h2>' +
+    out += '<section class="panel"><h2 id="execResultado" tabindex="-1">Resultado</h2>' +
       '<p role="status"><b>4 avaliadas · 2 convertidas · 1 ignorada · 1 falha</b></p>' +
       '<ul class="small"><li class="ok">Viagem Sintética (2024) · Capa principal — convertida · original guardado</li>' +
       '<li class="ok">Viagem Sintética (2024) · Miniatura — convertida · original guardado</li>' +
@@ -441,10 +484,10 @@ function viewAutomacao(){
     '<div class="card"><p><b>Limite por execução:</b> 250 (global)</p></div></div>' +
     '<p><button class="btn primary" data-act="saveAuto">Salvar configuração da automação</button> <span class="small ok">' + esc(S.autoMsg) + '</span> ' +
     (S.auto.dirty && !S.auto.saved ? '<span class="small warn">Alterações não salvas na automação.</span>' : '') + '</p></section>';
-  out += '<section class="panel"><h2>Tarefas nativas do Jellyfin</h2><table><thead><tr><th>Tarefa</th><th>Estado</th><th>Disparos</th><th>Observação</th></tr></thead><tbody>' +
+  out += '<section class="panel"><h2>Tarefas nativas do Jellyfin</h2><div class="tablewrap"><table><thead><tr><th>Tarefa</th><th>Estado</th><th>Disparos</th><th>Observação</th></tr></thead><tbody>' +
     '<tr><td>Otimizar imagens das bibliotecas</td><td>Ociosa</td><td>Nenhum</td><td class="small muted">Ociosa ≠ desativada; configure horários no Jellyfin.</td></tr>' +
     '<tr><td>Sincronizar ajustes das imagens</td><td>Ociosa</td><td>1 · domingo 04:00</td><td class="small muted">Regenera a partir dos originais guardados.</td></tr>' +
-    '</tbody></table><p class="small muted">Os horários e o estado ficam nas tarefas agendadas do Jellyfin; o JellyP não cria horários sozinho.</p></section>';
+    '</tbody></table></div><p class="small muted">Os horários e o estado ficam nas tarefas agendadas do Jellyfin; o JellyP não cria horários sozinho.</p></section>';
   return out;
 }
 
@@ -452,18 +495,18 @@ function viewAutomacao(){
 function viewHistorico(){
   let out = '<h1>Histórico e originais</h1><p class="muted">"O que aconteceu e o que posso desfazer?"</p>';
   if (S.bench.recovery) out += '<p class="notice bad">1 operação precisa de recuperação: <b>Pessoa Exemplo · Pessoas</b> (arquivo alterado fora do JellyP). <button class="btn" data-act="startRecovery">Restaurar este original</button></p>';
-  out += '<section class="panel"><h2>Operações recentes</h2><table><thead><tr><th>Operação</th><th>Imagem</th><th>Estado</th><th>Evidência armazenada</th><th></th></tr></thead><tbody>';
+  out += '<section class="panel"><h2>Operações recentes</h2><div class="tablewrap"><table><thead><tr><th>Operação</th><th>Imagem</th><th>Estado</th><th>Evidência armazenada</th><th></th></tr></thead><tbody>';
   S.hist.forEach(h => {
     out += '<tr><td class="small">' + esc(h.op) + '</td><td>' + esc(h.item) + '<br><span class="small muted">' + esc(h.tipo) + '</span></td>' +
       '<td>' + esc(h.estado) + (h.incerto ? ' <span class="small warn">(incerto)</span>' : '') + '</td>' +
       '<td class="small">' + h.fmt + ' · ' + h.dim + ' · ' + esc(h.bytes) + '<br><span class="muted">hash ' + h.hash + '</span></td>' +
       '<td>' + (h.estado === 'Convertido · original disponível' ? '<button class="btn" data-act="restore" data-id="' + h.id + '">Restaurar original</button>' : '') + '</td></tr>';
   });
-  out += '</tbody></table>' +
+  out += '</tbody></table></div>' +
     '<p class="small muted">Depois de restaurar, o navegador pode continuar recebendo WebP: isso é a representação da resposta do Jellyfin, não o formato do arquivo armazenado. A verificação usa o arquivo e a referência persistidos.</p></section>';
   out += '<section class="panel"><h2>Remover originais guardados</h2>' +
     '<p class="small">Remoção é permanente e seletiva. Marque exatamente os originais; os incertos são preservados.</p>' +
-    '<table><thead><tr><th>Usar</th><th>Imagem</th><th>Bytes</th><th>Elegível?</th></tr></thead><tbody>';
+    '<div class="tablewrap"><table><thead><tr><th>Usar</th><th>Imagem</th><th>Bytes</th><th>Elegível?</th></tr></thead><tbody>';
   S.hist.filter(h => h.estado.startsWith('Convertido') && h.estado.includes('disponível')).forEach(h => {
     out += '<tr><td><input type="checkbox" data-purge="' + h.id + '"' + (S.purgeSel?.has(h.id) ? ' checked' : '') + ' aria-label="Remover original de ' + esc(h.item) + '"></td>' +
       '<td>' + esc(h.item) + '<br><span class="small muted">' + esc(h.tipo) + '</span></td><td>412 KiB</td><td class="small ok">Sim</td></tr>';
@@ -472,7 +515,7 @@ function viewHistorico(){
     out += '<tr><td><span class="muted">—</span></td><td>' + esc(h.item) + '<br><span class="small muted">' + esc(h.tipo) + '</span></td><td>96 KiB</td>' +
       '<td class="small warn">Mantido: não foi possível verificar</td></tr>';
   });
-  out += '</tbody></table>' +
+  out += '</tbody></table></div>' +
     '<p><button class="btn" data-act="purge">Remover selecionados (' + (S.purgeSel?.size || 0) + ')</button> ' +
     '<button class="btn" data-act="purgeAll">Selecionar e remover todos os elegíveis do plugin (412 MiB) — escolha explícita</button></p>' +
     '<p class="small muted">A segunda opção é um alcance amplo e intencional; nunca é inferida da sua seleção na tela.</p></section>';
