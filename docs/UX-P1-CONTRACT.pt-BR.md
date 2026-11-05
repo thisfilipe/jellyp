@@ -389,3 +389,38 @@ Leitura, sem alterações, de `Migration/OptimizationCoordinator.cs`:
   meia-noite de X dias. Previsão, consentimentos, proteção do original necessário
   à regeneração selecionada e dados de elegibilidade reais do novo fluxo dependem
   do desenho P3; a bancada não executa hashes, espaço ou purga reais.
+
+## 9. Adendo P2 — iteração 3 com feedback contextual (05/11/2026)
+
+Proposta demonstrada no estudo; **nenhuma API, runtime ou persistência mudou**.
+
+- **Exclusão tem finalidade e endereço próprios:** subpágina “Remover originais”
+  em Histórico e restauração (`/historico/remover-originais` no hash do estudo),
+  não uma sexta área principal nem uma seção abaixo da restauração. Link e ações
+  dizem “permanente”, além do vermelho danger. Seleções são independentes.
+- **Paginação não é autorização:** páginas de dez imagens, inclusive uma operação
+  longa; seleção por identidade persiste entre páginas. “Selecionar página” e
+  “todos os resultados/do plugin” têm alcance explícito. Revisões paginam detalhes,
+  mas conservam todos os destinatários, bytes e revalidação individual do snapshot.
+  Nenhuma seleção oculta é truncada ou substituída. Paginação cliente é só estudo;
+  transporte, limites, autorização e durabilidade reais continuam em P3.
+- **Saldo principal da simulação = seleção atual**, não todas as propostas. Zero
+  selecionadas apresenta zero antes/depois e “Sem alterações selecionadas”.
+  Totais potenciais de todas as propostas são comparação secundária explícita.
+  Expiração de outros originais segue separada da conta autorizada.
+- **Automação em análise não é aprovação:** “Apenas analisar e gerar relatório”
+  lê bytes e otimiza para avaliar; não altera imagens, não guarda originais, não
+  cria fila de aprovação nem aplicação futura por conta própria. O trabalho usa
+  processamento e grava relatório/estado. Evidência atual, conferida por leitura:
+  `OptimizationCoordinator.cs:256–288` (`WouldConvert`, estimativa e `ConvertAsync`
+  condicionado a `!DryRun`), cursor próprio em 185 e relatório em 737. O backend
+  atual conserva o último relatório e até 20 amostras, **não** um histórico completo
+  de análises agendadas. O exemplo acessível no protótipo é rotulado sintético.
+- **Desvio para proteções globais pela Automação:** foco em Armazenamento e retorno
+  explícito à Automação; ir/editar/voltar não salva nem perde seu rascunho ou a
+  revisão manual. Salvar Configurações muda só os globais, invalida revisão manual
+  e exige conferir limites/validade da automação, sem ampliar alcance nem salvá-la.
+
+O mantenedor relatou sucesso nos testes contextualizados de múltiplos itens/lote
+e navegação; relatou fricção na automação e no saldo fixo. Não é uma sessão sem
+contexto nem aprovação da nova iteração. O aceite humano P2 permanece pendente.

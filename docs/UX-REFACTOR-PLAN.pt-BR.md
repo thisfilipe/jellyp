@@ -374,6 +374,12 @@ transação e apresentar resultado individual sem substituições. Incertos, rem
 e inativos não são restauráveis em lote; recuperação permanece separada. Bloquear
 durante execução e invalidar análise/revisão e seleções obsoletas após mutação.
 Isso é **proposta demonstrada só no protótipo**, não API/backend implementado.
+Na iteração 3, os controles pertencem à lista Operações e a exclusão é uma
+subpágina local independente dentro do Histórico. Paginação cliente por imagem
+(inclusive grupos longos) conserva seleção e destinatários completos nas revisões;
+o saldo principal acompanha essa seleção. Automação explica análise/relatório,
+sem fila de aprovação, e tem desvio próprio às proteções globais com retorno ao
+rascunho. Ver desenho P2 §8 e adendo P1 §9; paginação/relatórios reais seguem em P3.
 P3 define autorização, concorrência, persistência e compatibilidade; ver o adendo
 do [contrato P1](UX-P1-CONTRACT.pt-BR.md#8-adendo-de-produto-p2--feedback-com-contexto-05112026).
 

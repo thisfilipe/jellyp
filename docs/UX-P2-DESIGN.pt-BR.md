@@ -42,7 +42,8 @@ As pequenas ilustrações geométricas “P2” são CSS próprio, não capas de
    do original; a miniatura pode ser convertida; WebP externo é mantido e um filtro
    rejeita outra imagem. Não existe botão manual separado de sincronização.
 3. **Escolher:** nenhuma proposta vem marcada. Checkbox por identidade de imagem;
-   “Selecionar propostas” é uma ação explícita. Sem seleção, revisão bloqueada.
+   “Selecionar propostas desta página” e “de todos os resultados” são ações
+   explícitas e diferentes. Sem seleção, revisão bloqueada.
 4. **Executar → revisão:** lista apenas as imagens selecionadas, com slots, ajustes,
    ações e impacto do conjunto. Consentimento é obrigatório e funcional. Remover
    originais e expiração global exigem consentimentos separados, não herdados
@@ -64,7 +65,8 @@ As pequenas ilustrações geométricas “P2” são CSS próprio, não capas de
    seleções obsoletas são invalidadas. É extensão proposta de produto no
    [adendo P1](UX-P1-CONTRACT.pt-BR.md#8-adendo-de-produto-p2--feedback-com-contexto-05112026),
    não suporte de lote já implementado no backend.
-7. **Remover originais:** marcar → revisar lista/quantidade/bytes → autorizar →
+7. **Remover originais:** subpágina própria pelo link local de Histórico, sem
+   misturar controles ou seleção de restauração. Marcar → revisar lista/quantidade/bytes → autorizar →
    confirmar. “Todos os elegíveis do plugin” só seleciona, não remove. Incertos
    não são selecionáveis. Escape/voltar no diálogo não altera dados.
 
@@ -108,8 +110,10 @@ edita esses valores; nem o teste nem a automação os alteram implicitamente.
   depois, cada lado decomposto em imagem ativa e cópia original guardada. O saldo
   destacado usa sinal **+ / −**, âmbar para aumento, verde para liberação e um
   verbo independente da cor. Não chama a cópia original de “novos originais”.
-  Simulação mostra todas as propostas, barra mostra somente a seleção, revisão
-  somente selecionadas e conclusão somente feitas, com verbo no passado.
+  Simulação e barra mostram somente a seleção, revisão somente selecionadas e
+  conclusão somente feitas, com verbo no passado. Zero selecionadas significa
+  zero antes/depois e “Sem alterações selecionadas”. O potencial de todas as
+  propostas é comparação secundária rotulada, não uma segunda fatura.
 - `totals()` soma `antes = imagem ativa + original já guardado` e
   `depois = WebP ativo + original mantido`. Original já guardado só entra no antes
   de regeneração. Guardar reutiliza essa cópia; remover zera o original no depois.
@@ -144,8 +148,11 @@ produto com contexto. Não se exige uma escolha D1 imediata para continuar. A
 | Histórico neste estudo | Hash `#/p2/paginas/área` | Hash `#/p2/abas/área` |
 
 Ambas usam hash real para voltar/avançar e links diretos dentro do estudo.
-Etapas usam `/simular/selecao` e `/simular/resultado`; o desvio contextual usa
+Etapas usam `/simular/selecao` e `/simular/resultado`; exclusão tem subpágina
+`/historico/remover-originais`; o desvio contextual usa
 `/configuracoes/armazenamento`. Esses caminhos não são rotas do Jellyfin real.
+O desvio da Automação acrescenta `/automacao` a esse endereço, conservando a
+origem de retorno também ao voltar/avançar, sem sobrescrever o contexto manual.
 Não há URL fictícia `configurationpage` nem alegação de que cinco páginas reais
 do plugin foram registradas. A referência de P1 sobre `GetPages()` e
 `PluginPageInfo` permanece válida como direção; routing e retenção de rascunho
@@ -293,7 +300,7 @@ Outros limites:
   atual usa `CompletedUtc` e corte estrito `<`, não a criação/mtime do backup;
   otimização aplica expiração no início do lote, mas sincronização atual não.
   A evidência exata e a distinção atual/proposto estão no adendo P1.
-- Sem durabilidade, paginação, migração, permissões reais, reload resiliente,
+- Sem durabilidade, paginação de servidor, migração, permissões reais, reload resiliente,
   reinício, desempenho ou validação de backend. Só Chromium automatizado; Firefox,
   Safari, leitor de tela e aparelhos físicos não foram validados.
 - [Exercício sem contexto](UX-P2-EXERCISE.pt-BR.md), validação de navegação no host
@@ -345,3 +352,109 @@ conclusão e celular. A inspeção renderizada desktop/mobile também identifico
 limitou a barra aderente à seção dos resultados: ela não deve cobrir a narrativa
 inicial no celular. Limites de host, compressão real, leitor de tela e usabilidade
 sem contexto permanecem os mesmos.
+
+## 8. Terceira iteração — listas, saldo e automação (05/11/2026)
+
+### Observação de produto, sem dados pessoais
+
+O mantenedor relatou sucesso em seleção múltipla/restauração em lote e navegação.
+O espaço ficou compreensível, mas a fatura não acompanhava checkboxes. Automação
+continuou confusa, com layout destoante; controles de restauração estavam longe
+dos registros, e remoção permanente precisava de destino próprio. Este relato é
+contextualizado: **não foi criada nem aprovada uma sessão sem contexto**.
+
+### Decisões propostas e implementadas somente no estudo
+
+- **Histórico:** filtro, selecionar página/todos e revisão passam a pertencer à
+  seção Operações. A barra compacta de contagem/revisão fica junto dos controles
+  e acompanha a rolagem da lista; não há CTA depois de centenas de registros.
+- **Exclusão:** subpágina local “Remover originais · permanente”, com hash direto,
+  voltar/avançar nativos e retorno visível “Operações e restauração”. Mantém cinco
+  áreas principais. Não exibe checkboxes/CTA de restauração; seleção separada,
+  danger no link/revisão/confirmação e texto permanente, sem depender só da cor.
+  Revisão contém quantidade, todos os destinatários e bytes; revalida snapshot
+  completo por registro e apresenta resultado individual. Escape não altera dados;
+  execução ativa bloqueia seleção e mutações nos dois destinos.
+- **Paginação:** dez imagens por página, sem seletor de tamanho desnecessário.
+  Histórico é paginado por imagem antes de agrupar as operações da página; uma
+  operação de 27 imagens nunca monta 27 linhas de uma vez. Cabeçalho do grupo
+  distingue total de imagens e quantidade nesta página. Simulação e exclusão
+  também limitam dez linhas. Anterior/próxima têm nomes específicos, intervalo e
+  total; após navegar, foco vai ao intervalo. Filtros reiniciam página, novas
+  análises/revisões reiniciam seus detalhes e mutações fazem clamp de páginas.
+  A seleção usa IDs estáveis em memória, preservada entre páginas e com total
+  explícito. Selecionar página soma apenas elegíveis visíveis; “todos” explicita
+  resultados ou plugin. Revisão/aplicação não inferem autorização pela página.
+  Revisões grandes de aplicação/restauração/exclusão e resultados individuais
+  também paginam; para listas auxiliares de até dez detalhes não há controles
+  inativos redundantes. Todos os destinatários permanecem consultáveis.
+- **Volume:** botão na bancada do rodapé acrescenta 27 imagens e 40 registros
+  determinísticos, incluindo grupo de 27 imagens e outras 13 operações. Na análise
+  padrão com qualidade 80: 31 avaliadas e 29 propostas. Não altera a fixture inicial;
+  repetir não duplica, Recomeçar/reload limpa. Não usa APIs/dados privados.
+- **Saldo:** a fatura principal usa somente IDs selecionados; zero é explicitamente
+  “Sem alterações selecionadas”, antes/depois zero. Checkbox atualiza só fatura,
+  contador e habilitação, mantendo o controle e a lista montados, foco e viewport.
+  A região de anúncio informa contagem e saldo. O potencial de todas as propostas
+  fica secundário, com alcance rotulado; expiração global continua separada.
+- **Automação:** grade principal + aside de salvar/resumo/estado salvo, aderente no
+  desktop. Tarefas compactas e consulta de relatório ficam na mesma coluna do
+  formulário. Em celular, aside volta ao fluxo logo após a configuração e antes
+  das tarefas/relatório, sem painel alto aderente encobrindo campos em 360×640.
+  O modo é “Apenas analisar e gerar relatório”, não uma fila de aprovação. Lê bytes,
+  estima e grava relatório/estado, sem alterar imagens nem guardar originais; não
+  promete zero CPU/arquivos. Aplicar mantém preservação e autorização próprias.
+  Salvar não dispara tarefa; disparos continuam no Jellyfin. A consulta abre um
+  exemplo sintético explicitamente identificado, sem execução fictícia e sem
+  inventar histórico completo: atualmente último relatório + até 20 amostras.
+- **Proteções na Automação:** resumo curto com origem global e consequência da
+  retenção, botão real para Armazenamento e retorno “Voltar à Automação”. Contexto
+  de retorno distinto do manual; navegar/editar não salva, não perde o rascunho nem
+  a revisão manual. Salvar globais invalida a revisão, exige conferir limites e
+  nunca salva automação ou amplia seu alcance silenciosamente.
+
+Implementação em HTML/CSS/JS por compatibilidade com o frontend standalone
+existente e com Playwright; não há sistema novo que justifique migração para Rust.
+Os contratos de paginação/concorrência/relatórios reais continuam em P3. Nada de
+runtime, backend, deploy, serviços, commit/push ou configuração de revisão mudou.
+
+### Verificação da iteração 3
+
+Na árvore baseada em `65b411e`, Playwright **1.64.1** e axe-playwright **4.14.0**:
+
+- **311 verificações, zero falhas**, incluindo **20 auditorias axe** com as mesmas
+  tags WCAG 2 A/AA, 2.1 AA e 2.2 AA. **291 verificações sem axe**, zero falhas.
+- As **241 anteriores, incluindo 15 axe**, foram preservadas. Seletores passaram
+  a navegar explicitamente à subpágina de exclusão; as expectativas da fatura
+  passaram do total fixo à seleção, conforme o feedback. Não se removeu contrato
+  de integridade/isolamento para obter aprovação. São **70 verificações adicionais**
+  (65 de fluxo/contas/foco e cinco axe).
+- Cobertura nova: dez linhas por lista e por operação longa; percurso das 17
+  operações do cenário de volume; seleção/revisão/aplicação entre páginas; todos
+  os 40 destinatários de uma revisão consultáveis; restore/purge de subconjunto e
+  todos com resultado/rejeição individual; página versus plugin, reset/clamp/filtro;
+  saldo principal 0/1/subset/todas, foco/nó/viewport estáveis desktop/mobile; modo
+  análise e relatório sem aprovação; aside aderente por rolagem real; retorno
+  Auto/manual e histórico sem vazamento; revalidação após reduzir limite global;
+  exclusão isolada/danger/Escape e controles móveis não cobertos pela barra.
+- `node --check` em `jellyp-p2.js` e `smoke-prototype.cjs`, e `git diff --check`:
+  aprovados. Zero erros de página/console e zero requisições HTTP/API/CDN.
+
+Comando igual ao §5, usando módulos externos em
+`/tmp/opencode/jellyp-browser/node_modules/{playwright,@axe-core/playwright}` e
+`--screenshots /tmp/opencode/jellyp-p2-round3`. Logs finais nesse diretório:
+`smoke-axe-final.log` e `smoke-no-axe-final.log`; logs intermediários não são o
+resultado final. Capturas `01`–`42` e `47` são geradas pelo smoke; `43`–`46`, `48`
+e `49` são inspeções complementares de viewport via Playwright local.
+
+Renderização desktop/mobile **inspecionada**, não apenas compilada: operação
+longa/toolbar (`43`/`44`), exclusão própria (`45`/`46`), diálogo grande (`37`/`41`),
+Automação e sua ordem móvel (`38`/`39`), aside durante rolagem (`48`), saldo
+selecionado (`42`/`49`) e foco móvel abaixo da barra (`47`). A inspeção motivou
+barra de revisão junto ao cabeçalho, diálogos com corpo rolável/ações visíveis,
+aside móvel antes das tarefas e correção do singular na exclusão.
+
+Isso não certifica WCAG, leitor de tela ou usabilidade. Continua sendo estudo
+cliente em memória, não paginação/concorrência de servidor, codec, integridade ou
+scheduler real. Firefox/Safari, aparelhos físicos, integração no host e exercício
+sem contexto permanecem não validados. P3–P8 não foram iniciadas.

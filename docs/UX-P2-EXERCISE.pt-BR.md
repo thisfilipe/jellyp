@@ -84,7 +84,7 @@ Tarefas por objetivo, na ordem. Cada uma começa no estado indicado.
     restaura após revisar e lê formato/dimensões/tamanho armazenados, entendendo que
     o navegador pode continuar recebendo WebP. Não confunde restaurar com remover.
 5. Seleciona e salva **duas bibliotecas**, distingue edição e conjunto salvo,
-    modo só simular/aplicar e preservação. Explica que seu teste não mudou e que
+    modo apenas analisar e gerar relatório/aplicar e preservação. Explica que seu teste não mudou e que
     salvar não dispara trabalho; os horários são definidos no Jellyfin, indisponíveis
     nesta bancada. Entende otimizar novas imagens vs recriar dos originais quando
     ajustes mudam. Consentimento destrutivo é próprio da automação.
@@ -112,6 +112,22 @@ Tarefas por objetivo, na ordem. Cada uma começa no estado indicado.
 - **Escopo da automação:** desmarcar bibliotecas e observar que vazio bloqueia;
   selecionar todas explicitamente, salvar e explicar o conjunto. A bancada também
   pode retirar Séries para observar revisão de biblioteca salva indisponível.
+- **Volume e alcance entre páginas:** preparar o cenário de volume na bancada e
+  recolher. Pedir duas imagens em páginas diferentes da simulação e conferir se
+  a pessoa entende que o saldo principal conta só a seleção. Zero, uma, subset e
+  todas devem diferir. Repetir restauração/exclusão de um subset entre páginas,
+  distinguindo selecionar página de todos os resultados/plugin. Conferir lista
+  exata na revisão paginada, inclusive a operação longa, sem inferir autorização
+  só pelas linhas visíveis. Escape deve preservar seleção, sem efeitos.
+- **Exclusão própria:** a partir de Histórico, pedir para liberar um original sem
+  desfazer a conversão. Observar descoberta da subpágina e retorno, texto permanente
+  e diferença entre as seleções; não ensinar o link antecipadamente.
+- **Automação e globais:** pedir modo apenas análise e perguntar qual será o
+  resultado concreto e onde consultá-lo. Sucesso inclui entender relatório, sem
+  alteração/guarda de originais, sem aprovação/aplicação automática futura. O
+  exemplo não comprova tarefa executada. Pedir consulta de proteções e retorno,
+  preservando ajustes não salvos; salvar globais não deve salvar automação. Em
+  celular, observar salvar após a configuração sem campo coberto por painel fixo.
 
 ## 3. Bloco B opcional — comparação "Abas" (~7 min)
 
