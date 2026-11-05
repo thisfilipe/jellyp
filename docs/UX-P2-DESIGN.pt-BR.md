@@ -25,9 +25,10 @@ As pequenas ilustrações geométricas “P2” são CSS próprio, não capas de
 ### Jornada principal
 
 1. **Simular:** selecionar bibliotecas, itens ou explicitamente tudo; marcar tipos,
-   editar qualidade e escolher preservação. O editor distingue o estado “Usa os
-   ajustes deste teste” / “Ajustes próprios deste tipo” da ação **Editar ajustes
-   deste tipo**, com borda, chevron, painel e `aria-expanded`/`aria-controls`.
+   editar qualidade e escolher preservação. Um único botão discreto por tipo é
+   também o status: **Usando ajustes deste teste** / **Usando ajustes próprios**,
+   com borda, chevron para baixo/cima e `aria-expanded`/`aria-controls`. Não há
+   label de status repetido nem botão adicional “Editar ajustes deste tipo”.
    “Usar padrões globais” copia explicitamente os valores definidos em
    Configurações, após confirmação, sem salvar ou alterar automação, alcance,
    tipos ou preservação. As ações secundárias do resumo são alinhadas à esquerda.
@@ -35,7 +36,7 @@ As pequenas ilustrações geométricas “P2” são CSS próprio, não capas de
    identificado, ações por imagem e motivos ficam juntos, sem procurar abaixo de
    um formulário extenso. O foco e o anúncio chegam a “Simulação concluída —
    nenhuma imagem foi alterada”. A narrativa explica ações, preservação,
-   restauração, impacto líquido e próximo passo antes dos detalhes de IDs/SSIM.
+    restauração, espaço usado e próximo passo antes dos detalhes de IDs/SSIM.
    A análise é local e síncrona, sem atraso artificial ou fase de servidor fictícia.
    Qualidade 80 propõe regenerar a capa de Viagem a partir
    do original; a miniatura pode ser convertida; WebP externo é mantido e um filtro
@@ -50,8 +51,9 @@ As pequenas ilustrações geométricas “P2” são CSS próprio, não capas de
    Execução tem identidade, origem e contagens próprias. O indicador global permite
    voltar à operação; navegar não a cancela. A conclusão da encenação é automática.
 6. **Histórico e restauração:** a aplicação cria registros da própria seleção.
-   O resultado oferece acesso direto à restauração com filtro “Somente
-   restauráveis”. Restaurar revisa a
+   O bloco principal da conclusão oferece **Nova simulação**. Somente a seção
+   abaixo, **Quer desfazer uma conversão?**, oferece **Ir para restauração**, com
+   filtro “Somente restauráveis”. Não há atalho duplicado. Restaurar revisa a
    transação ativa e exibe formato/dimensões/bytes; após confirmar, abre a evidência
    sintética. Transações anteriores do mesmo slot não oferecem restauração.
    **Em lote:** marcar subconjunto ou todos os restauráveis → revisar lista exata
@@ -72,6 +74,24 @@ a revisão conservadoramente. Fontes/identidades sintéticas são rechecadas ant
 aplicar; uma imagem inválida não é substituída. Isso demonstra o contrato de UX,
 **não implementa integridade, idempotência ou autorização de servidor**.
 
+As etapas são botões reais. **Voltar** fica logo abaixo delas, no mesmo lugar no
+resultado e na revisão. Resultado → seleção preserva snapshot, valores e subset
+até uma edição; revisão → resultado preserva o subset. Alterar o subset revoga a
+revisão anterior, sem tornar a análise obsoleta. Etapas futuras exigem snapshot e
+seleção válidos. Navegar, inclusive pelo histórico do navegador, não recupera
+autorizações consumidas nem apaga a execução. **Nova simulação** inicia nova
+intenção sem apagar a última operação; ao admitir outra, o relatório anterior é
+arquivado em memória. O histórico continua listando as transações, não é um novo
+visualizador completo de relatórios arquivados.
+
+Na revisão, as proteções globais são visíveis, não ficam em `details`: mínimo
+livre protegido, teto **total** de originais e tempo para guardar. O botão real
+**Alterar em Configurações** avisa, **antes de navegar**, que salvar invalida a
+análise/seleção. Abre a seção Armazenamento com foco no título e permite **Voltar
+à revisão**. Só navegar ou editar sem salvar preserva a revisão; salvar exige
+simular e selecionar de novo, mesmo após voltar/avançar. Apenas Configurações
+edita esses valores; nem o teste nem a automação os alteram implicitamente.
+
 ## 2. Hierarquia e vocabulário visual
 
 - Tema escuro consistente, superfícies `#1c1c1c` sobre `#101010`, bordas discretas,
@@ -84,10 +104,30 @@ aplicar; uma imagem inválida não é substituída. Isso demonstra o contrato de
 - Formulário com três seções numeradas e resumo lateral, não grade de cartões
   equivalentes. Resultado usa linhas de imagens, rótulos de ação e detalhes
   progressivos. IDs são secundários, títulos/ano/tipo/posição são principais.
-- Métricas da operação não se misturam aos totais do plugin. Na fixture inicial,
-  qualidade 80 + guardar os dois originais propostos: redução de **152 KiB** nas
-  imagens, **220 KiB** de novos originais e **68 KiB a mais em uso**; regeneração
-  reutiliza o original existente. Não chamar redução de imagem de espaço livre.
+- O armazenamento usa uma **fatura leve**, não uma tabela de métricas: antes →
+  depois, cada lado decomposto em imagem ativa e cópia original guardada. O saldo
+  destacado usa sinal **+ / −**, âmbar para aumento, verde para liberação e um
+  verbo independente da cor. Não chama a cópia original de “novos originais”.
+  Simulação mostra todas as propostas, barra mostra somente a seleção, revisão
+  somente selecionadas e conclusão somente feitas, com verbo no passado.
+- `totals()` soma `antes = imagem ativa + original já guardado` e
+  `depois = WebP ativo + original mantido`. Original já guardado só entra no antes
+  de regeneração. Guardar reutiliza essa cópia; remover zera o original no depois.
+  Saldo interno é `antes − depois`; sinal visual representa a mudança de uso.
+  Expiração global de **outros** originais é mostrada e autorizada separadamente,
+  nunca entra silenciosamente no saldo das imagens escolhidas.
+
+Exemplos em KiB de fixtures (não resultados reais de compressão):
+
+| Conjunto | Antes | Depois, guardar | Saldo ao guardar | Depois, remover | Saldo ao remover |
+|---|---:|---:|---|---:|---|
+| Capa restaurada, JPEG 486 → WebP 125 | 486 + 0 = **486** | 125 + 486 = **611** | usa **125 a mais** | 125 + 0 = **125** | libera **361**, irreversível |
+| Regenerar WebP 141 → 125, original 486 existente | 141 + 486 = **627** | 125 + 486 = **611** | libera **16** | 125 + 0 = **125** | libera **502**, irreversível |
+| Propostas iniciais: regeneração + miniatura 220 → 84 | 361 + 486 = **847** | 209 + 706 = **915** | usa **68 a mais** | 209 + 0 = **209** | libera **638**, irreversível |
+
+Zero, subconjuntos e resultados parciais usam a mesma função; não incluem falhas,
+ignoradas ou imagens não iniciadas na conta realizada. Não representam totais do
+plugin, arquivos temporários, logs, caches ou overhead do sistema de arquivos.
 
 ## 3. Navegação — páginas internas recomendadas
 
@@ -104,6 +144,8 @@ produto com contexto. Não se exige uma escolha D1 imediata para continuar. A
 | Histórico neste estudo | Hash `#/p2/paginas/área` | Hash `#/p2/abas/área` |
 
 Ambas usam hash real para voltar/avançar e links diretos dentro do estudo.
+Etapas usam `/simular/selecao` e `/simular/resultado`; o desvio contextual usa
+`/configuracoes/armazenamento`. Esses caminhos não são rotas do Jellyfin real.
 Não há URL fictícia `configurationpage` nem alegação de que cinco páginas reais
 do plugin foram registradas. A referência de P1 sobre `GetPages()` e
 `PluginPageInfo` permanece válida como direção; routing e retenção de rascunho
@@ -156,7 +198,7 @@ Comando reproduzível (módulos instalados fora do projeto):
 ```sh
 JELLYP_PLAYWRIGHT_MODULE=/caminho/para/playwright \
 JELLYP_AXE_MODULE=/caminho/para/@axe-core/playwright \
-node scripts/smoke-prototype.cjs --screenshots /tmp/opencode/jellyp-p2-feedback
+node scripts/smoke-prototype.cjs --screenshots /tmp/opencode/jellyp-p2-round2
 ```
 
 O axe é opcional: sem `JELLYP_AXE_MODULE`, apenas as verificações do fluxo são
@@ -164,13 +206,14 @@ executadas. Para auditar `file://`, o teste troca temporariamente o `<link>` pel
 **mesmo CSS local inline**, evitando o XHR de CSS que o axe tenta fazer e o
 Chromium bloqueia. O produto não faz esse XHR. HTTP é bloqueado e contabilizado.
 
-**Resultado em 05/11/2026 (iteração do feedback):** Playwright 1.64.1 e
-axe-playwright 4.14.0: **189 verificações, zero falhas**, incluindo
-**14 auditorias axe** (tags WCAG 2 A/AA, 2.1 AA e 2.2 AA); zero erros de
+**Resultado em 05/11/2026 (iteração 2 do feedback do mantenedor):** Playwright 1.64.1 e
+axe-playwright 4.14.0: **241 verificações, zero falhas**, incluindo
+**15 auditorias axe** (tags WCAG 2 A/AA, 2.1 AA e 2.2 AA); zero erros de
 página/console e zero requisições HTTP/API/CDN. A rodada sem axe passou em
-**175 verificações**, também sem erros ou HTTP. `node --check` dos dois JS e
-`git diff --check` passaram. As **133 verificações anteriores (11 axe)** foram
-preservadas, incluindo as nove regressões corretivas: proteção de fundo
+**226 verificações**, também sem erros ou HTTP. `node --check` dos dois JS e
+`git diff --check` passaram. As **189 verificações anteriores (14 axe)** foram
+preservadas (seletores/textos obsoletos atualizados ao novo controle, sem remover
+contratos), incluindo as nove regressões corretivas: proteção de fundo
 compartilhado na restauração, retenção que preserva o original exigido pela
 regeneração selecionada, invalidação de análise/revisão após purga, restauração e
 execução, validação da política efetiva, pluralização, foco após confirmações e
@@ -185,16 +228,30 @@ semântica de armazenamento e corte estrito da idade; confirmação móvel visí
 foco inicial no título sem esconder a introdução. Corridas são injeções controladas
 nas fixtures, não prova de concorrência/integridade do backend.
 
-Capturas desta rodada em `/tmp/opencode/jellyp-p2-feedback/`: seleção, simulação,
+A segunda iteração acrescenta **52 verificações (51 de fluxo/conta e 1 axe)**:
+status-expansor único, Enter/Space e foco entre etapas, voltar/avançar nativo,
+subset/revogação da revisão, navegação versus edição/invalidação, ida/volta a
+Configurações sem salvar e após salvar, nove contas exatas de armazenamento,
+faturas de conversão e regeneração guardar/remover, total versus seleção,
+conclusão parcial/zero e verbo passado, operação ativa/concluída preservada,
+nova intenção e arquivo em memória, proteção da operação ativa até contra troca
+pela bancada, relatório concluído preservado ao salvar limites, zero sem remoção
+fictícia, atalho único de restauração e ausência de
+sobreposição da barra móvel sobre a narrativa.
+
+Capturas desta rodada em `/tmp/opencode/jellyp-p2-round2/`: seleção, simulação,
 revisão, conclusão, restauração, remoção, retenção, espera, abas, celular e tablet;
 mais editor expandido, Viagem só capa, revisão/resultado do lote, automação
-múltipla, armazenamento e confirmação móvel. Logs: `smoke-axe.log` e
+múltipla, armazenamento e confirmação móvel; faturas guardar/remover, desvio
+contextual de Configurações e conclusão com saldo. Logs: `smoke-axe.log` e
 `smoke-no-axe.log` no mesmo diretório.
 Arquivos `*-viewport.png` mostram a janela real; os demais são página inteira. A
 suíte verificou overflow em 1440 px, 360×800, 360×640, 768×1024 e 1280×900; nesta
 revisão foram inspecionados visualmente editor/status, narrativa da capa,
-revisão/resultado de restauração, automação e armazenamento em desktop, além da
-narrativa e confirmação em celular. O modal móvel mantém as ações visíveis,
+revisão/resultado de restauração, automação e armazenamento em desktop. Na segunda
+iteração foram inspecionados novamente seleção/status, narrativa, revisão,
+faturas e conclusão no desktop, e narrativa sem sobreposição, regras/fatura,
+Configurações e conclusão no celular. O modal móvel mantém as ações visíveis,
 conteúdo rolável e foco inicial no título. As
 capturas são evidência local regenerável, não registro de sessão humana nem
 arquivos de produção.
@@ -255,7 +312,7 @@ Fricções observadas: editor por tipo parecia status; ações secundárias desa
 e origem dos padrões ambígua; resultado exigia interpretar dados sem narrativa;
 restauração difícil de descobrir e ausência de lote; tarefas/escopo/modo da
 automação pouco claros; reserva, limite e retenção incompreensíveis. A revisão
-responde com separação de status/ação, cópia global explícita, narrativa e foco
+respondeu inicialmente com separação de status/ação, cópia global explícita, narrativa e foco
 no resultado, área de restauração nomeada e lote revisado, escopo múltiplo/todas
 salvo e explicações de armazenamento fundamentadas no código. Páginas internas
 permanecem recomendadas; abas são comparação opcional, não nova obrigação.
@@ -263,3 +320,28 @@ permanecem recomendadas; abas são comparação opcional, não nova obrigação.
 O registro é observação de produto, **não transcrição ou evidência de aprovação
 humana do novo desenho**. As alterações ainda precisam ser exercitadas por pessoa
 sem contexto; testes automatizados não substituem essa etapa.
+
+### Segunda iteração — feedback humano do mantenedor (05/11/2026)
+
+O mantenedor voltou à **mesma jornada Viagem, somente capa**. Não foi um ensaio
+com pessoa sem contexto. Indicou redundância entre status e botão por tipo,
+ausência de voltar/etapas clicáveis, dificuldade com a conta de originais,
+limites globais escondidos e sem caminho de edição, e restauração duplicada na
+conclusão. A iteração 2 implementa os cinco ajustes descritos acima; não registra
+aprovação humana do resultado novo.
+
+O mínimo livre protege o disco; o limite é o total de originais guardados, não
+gasto de uma execução. O tempo usa idade desde a conclusão da conversão ou
+regeneração (`CompletedUtc`). A exclusão só ocorre ao iniciar uma **otimização
+aplicada** e só afeta originais elegíveis, nunca vídeos/mídia ou WebP ativo, nem
+necessariamente no dia X. Guardar na operação não garante retenção indefinida.
+A proteção do original necessário à regeneração e a previsão da análise única
+continuam **proposta sintética**; não afirmam expiração no caminho de
+sincronização atual. Evidência de runtime permanece no adendo P1, sem alterações.
+
+Capturas adicionais `26`–`33` em `/tmp/opencode/jellyp-p2-round2/` cobrem ida e
+retorno de Configurações, fatura de regeneração, conversão guardar/remover,
+conclusão e celular. A inspeção renderizada desktop/mobile também identificou e
+limitou a barra aderente à seção dos resultados: ela não deve cobrir a narrativa
+inicial no celular. Limites de host, compressão real, leitor de tela e usabilidade
+sem contexto permanecem os mesmos.

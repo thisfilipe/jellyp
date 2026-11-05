@@ -65,7 +65,7 @@ requirements; they are not implemented in 0.3.0.1.
 |---|---|---|
 | P0 | Context, baseline, constraints and this specification | Documentation recorded; no implementation started |
 | P1 | Resolve product/state decisions and map the existing behavior | Delivered: [UX-P1-CONTRACT.pt-BR.md](UX-P1-CONTRACT.pt-BR.md) |
-| P2 | Reviewable screen flows and prototype usability exercises | Context-informed iteration; 189 checks passed (14 axe), 175 without axe; [evidence and limits](UX-P2-DESIGN.pt-BR.md); no-context exercise pending |
+| P2 | Reviewable screen flows and prototype usability exercises | Maintainer-feedback iteration 2; 241 checks passed (15 axe), 226 without axe; [evidence and limits](UX-P2-DESIGN.pt-BR.md); no-context exercise pending |
 | P3 | Analysis/execution/state contracts and migration design | P1 + validated P2 |
 | P4 | Backend support for reviewed selections and independent state | P3 |
 | P5 | Jellyfin-native UI, navigation and contextual progress | P2 + P4 |
@@ -88,6 +88,19 @@ for scope, storage evidence and P3 responsibilities. Internal pages remain the
 recommended default; tabs are optional bench comparison, not an immediate binary
 decision required from the user. A context-informed basic trial was reported,
 with discovery/comprehension friction; it does not complete no-context validation.
+
+The second maintainer-feedback iteration keeps that boundary: a single per-type
+status/disclosure, reachable manual stages with Back/history/focus, an explicit
+before/after storage bill (active artwork plus the retained original), visible
+global storage rules with a focused Settings detour, and one contextual restore
+shortcut below completion. Merely navigating preserves the reviewed selection;
+saving global changes revokes it and requires reanalysis. Consumed authorization
+is never revived; active/completed reports are retained. Synthetic accounting
+covers conversion/regeneration, keep/discard, mixed/subset/zero/partial results;
+global expiry remains separate. Evidence: `/tmp/opencode/jellyp-p2-round2/`.
+This is human feedback **from the maintainer with context**, not a new usability
+approval or a backend/storage implementation. All prior 189 checks (14 axe) are
+retained within the expanded suite.
 
 - No production conversion, restore, deletion, scan, restart, installation or
   worker resumption follows from a UX documentation request. Use marked
