@@ -49,7 +49,7 @@ fixed reviewed selection. Passing functional/browser checks did not establish
 usability: the owner repeatedly could not discover the intended workflow.
 
 The proposed design has five areas: **Simulate**, **Execute**, **Automation**,
-**History and originals**, and **Settings**. Manual analysis should evaluate the
+**History and restoration**, and **Settings**. Manual analysis should evaluate the
 desired settings for each image and explain whether it would convert a source,
 regenerate from a retained original, leave an image unchanged, or skip it.
 The user should not need to discover a separate synchronization button.
@@ -65,7 +65,7 @@ requirements; they are not implemented in 0.3.0.1.
 |---|---|---|
 | P0 | Context, baseline, constraints and this specification | Documentation recorded; no implementation started |
 | P1 | Resolve product/state decisions and map the existing behavior | Delivered: [UX-P1-CONTRACT.pt-BR.md](UX-P1-CONTRACT.pt-BR.md) |
-| P2 | Reviewable screen flows and prototype usability exercises | Prototype revised; 96 browser/audit checks passed; [evidence and limits](UX-P2-DESIGN.pt-BR.md); human exercise pending |
+| P2 | Reviewable screen flows and prototype usability exercises | Context-informed iteration; 189 checks passed (14 axe), 175 without axe; [evidence and limits](UX-P2-DESIGN.pt-BR.md); no-context exercise pending |
 | P3 | Analysis/execution/state contracts and migration design | P1 + validated P2 |
 | P4 | Backend support for reviewed selections and independent state | P3 |
 | P5 | Jellyfin-native UI, navigation and contextual progress | P2 + P4 |
@@ -77,6 +77,17 @@ Detailed tasks, acceptance criteria, decision records and scenario IDs are in
 the specification. Do not mark phases complete from this summary alone.
 
 ## Non-negotiable handoff notes
+
+### Explicit P2 product extension (2026-11-05)
+
+The feedback iteration proposes **batch restoration** with explicit eligible
+transaction selection, an exact reviewed list, confirmation, revalidation and
+per-image results. This is a synthetic UX extension, not implemented backend/API
+support. See the [P1 addendum](UX-P1-CONTRACT.pt-BR.md#8-adendo-de-produto-p2--feedback-com-contexto-05112026)
+for scope, storage evidence and P3 responsibilities. Internal pages remain the
+recommended default; tabs are optional bench comparison, not an immediate binary
+decision required from the user. A context-informed basic trial was reported,
+with discovery/comprehension friction; it does not complete no-context validation.
 
 - No production conversion, restore, deletion, scan, restart, installation or
   worker resumption follows from a UX documentation request. Use marked

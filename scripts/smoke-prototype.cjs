@@ -50,7 +50,7 @@ const url = pathToFileURL(path.resolve(__dirname, '../docs/ux-prototype/jellyp-p
     fs.mkdirSync(shots, { recursive: true });
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: path.join(shots, name + '.png'), fullPage: true });
-    if (name.includes('mobile') || name.includes('tablet')) await page.screenshot({ path: path.join(shots, name + '-viewport.png') });
+    await page.screenshot({ path: path.join(shots, name + '-viewport.png') });
   };
   const noOverflow = async name => check(name, await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   const axe = async name => {
@@ -173,7 +173,8 @@ const url = pathToFileURL(path.resolve(__dirname, '../docs/ux-prototype/jellyp-p
     await nav('Automação');
     check('preservação manual não vaza para automação', await page.locator('[data-auto="storage"][value="guardar"]').isChecked());
     await axe('automação');
-    await page.locator('[data-auto="scope"]').selectOption('series');
+    await page.locator('[data-auto-lib="filmes"]').uncheck();
+    await page.locator('[data-auto-lib="series"]').check();
     await page.locator('[data-auto="mode"]').selectOption('apply');
     await page.locator('[data-auto="storage"][value="remover"]').check();
     await action('saveAuto').click();
@@ -190,7 +191,7 @@ const url = pathToFileURL(path.resolve(__dirname, '../docs/ux-prototype/jellyp-p
     await nav('Simular');
     check('padrão salvo também não sobrescreve manual', await page.locator('#manual-quality').inputValue() === '80');
     await nav('Automação');
-    check('padrão salvo não sobrescreve automação', await page.locator('[data-auto="quality"]').inputValue() === '85' && await page.locator('[data-auto="scope"]').inputValue() === 'series');
+    check('padrão salvo não sobrescreve automação', await page.locator('[data-auto="quality"]').inputValue() === '85' && await page.locator('[data-auto-lib="series"]').isChecked() && !(await page.locator('[data-auto-lib="filmes"]').isChecked()));
 
     // Complete-policy override, validation and stale snapshots.
     await fresh();
@@ -238,10 +239,10 @@ const url = pathToFileURL(path.resolve(__dirname, '../docs/ux-prototype/jellyp-p
     await page.locator('[data-ack="expiryAck"]').check();
     check('retenção explicitamente autorizada habilita aplicação', await action('apply').isEnabled());
     await shot('07-desktop-retencao');
-    await nav('Histórico e originais'); await page.locator('[data-purge="h1"]').check();
+    await nav('Histórico e restauração'); await page.locator('[data-purge="h1"]').check();
     await nav('Executar'); await action('apply').click(); await wait('Aplicação concluída');
     check('expiração de um original registra singular', (await text()).includes('1 original removido') && !(await text()).includes('1 originais removidos'));
-    await nav('Histórico e originais');
+    await nav('Histórico e restauração');
     check('seleção de remoção fica obsoleta após expiração', await action('purgeReview').isDisabled() && (await action('purgeReview').innerText()).includes('(0)') && (await page.locator('[data-record="h1"]').innerText()).includes('Original removido'));
 
     // Retention must keep originals required by the selected regeneration.
@@ -252,10 +253,10 @@ const url = pathToFileURL(path.resolve(__dirname, '../docs/ux-prototype/jellyp-p
     check('original protegido não exige consentimento contraditório', await page.locator('[data-ack="expiryAck"]').count() === 0);
     await page.locator('[data-ack="ack"]').check();
     check('original protegido dispensa autorização de expiração', await action('apply').isEnabled());
-    await nav('Histórico e originais'); await page.locator('[data-purge="h1"]').check();
+    await nav('Histórico e restauração'); await page.locator('[data-purge="h1"]').check();
     await nav('Executar'); await action('apply').click(); await wait('Aplicação concluída');
     check('regeneração usa o original protegido', (await text()).includes('1 aplicada') && (await text()).includes('Viagem Sintética') && !(await text()).includes('fonte alterada'));
-    await nav('Histórico e originais');
+    await nav('Histórico e restauração');
     check('original protegido não é removido pela retenção', !(await page.locator('[data-record="h1"]').innerText()).includes('Original removido'));
     check('seleção de remoção fica obsoleta após regeneração', await action('purgeReview').isDisabled() && (await action('purgeReview').innerText()).includes('(0)'));
 
@@ -271,7 +272,7 @@ const url = pathToFileURL(path.resolve(__dirname, '../docs/ux-prototype/jellyp-p
     check('conflito bloqueia e preserva revisão', await action('apply').isDisabled() && await page.locator('.review-list [data-image-id]').count() === 2);
     await scenario('recovery');
     check('recuperação bloqueia novas aplicações', await action('apply').isDisabled() && (await text()).includes('Recuperação necessária'));
-    await nav('Histórico e originais');await action('recover').click();await page.locator('[data-confirm="restore"]').click();
+    await nav('Histórico e restauração');await action('recover').click();await page.locator('[data-confirm="restore"]').click();
     check('recuperação tem revisão, não limpeza de journal', (await text()).includes('Original restaurado no cenário'));
     await nav('Executar');
     check('restauração de recuperação invalida revisão preservada', (await text()).includes('Nenhuma seleção aguardando aplicação') && await action('apply').count() === 0);
@@ -325,7 +326,7 @@ const url = pathToFileURL(path.resolve(__dirname, '../docs/ux-prototype/jellyp-p
     await page.locator('[data-type="Backdrop"]').check();
     await simulate80();
     check('fundo compartilhado é protegido antes de restaurar', (await page.locator('[data-image-id="img-c-fundo"]').innerText()).includes('Referência compartilhada') && await page.locator('[data-row="img-c-fundo"]').count() === 0);
-    await nav('Histórico e originais');
+    await nav('Histórico e restauração');
     await page.locator('[data-record="h2"]').getByRole('button', { name: 'Restaurar original', exact: true }).click();
     await page.locator('[data-confirm="restore"]').click();
     await nav('Simular'); await action('editDraft').first().click(); await action('analyse').click();
@@ -333,7 +334,7 @@ const url = pathToFileURL(path.resolve(__dirname, '../docs/ux-prototype/jellyp-p
 
     // Changing originals invalidates an open review but keeps the report consultable.
     await fresh(); await simulate80(); await review(['img-v-capa']);
-    await nav('Histórico e originais'); await page.locator('[data-purge="h1"]').check(); await action('purgeReview').click();
+    await nav('Histórico e restauração'); await page.locator('[data-purge="h1"]').check(); await action('purgeReview').click();
     await page.locator('#dialogAck').check(); await page.locator('[data-confirm="purge"]').click();
     await nav('Executar');
     check('purga com revisão aberta impede aplicação antiga', (await text()).includes('Nenhuma seleção aguardando aplicação') && await action('apply').count() === 0);
@@ -341,7 +342,7 @@ const url = pathToFileURL(path.resolve(__dirname, '../docs/ux-prototype/jellyp-p
     check('relatório antigo permanece consultável após purga', (await text()).includes('desatualizada') && await page.locator('.result-list [data-image-id]').count() > 0 && await action('review').isDisabled());
 
     // A selected original that stops being eligible must not leave a dead purge button.
-    await fresh(); await nav('Histórico e originais'); await page.locator('[data-purge="h1"]').check();
+    await fresh(); await nav('Histórico e restauração'); await page.locator('[data-purge="h1"]').check();
     await page.locator('[data-record="h1"]').getByRole('button', { name: 'Restaurar original', exact: true }).click();
     await page.locator('[data-confirm="restore"]').click();
     check('seleção h1 obsoleta após restauração não deixa botão morto', await action('purgeReview').isDisabled() && (await action('purgeReview').innerText()).includes('(0)'));
@@ -361,6 +362,136 @@ const url = pathToFileURL(path.resolve(__dirname, '../docs/ux-prototype/jellyp-p
     // Defaults confirmation keeps focus in the rendered draft.
     await fresh(); await action('defaults').click(); await page.locator('[data-confirm="defaults"]').click();
     check('usar padrões devolve foco ao título de Simular', await page.evaluate(() => document.activeElement.id === 'simTitle'));
+
+    // Maintainer feedback: the exact item / cover-only journey, not a library shortcut.
+    await fresh();
+    check('páginas internas continuam direção inicial, abas só na bancada', await page.locator('body').getAttribute('data-shell')==='paginas' && (await page.locator('#shell option[value="paginas"]').textContent()).includes('recomendado'));
+    await page.locator('[data-draft="scope"]').selectOption('itens');
+    await page.locator('[data-type="Thumb"]').uncheck();
+    const coverEditor=page.locator('[data-act="editType"][data-id="Primary"]');
+    check('editor separa status de ação explícita com painel controlado', (await coverEditor.innerText()).includes('Editar ajustes deste tipo') && await coverEditor.getAttribute('aria-expanded')==='false' && await coverEditor.getAttribute('aria-controls')==='type-editor-manual-Primary' && !(await page.locator('#type-editor-manual-Primary').isVisible()) && (await coverEditor.locator('..').innerText()).includes('Usa os ajustes deste teste'));
+    await coverEditor.focus();await page.keyboard.press('Enter');
+    check('editor abre por teclado e evidencia a expansão', await coverEditor.getAttribute('aria-expanded')==='true' && await page.locator('#type-editor-manual-Primary').isVisible() && await page.locator('[data-custom="Primary"]').isVisible());
+    await page.locator('[data-custom="Primary"]').check();
+    await number('[data-policy="quality"][data-id="Primary"]',80);
+    check('estado próprio do tipo não é confundido com ajustes do teste', (await coverEditor.locator('..').innerText()).includes('Ajustes próprios deste tipo') && await page.locator('#manual-quality').inputValue()==='85');
+    check('resumo lateral distingue gerais 85 de capa com ajustes próprios 80', (await page.locator('.summary-panel').innerText()).includes('AJUSTES GERAIS DESTE TESTE') && (await page.locator('.summary-panel').innerText()).includes('Capa principal usa ajustes próprios:') && (await page.locator('.summary-panel').innerText()).includes('Qualidade 80'));
+    await shot('17-desktop-editor-tipo');await axe('editor expandido');
+    await action('analyse').click();
+    check('Viagem só capa: exatamente uma proposta e nenhuma seleção', await page.locator('.result-list [data-image-id]').count()===1 && await page.locator('[data-row]:checked').count()===0 && await action('review').isDisabled());
+    const narrative=await page.locator('.analysis-summary').innerText();
+    check('narrativa anuncia simulação sem mutação, recriação e próximo passo', narrative.includes('Simulação concluída — nenhuma imagem foi alterada') && narrative.includes('capa principal de Viagem Sintética (2024) será recriada a partir do original guardado') && narrative.includes('Próximo passo:') && narrative.includes('selecione as imagens') && narrative.includes('não muda o disco'));
+    check('narrativa explica preservação, restauração e ocupação sem IDs/SSIM', narrative.includes('originais serão preservados') && narrative.includes('Histórico e restauração') && narrative.includes('liberaria ~16 KiB') && !narrative.includes('img-v-') && !narrative.includes('SSIM'));
+    await page.locator('#analysisSettings').evaluate(n=>{n.open=true;});
+    check('detalhes congelados distinguem ajustes gerais dos efetivos por tipo', (await page.locator('#analysisSettings').innerText()).includes('Gerais deste teste: Qualidade 85') && (await page.locator('#analysisSettings').innerText()).includes('Capa principal · ajustes próprios: Qualidade 80'));
+    await page.locator('#analysisSettings').evaluate(n=>{n.open=false;});
+    await shot('18-desktop-viagem-so-capa');
+    await review(['img-v-capa']);await page.locator('[data-ack="ack"]').check();await action('apply').click();await wait('Aplicação concluída');
+    await action('goRestore').click();await wait('Restaurar imagens');
+    check('conclusão abre diretamente restauração filtrada e exclui transação anterior', await page.locator('#historyFilter').inputValue()==='restorable' && await page.locator('[data-record="h1"]').count()===0 && await page.locator('[data-restore^="exec-"]').count()===1);
+    await page.locator('[data-restore^="exec-"]').check();await action('restoreBatch').click();
+    check('revisão da capa lista a transação ativa exata', await page.locator('.restore-review li').count()===1 && (await page.getByRole('dialog').innerText()).includes('Capa principal') && (await page.getByRole('dialog').innerText()).includes('1600 × 2400') && !(await page.getByRole('dialog').innerText()).includes('Fundo · posição 1'));
+    await shot('19-desktop-restauracao-revisao');await axe('revisão restauração em lote');
+    await page.locator('[data-confirm="restoreBatch"]').click();
+    check('capa aplicada pode ser restaurada em lote de uma, com resultado e foco', await page.locator('[aria-label="Resultado da restauração"] li').count()===1 && (await page.locator('[aria-label="Resultado da restauração"]').innerText()).includes('Restaurado') && await page.evaluate(()=>document.activeElement.id==='restoreResult'));
+
+    // Explicit subset/all, recovery exclusion, stale review and active-operation guards.
+    await fresh();await simulate80();await review(['img-v-capa']);await nav('Histórico e restauração');
+    check('restauração começa sem seleção e só ativos disponíveis são selecionáveis', await page.locator('[data-restore]').count()===2 && await page.locator('[data-restore]:checked').count()===0 && await action('restoreBatch').isDisabled() && await page.locator('[data-record="h3"] [data-restore],[data-record="h4"] [data-restore]').count()===0);
+    await page.locator('[data-restore="h1"]').check();await action('restoreBatch').click();
+    await page.keyboard.press('Escape');
+    check('Escape da revisão em lote preserva seleção e dados', await page.locator('[data-restore="h1"]').isChecked() && (await page.locator('[data-record="h1"]').innerText()).includes('Original disponível'));
+    await action('restoreBatch').click();await page.locator('[data-confirm="restoreBatch"]').click();
+    check('subconjunto restaura h1 sem restaurar/remover h2 ou incerto h4', (await page.locator('[data-record="h1"]').innerText()).includes('Original restaurado') && (await page.locator('[data-record="h2"]').innerText()).includes('Original disponível') && (await page.locator('[data-record="h4"]').innerText()).includes('incerto') && await action('restoreBatch').isDisabled());
+    await nav('Executar');check('lote de restauração invalida revisão manual aberta', await action('apply').count()===0);
+    await nav('Simular');check('lote de restauração invalida análise e zera seleção sem apagar relatório', (await text()).includes('desatualizada') && await page.locator('.result-list [data-image-id]').count()===4 && await page.locator('[data-row]:checked').count()===0 && await action('review').isDisabled());
+
+    await fresh();await nav('Histórico e restauração');await action('restoreAll').click();
+    check('todos restauráveis só seleciona os dois elegíveis, sem executar', await page.locator('[data-restore]:checked').count()===2 && (await page.locator('[data-record="h1"]').innerText()).includes('Original disponível') && (await page.locator('#announcer').innerText()).includes('Nada foi restaurado'));
+    await action('restoreBatch').click();check('todos revisa lista exata, não inclui removidos/incertos', await page.locator('.restore-review li').count()===2 && !(await page.getByRole('dialog').innerText()).includes('900 × 900') && !(await page.getByRole('dialog').innerText()).includes('Miniatura'));
+    await page.locator('[data-confirm="restoreBatch"]').click();
+    check('todos produz resultado individual e desativa seleções obsoletas', await page.locator('[aria-label="Resultado da restauração"] li').count()===2 && await page.locator('[data-restore]').count()===0 && await action('restoreBatch').isDisabled() && await action('purgeReview').isDisabled());
+    await shot('20-desktop-restauracao-lote-resultado');
+    await nav('Simular');await page.locator('#moreTypes').evaluate(n=>{n.open=true;});await page.locator('[data-type="Backdrop"]').check();await simulate80();
+    check('restauração em lote mantém proteção shared e dimensões do original', (await page.locator('[data-image-id="img-c-fundo"]').innerText()).includes('Referência compartilhada') && (await page.locator('[data-image-id="img-c-fundo"]').innerText()).includes('3840 × 2160') && await page.locator('[data-row="img-c-fundo"]').count()===0);
+
+    await fresh();await nav('Histórico e restauração');await action('restoreAll').click();await action('restoreBatch').click();
+    // Controlled fixture race: not a real endpoint or a claim about backend concurrency.
+    await page.evaluate(()=>{S.history.find(h=>h.id==='h1').active=false;});
+    await page.locator('[data-confirm="restoreBatch"]').click();
+    check('revalidação em lote relata inativo individualmente e restaura só o válido', await page.locator('[aria-label="Resultado da restauração"] li').count()===2 && (await page.locator('[aria-label="Resultado da restauração"]').innerText()).includes('Não restaurado') && !(await page.locator('[data-record="h1"]').innerText()).includes('Original restaurado') && (await page.locator('[data-record="h2"]').innerText()).includes('Original restaurado'));
+    await fresh();await nav('Histórico e restauração');await action('restoreAll').click();await action('restoreBatch').click();
+    await page.evaluate(()=>{S.history.find(h=>h.id==='h1').status='removed';S.history.find(h=>h.id==='h2').status='uncertain';});
+    await page.locator('[data-confirm="restoreBatch"]').click();
+    check('removido/incerto após revisão não são restaurados nem substituídos', await page.locator('[aria-label="Resultado da restauração"] li strong').allTextContents().then(xs=>xs.length===2&&xs.every(t=>t.startsWith('Não restaurado'))) && await action('restoreBatch').isDisabled());
+    await fresh();await scenario('recovery');await nav('Histórico e restauração');await action('restoreAll').click();await action('restoreBatch').click();
+    check('lote não usa original incerto da recuperação especial', !(await page.getByRole('dialog').innerText()).includes('900 × 900'));
+    await page.keyboard.press('Escape');await action('recover').click();await page.locator('[data-confirm="restore"]').click();
+    check('recuperação individual permanece disponível separadamente do lote', (await page.locator('[data-record="h4"]').innerText()).includes('Original restaurado') && await action('recover').count()===0);
+    await fresh();await scenario('waitNext');await simulate80();await review();await page.locator('[data-ack="ack"]').check();await action('apply').click();await wait('Aguardando metadata');await nav('Histórico e restauração');
+    check('execução ativa bloqueia seleção/restauração/remoção em lote e individual', await action('restoreAll').isDisabled() && await action('restoreBatch').isDisabled() && await action('purgeAll').isDisabled() && await page.locator('[data-restore]:enabled,[data-purge]:enabled,[data-act="restore"]:enabled').count()===0);
+
+    await fresh();await nav('Histórico e restauração');await page.locator('[data-restore="h1"]').check();await page.locator('[data-purge="h1"]').check();await action('purgeReview').click();await page.locator('#dialogAck').check();await page.locator('[data-confirm="purge"]').click();
+    check('purga invalida seleção antiga de restauração sem deixar revisão morta', await action('restoreBatch').isDisabled() && (await action('restoreBatch').innerText()).includes('(0)') && await page.locator('[data-restore="h1"]').count()===0);
+    await fresh();await simulate80();await review(['img-v-capa']);await nav('Histórico e restauração');await page.locator('[data-restore="h1"]').check();await nav('Executar');await page.locator('[data-ack="ack"]').check();await action('apply').click();await wait('Aplicação concluída');await nav('Histórico e restauração');
+    check('nova aplicação invalida seleção da transação anterior para restaurar', await page.locator('[data-restore]:checked').count()===0 && await page.locator('[data-record="h1"] [data-restore]').count()===0 && await action('restoreBatch').isDisabled());
+
+    await fresh();await page.locator('[data-draft="scope"]').selectOption('itens');await page.locator('[data-item="viagem"]').uncheck();await page.locator('[data-item="serie"]').check();await page.locator('[data-type="Thumb"]').uncheck();await page.locator('[data-draft="storage"][value="remover"]').check();await simulate80();
+    check('narrativa de primeira conversão distingue converter de recriar e perda de restauração', (await page.locator('.analysis-summary').innerText()).includes('capa principal de Série Demonstração (2023) será convertida para WebP') && (await page.locator('.analysis-summary').innerText()).includes('não poderá restaurar nem recriar') && !(await page.locator('.analysis-summary').innerText()).includes('será recriada'));
+
+    // Global copy is explicit and never saves/overwrites independent automation.
+    await fresh();await simulate80();await action('editDraft').click();
+    check('ações secundárias do resumo usam o mesmo alinhamento à esquerda', await page.locator('.summary-actions button').evaluateAll(ns=>ns.length===2&&ns.every(n=>getComputedStyle(n).textAlign==='left')&&Math.abs(ns[0].getBoundingClientRect().x-ns[1].getBoundingClientRect().x)<1));
+    check('origem dos padrões e efeitos da cópia são explícitos', (await page.locator('.summary-panel').innerText()).includes('Definidos em Configurações; copia para este teste, não salva nem altera automação'));
+    await nav('Automação');await number('[data-auto="quality"]',77);await action('saveAuto').click();
+    await nav('Configurações');await number('[data-cfg="quality"]',91);await action('saveCfg').click();
+    await nav('Simular');await page.locator('[data-draft="storage"][value="remover"]').check();await action('defaults').click();
+    check('diálogo de padrões distingue Configurações, teste e automação', (await page.getByRole('dialog').innerText()).includes('Não salva nem altera automação'));
+    await page.locator('[data-confirm="defaults"]').click();
+    check('cópia global altera codificação, mas mantém alcance/tipos/preservação', await page.locator('#manual-quality').inputValue()==='91' && await page.locator('[data-draft="storage"][value="remover"]').isChecked() && await page.locator('[data-lib="filmes"]').isChecked() && await page.locator('[data-type="Thumb"]').isChecked());
+    await nav('Automação');check('cópia global não altera automação salva', await page.locator('[data-auto="quality"]').inputValue()==='77');
+
+    // Explicit multiple/all scope persists the set, never treating empty as all.
+    await fresh();await nav('Automação');
+    check('automação explica tarefas distintas, modo e disparo externo sem link falso', (await text()).includes('Otimizar novas imagens') && (await text()).includes('Atualizar conversões quando os ajustes mudam') && (await text()).includes('Salvar ajustes não dispara o trabalho') && (await text()).includes('configurados no Jellyfin e estão indisponíveis neste protótipo') && await page.locator('main a').count()===0);
+    await page.locator('[data-auto-lib="filmes"]').uncheck();
+    check('automação vazia bloqueia salvar, sem escopo implícito', await action('saveAuto').isDisabled() && (await text()).includes('Seleção vazia não significa tudo'));
+    await page.locator('[data-auto-lib="filmes"]').check();await page.locator('[data-auto-lib="series"]').check();
+    check('editar múltiplas bibliotecas não muda conjunto salvo antes de salvar', (await page.locator('#autoSavedScope').innerText())==='Filmes');
+    await action('saveAuto').click();check('salvar múltiplas bibliotecas mantém conjunto correto', (await page.locator('#autoSavedScope').innerText())==='Filmes + Séries');
+    await shot('21-desktop-automacao-multiplas');
+    await page.locator('[data-auto-lib="filmes"]').uncheck();await nav('Simular');await nav('Automação');
+    check('draft de automação e salvo são separados mesmo ao navegar', !(await page.locator('[data-auto-lib="filmes"]').isChecked()) && (await page.locator('#autoSavedScope').innerText())==='Filmes + Séries');
+    await page.locator('[data-auto="scope"]').selectOption('tudo');await action('saveAuto').click();
+    check('todas é opção explícita e resumo salvo correto', (await page.locator('#autoSavedScope').innerText())==='Todas as bibliotecas e metadata global');
+    await page.locator('[data-auto="scope"]').selectOption('bibliotecas');await page.locator('[data-auto-lib="filmes"]').check();await action('saveAuto').click();await scenario('removedLibrary');
+    check('biblioteca removida não é substituída nem vira tudo', (await text()).includes('Biblioteca salva indisponível') && (await page.locator('#autoSavedScope').innerText())==='Filmes + Séries' && await action('saveAuto').isDisabled());
+    await page.locator('[data-auto-lib="series"]').uncheck();await action('saveAuto').click();
+    check('remover explicitamente biblioteca indisponível permite salvar só Filmes', (await page.locator('#autoSavedScope').innerText())==='Filmes');
+
+    // Storage meaning and the strict completion-age boundary, not a midnight job.
+    await fresh();await nav('Configurações');
+    check('armazenamento explica mínimo livre, limite total e ausência de mutação em simulação', (await text()).includes('Espaço livre mínimo a preservar') && (await text()).includes('Limite total de originais guardados') && (await text()).includes('não um gasto de processamento por execução') && (await text()).includes('Simular não muda o disco'));
+    check('retenção explica origem da idade, momento e consequência sem ocultar essencial', (await text()).includes('desde a conclusão da conversão') && (await text()).includes('no início de um lote de aplicação') && (await text()).includes('nunca mídia, vídeos ou o WebP ativo') && (await text()).includes('irreversível') && (await text()).includes('meia-noite'));
+    await shot('22-desktop-armazenamento');
+    await number('[data-cfg="retention"]',40);await action('saveCfg').click();await nav('Simular');await simulate80();await review(['img-v-mini']);
+    check('idade exatamente igual à retenção ainda não expira na fixture', await page.locator('[data-ack="expiryAck"]').count()===0);
+    await nav('Configurações');await number('[data-cfg="retention"]',39);await action('saveCfg').click();await nav('Simular');await action('editDraft').first().click();await action('analyse').click();await review(['img-v-mini']);
+    check('idade superior à retenção prevê expiração no início e não afeta WebP ativo', (await text()).includes('no início deste lote') && (await text()).includes('39 dias desde a conclusão da conversão') && (await text()).includes('nunca mídia, vídeos ou WebP ativo') && await page.locator('[data-ack="expiryAck"]').count()===1);
+    await nav('Automação');check('automação mostra retenção global e perda irreversível antes de salvar', (await text()).includes('Retenção de originais: 39 dias') && (await text()).includes('não é um gasto permitido por execução') && (await text()).includes('impede restauração e recriação'));
+
+    // Narrow pages (the recommended structure): editor, narrative and batch confirmation.
+    await fresh();await page.setViewportSize({width:360,height:640});
+    await page.locator('[data-draft="scope"]').selectOption('itens');await page.locator('[data-type="Thumb"]').uncheck();await coverEditor.click();
+    await noOverflow('360×640 páginas: editor expandido sem overflow');await shot('23-mobile-editor-tipo');
+    await simulate80();await noOverflow('360×640 páginas: narrativa só capa sem overflow');await shot('24-mobile-viagem-so-capa');
+    await nav('Histórico e restauração');await action('restoreAll').click();await action('restoreBatch').click();
+    await noOverflow('360×640 páginas: confirmação de restauração em lote sem overflow');
+    check('lote móvel mantém confirmação e foco dentro do modal', await page.getByRole('dialog').evaluate(n=>n.contains(document.activeElement)&&n.getBoundingClientRect().right<=innerWidth));
+    check('diálogo abre no título sem rolar sua introdução para fora', await page.getByRole('dialog').evaluate(n=>n.scrollTop===0&&document.activeElement.id==='dialogTitle'));
+    check('ação de confirmar lote permanece visível na janela móvel', await page.locator('[data-confirm="restoreBatch"]').evaluate(n=>{const a=n.getBoundingClientRect(),b=n.closest('dialog').getBoundingClientRect();return a.top>=b.top&&a.bottom<=b.bottom&&a.bottom<=innerHeight;}));
+    await shot('25-mobile-restauracao-lote');await axe('restauração em lote mobile');await page.keyboard.press('Escape');
+    await page.setViewportSize({width:1440,height:1000});
 
     // Both D1 variants preserve draft and browser history. Tabs need real focus behavior.
     await fresh();await number('#manual-quality',80);await bench();await page.locator('#shell').selectOption('abas');
@@ -382,13 +513,13 @@ const url = pathToFileURL(path.resolve(__dirname, '../docs/ux-prototype/jellyp-p
     await page.setViewportSize({width:360,height:800});
     await noOverflow('360 px: seleção sem overflow');await shot('10-mobile-selecao');
     await axe('seleção mobile e abas');
-    for(const name of ['Executar','Automação','Histórico e originais','Configurações','Simular']){await nav(name);await noOverflow('360 px: '+name);}
+    for(const name of ['Executar','Automação','Histórico e restauração','Configurações','Simular']){await nav(name);await noOverflow('360 px: '+name);}
     await action('analyse').click();await noOverflow('360 px: resultado sem overflow');
     await shot('11-mobile-simulacao');
     await axe('resultado mobile');
     await review();await page.locator('[data-ack="ack"]').check();await noOverflow('360 px: revisão sem overflow');await shot('12-mobile-revisao');
     await action('apply').click();await wait('Aplicação concluída');await noOverflow('360 px: conclusão sem overflow');
-    await nav('Histórico e originais');await noOverflow('360 px: histórico atualizado sem overflow');await shot('13-mobile-historico');
+    await nav('Histórico e restauração');await noOverflow('360 px: histórico atualizado sem overflow');await shot('13-mobile-historico');
     await axe('histórico mobile');
     await action('purgeAll').click();await action('purgeReview').click();await noOverflow('360 px: diálogo sem overflow');
     check('diálogo cabe e prende foco no modal nativo', await page.getByRole('dialog').evaluate(n=>{const r=n.getBoundingClientRect();return r.x>=0&&r.right<=innerWidth&&n.contains(document.activeElement);}));
@@ -396,7 +527,7 @@ const url = pathToFileURL(path.resolve(__dirname, '../docs/ux-prototype/jellyp-p
     await page.setViewportSize({width:768,height:1024});await nav('Simular');await noOverflow('768 px: layout intermediário sem overflow');await shot('15-tablet');
     await page.setViewportSize({width:360,height:640});await bench();await page.locator('#shell').selectOption('paginas');await page.locator('#bench').evaluate(n=>{n.open=false;});
     check('páginas mobile expõe as cinco áreas no seletor', await page.locator('#areaMenu option').count()===5 && await page.locator('#areaMenu').isVisible());
-    for(const name of ['Executar','Automação','Histórico e originais','Configurações','Simular']){await nav(name);await noOverflow('360×640 páginas: '+name);}
+    for(const name of ['Executar','Automação','Histórico e restauração','Configurações','Simular']){await nav(name);await noOverflow('360×640 páginas: '+name);}
     await shot('16-mobile-paginas');await axe('páginas mobile');
     await page.setViewportSize({width:1280,height:900});await nav('Configurações');await noOverflow('1280 px: configurações sem overflow');
     check('redução de movimento é respeitada', await page.evaluate(()=>matchMedia('(prefers-reduced-motion: reduce)').matches));

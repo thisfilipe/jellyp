@@ -24,7 +24,7 @@ caixa desmarcada como autorização para trabalhar nela automaticamente.
 > **Atualização P2 (05/11/2026):** P2 foi autorizada para artefatos e exercício;
 > a revisão visual/UX do protótipo, seus testes locais e documentação também
 > foram autorizados. Protótipo revisado e verificado em navegador; **exercício
-> humano e validação D1/D2 pendentes**. P3–P8, runtime, backend e produção não
+> sem contexto e validação de navegação/compreensão D2 pendentes**. P3–P8, runtime, backend e produção não
 > foram autorizados. Evidência e limites: [desenho P2](UX-P2-DESIGN.pt-BR.md).
 
 Este documento é a especificação de referência da proposta. O [PLAN.md](PLAN.md)
@@ -190,12 +190,13 @@ distinção, sem prometer interrupção instantânea.
 | **Simular** | “O que acontecerá com estas imagens usando estes ajustes?” | Bibliotecas/itens, tipos, ajustes efetivos, preservação, limite de análise e resultado por imagem. |
 | **Executar** | “O que exatamente autorizo alterar agora?” | Simulação escolhida, imagens autorizadas, resumo final, aplicação, andamento e resultado da operação. |
 | **Automação** | “Onde, quando e com quais ajustes o plugin trabalha sozinho?” | Escopo próprio, políticas salvas, modo, agendamentos nativos e atividade relacionada. |
-| **Histórico e originais** | “O que aconteceu e o que posso desfazer?” | Operações e transações por imagem, evidências, originais disponíveis, restauração e exclusão explicitamente selecionada. |
+| **Histórico e restauração** | “O que aconteceu e o que posso desfazer?” | Operações e transações por imagem, evidências, originais disponíveis, restauração e exclusão explicitamente selecionada. |
 | **Configurações** | “Quais são meus padrões e limites?” | Padrões globais/por tipo, armazenamento, limites e preferências avançadas, com alcance de cada configuração indicado. |
 
-As áreas podem ser páginas internas ou abas acessíveis integradas ao Jellyfin.
-Não há decisão de implementar um novo roteador. P2 deve validar a alternativa
-mais compatível com o host, inclusive navegação de voltar/avançar.
+**Adendo P2 (05/11/2026):** páginas internas são a direção recomendada/inicial;
+abas permanecem somente como comparação opcional na bancada. Não exigir uma
+escolha D1 imediata. Não há decisão de implementar um novo roteador; a integração
+nativa, voltar/avançar e celular ainda devem ser validados no host.
 
 Cada área precisa preservar seu contexto. Navegar não pode aplicar ajustes,
 descartar silenciosamente um rascunho, cancelar um trabalho ou ocultar como voltar
@@ -365,6 +366,17 @@ A restauração usa a transação ativa correta, não uma entrada antiga só por
 mesmo nome. O histórico de uma sincronização pode incluir restauração intermediária
 e nova conversão; a apresentação deve explicar a operação completa ao usuário.
 
+**Extensão de produto solicitada na revisão P2 (05/11/2026): restauração em lote.**
+Oferecer acesso direto, filtro de restauráveis e seleção explícita de transações
+ativas com original disponível, incluindo “todos os restauráveis” como ação de
+seleção, nunca confirmação. Revisar lista exata e confirmar; revalidar cada
+transação e apresentar resultado individual sem substituições. Incertos, removidos
+e inativos não são restauráveis em lote; recuperação permanece separada. Bloquear
+durante execução e invalidar análise/revisão e seleções obsoletas após mutação.
+Isso é **proposta demonstrada só no protótipo**, não API/backend implementado.
+P3 define autorização, concorrência, persistência e compatibilidade; ver o adendo
+do [contrato P1](UX-P1-CONTRACT.pt-BR.md#8-adendo-de-produto-p2--feedback-com-contexto-05112026).
+
 Excluir originais é um fluxo próprio:
 
 1. Escolher explicitamente quais originais serão removidos.
@@ -464,7 +476,7 @@ aplicação pode reutilizar os mecanismos atuais de conversão e restauração s
 
 | ID | Decisão | Recomendação inicial / etapa limite |
 |---|---|---|
-| D1 | Forma de navegação: páginas ou abas. | Validar integração nativa, voltar/avançar e uso em celular em P2. |
+| D1 | Páginas internas recomendadas/iniciais; abas só comparação opcional (adendo P2). | Validar navegação, voltar/avançar e celular; integração nativa no host em P5. Não exigir escolha binária imediata. |
 | D2 | Tratamento manual de conversão e regeneração. | Análise única da intenção por padrão; validar entendimento em P2 e contrato em P3. |
 | D3 | Herança de ajustes por tipo. | **Resolvida em nível de produto (P1)**: substituição completa por tipo, sem herança por campo; ver contrato §3.1. Representação/migração final em P3. |
 | D4 | Alcance de reservas, quotas, retenção e padrões. | **Resolvida em nível de produto (P1)**: reserva/quota/retenção/economia globais; escopo e preservação por operação; ver contrato §3.2. Contrato técnico em P3. |
@@ -524,16 +536,25 @@ Revisão autorizada em 05/11/2026: protótipo standalone refeito em torno da jor
 selecionar → simular → escolher subconjunto → revisar → acompanhar → restaurar.
 Seleção inicial vazia, consentimentos funcionais, remoção com revisão separada,
 isolamento de estado, invalidação de simulação e retenção global explícita.
-Renderização desktop/mobile inspecionada; 96 verificações de navegador/auditoria
-aprovadas (incluem 11 auditorias axe), sem API real. A referência ao Jellyfin é
+Renderização desktop/mobile inspecionada; verificações de navegador/auditoria
+aprovadas (contagens atuais no desenho P2), sem API real. A referência ao Jellyfin é
 aproximada a partir de código público; **não houve integração real no host**.
-Esse resultado técnico não fecha o aceite humano nem D1/D2.
+Esse resultado técnico não fecha o aceite sem contexto ou a integração no host.
+
+A iteração de feedback com contexto mantém páginas internas, separa status/ação
+no editor por tipo, explicita cópia de padrões globais, narra a simulação e amplia
+a restauração para lote revisado. Automação salva múltiplas bibliotecas ou todas
+explicitamente e explica tarefas/modo/disparos nativos. Armazenamento distingue
+mínimo livre e teto total de originais; a idade atual de retenção usa `CompletedUtc`,
+com expiração elegível no início de otimização aplicada, não à meia-noite. O relato
+do teste básico não substitui uma pessoa sem contexto. Registro sanitizado e
+evidência de código: desenho P2 e adendo P1. Nenhuma dessas mudanças autoriza P3.
 
 - [x] Criar wireframes das cinco áreas, incluindo celular e navegação por teclado.
 - [x] Representar seleção, editor por tipo, lista de resultado e revisão de execução.
 - [x] Representar todos os estados definidos em P1, não apenas o caminho de sucesso.
 - [x] Revisar visual/fluxo do protótipo e exercitar os contratos sintéticos no navegador, sem tocar no runtime.
-- [ ] Validar D1/D2 com tarefas descritas pelo objetivo, sem ensinar nomes de botões.
+- [ ] Validar descoberta da navegação recomendada e compreensão D2 por objetivo, sem ensinar botões; comparação de abas é opcional.
 - [ ] Registrar onde o participante hesitou, procurou feedback ou interpretou alcance errado.
 - [ ] Revisar o fluxo antes de considerar a quantidade de telas e seus textos fechados.
 

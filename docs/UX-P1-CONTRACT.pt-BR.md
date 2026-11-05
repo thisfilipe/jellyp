@@ -335,3 +335,57 @@ autoriza mais do que as imagens identificadas na própria simulação.
 verificação com pessoa sem contexto (P2); contratos de dados, paginação,
 idempotência, migração e endpoints (P3). Nada neste documento foi implementado
 ou testado em runtime.
+
+## 8. Adendo de produto P2 — feedback com contexto (05/11/2026)
+
+Este adendo **estende a proposta**, não reescreve o inventário histórico de P1 e
+não afirma suporte do backend. O escopo autorizado é protótipo sintético, smoke e
+documentação. P3–P8 continuam sem autorização de implementação.
+
+- **Navegação:** páginas internas são a direção recomendada e inicial. Abas ficam
+  apenas como comparação opcional na bancada; uma escolha binária D1 não é prévia
+  obrigatória ao uso. Integração nativa, voltar/avançar e celular ainda precisam de
+  validação. Não há validação por pessoa sem contexto.
+- **Nome da área:** a apresentação passa a **Histórico e restauração**, priorizando
+  a descoberta de desfazer, sem confundir com remover originais.
+- **Extensão solicitada: restauração em lote.** Seleção explícita por transação
+  ativa com original disponível, sem seleção inicial. “Todos os restauráveis” só
+  marca os elegíveis; revisar a lista exata e confirmar precedem qualquer efeito.
+  Cada registro é revalidado e tem resultado individual; incerto, removido ou
+  inativo não entra no lote e não é substituído. Recuperação continua um fluxo
+  separado. Restaurações invalidam análise/revisão e seleções obsoletas; mutações
+  concorrentes ficam bloqueadas durante execução. Contratos, autorização,
+  concorrência, cancelamento, durabilidade e compatibilidade de journals são
+  trabalho de P3, **não uma nova API implementada**.
+- **Automação:** uma ou mais bibliotecas selecionadas, ou todas explicitamente;
+  vazio nunca significa todas. Ajustes em edição e conjunto salvo são distintos.
+  Biblioteca indisponível exige revisão explícita, não substituição silenciosa.
+  Salvar não dispara tarefas. Otimizar novas imagens e atualizar conversões a
+  partir dos originais continuam tarefas nativas distintas, com chaves/disparos
+  preservados; não se propõe segundo scheduler nem unificação silenciosa.
+
+### Conferência de armazenamento no código atual
+
+Leitura, sem alterações, de `Migration/OptimizationCoordinator.cs`:
+
+- `ConvertAsync` (linhas 461–468): `ActualBackupBytes() + source.Length` deve
+  caber em `MaximumBackupBytes`. É teto **total de originais**, inclusive a cópia
+  segura temporária antes de remover após verificar, não orçamento por execução.
+  `EnsureSpace` soma `MinimumFreeSpaceBytes` aos bytes necessários; esse mínimo
+  livre não pode ser consumido pelo plugin. `ActualBackupBytes` (648–650) mede os
+  arquivos da pasta de originais.
+- Início do lote (180–183): expiração atual ocorre em aplicação de **otimização**
+  (`!DryRun && !synchronize`), não em simulação, não num disparo diário de retenção
+  e não no caminho atual de sincronização. Não generalizar isso como backend já
+  unificado para a futura análise única.
+- `PurgeCoreAsync` (613–630): considera `Committed`, backup não removido e
+  **`CompletedUtc < cutoffUtc`**, com verificações de referência/hash e ausência
+  da origem. A idade é desde a conclusão da conversão/regeneração (506 e 596),
+  **não** `CreatedUtc`, mtime do backup ou último acesso. Uma regeneração atualiza
+  essa conclusão mesmo reutilizando o original. Igualdade exata ao corte não
+  satisfaz `<`. As idades inteiras da fixture só ilustram essa regra.
+- A retenção remove **originais guardados**, nunca mídia/vídeos ou WebP ativo;
+  a perda de restauração/regeneração é irreversível. Não prometer expiração à
+  meia-noite de X dias. Previsão, consentimentos, proteção do original necessário
+  à regeneração selecionada e dados de elegibilidade reais do novo fluxo dependem
+  do desenho P3; a bancada não executa hashes, espaço ou purga reais.

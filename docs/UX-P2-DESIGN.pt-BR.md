@@ -4,7 +4,8 @@ Registro inicial: **17/10/2026**. Revisão visual/UX: **05/11/2026**.
 Referências: [contrato P1](UX-P1-CONTRACT.pt-BR.md) ·
 [especificação](UX-REFACTOR-PLAN.pt-BR.md) · [plano](PLAN.md).
 
-**Status:** protótipo revisado, renderizado e exercitado automaticamente.
+**Status:** protótipo revisado a partir de feedback real com contexto, renderizado
+e exercitado automaticamente. O ensaio relatado não equivale a validação sem contexto.
 **Validação com pessoa sem contexto continua pendente.** A autorização desta
 revisão abrange protótipo/testes/documentação, não runtime, backend, produção,
 instalação ou release. Não confundir a implementação deste estudo com P4–P6.
@@ -24,12 +25,19 @@ As pequenas ilustrações geométricas “P2” são CSS próprio, não capas de
 ### Jornada principal
 
 1. **Simular:** selecionar bibliotecas, itens ou explicitamente tudo; marcar tipos,
-   editar qualidade e escolher preservação. Origem dos valores: rascunho manual,
-   iniciado com padrões sintéticos. “Usar padrões salvos” faz cópia explícita,
-   confirmada, sem trocar alcance, tipos ou preservação.
+   editar qualidade e escolher preservação. O editor distingue o estado “Usa os
+   ajustes deste teste” / “Ajustes próprios deste tipo” da ação **Editar ajustes
+   deste tipo**, com borda, chevron, painel e `aria-expanded`/`aria-controls`.
+   “Usar padrões globais” copia explicitamente os valores definidos em
+   Configurações, após confirmação, sem salvar ou alterar automação, alcance,
+   tipos ou preservação. As ações secundárias do resumo são alinhadas à esquerda.
 2. **Simular → resultado:** a análise substitui o editor na mesma área. Snapshot
    identificado, ações por imagem e motivos ficam juntos, sem procurar abaixo de
-   um formulário extenso. Qualidade 80 propõe regenerar a capa de Viagem a partir
+   um formulário extenso. O foco e o anúncio chegam a “Simulação concluída —
+   nenhuma imagem foi alterada”. A narrativa explica ações, preservação,
+   restauração, impacto líquido e próximo passo antes dos detalhes de IDs/SSIM.
+   A análise é local e síncrona, sem atraso artificial ou fase de servidor fictícia.
+   Qualidade 80 propõe regenerar a capa de Viagem a partir
    do original; a miniatura pode ser convertida; WebP externo é mantido e um filtro
    rejeita outra imagem. Não existe botão manual separado de sincronização.
 3. **Escolher:** nenhuma proposta vem marcada. Checkbox por identidade de imagem;
@@ -41,9 +49,19 @@ As pequenas ilustrações geométricas “P2” são CSS próprio, não capas de
 5. **Acompanhar:** inventário sem percentual inventado → processamento → resultado.
    Execução tem identidade, origem e contagens próprias. O indicador global permite
    voltar à operação; navegar não a cancela. A conclusão da encenação é automática.
-6. **Histórico:** a aplicação cria registros da própria seleção. Restaurar revisa a
+6. **Histórico e restauração:** a aplicação cria registros da própria seleção.
+   O resultado oferece acesso direto à restauração com filtro “Somente
+   restauráveis”. Restaurar revisa a
    transação ativa e exibe formato/dimensões/bytes; após confirmar, abre a evidência
    sintética. Transações anteriores do mesmo slot não oferecem restauração.
+   **Em lote:** marcar subconjunto ou todos os restauráveis → revisar lista exata
+   de transações/formato/dimensões/bytes → confirmar → resultado individual.
+   Seleção inicial zero; incertos, removidos e inativos ficam fora. Revalidação
+   rejeita registros alterados sem substituição. Recuperação permanece separada;
+   restauração/remover ficam bloqueados durante aplicação. Análises, revisões e
+   seleções obsoletas são invalidadas. É extensão proposta de produto no
+   [adendo P1](UX-P1-CONTRACT.pt-BR.md#8-adendo-de-produto-p2--feedback-com-contexto-05112026),
+   não suporte de lote já implementado no backend.
 7. **Remover originais:** marcar → revisar lista/quantidade/bytes → autorizar →
    confirmar. “Todos os elegíveis do plugin” só seleciona, não remove. Incertos
    não são selecionáveis. Escape/voltar no diálogo não altera dados.
@@ -71,9 +89,11 @@ aplicar; uma imagem inválida não é substituída. Isso demonstra o contrato de
   imagens, **220 KiB** de novos originais e **68 KiB a mais em uso**; regeneração
   reutiliza o original existente. Não chamar redução de imagem de espaço livre.
 
-## 3. D1 — duas estruturas, decisão humana ainda aberta
+## 3. Navegação — páginas internas recomendadas
 
-A **bancada**, recolhida no rodapé, alterna as mesmas áreas entre:
+A direção inicial/recomendada é **páginas internas**, conforme a revisão de
+produto com contexto. Não se exige uma escolha D1 imediata para continuar. A
+**bancada**, recolhida no rodapé, permite comparar opcionalmente as mesmas áreas:
 
 | | Páginas internas (inicial) | Abas |
 |---|---|---|
@@ -89,9 +109,10 @@ do plugin foram registradas. A referência de P1 sobre `GetPages()` e
 `PluginPageInfo` permanece válida como direção; routing e retenção de rascunho
 entre páginas reais precisam ser projetados em P3 e validados em P5.
 
-Escolher a alternativa inicial não fecha D1. D2 é a análise única proposta pelo
-produto; o entendimento de “gerar novamente a partir do original” ainda precisa
-ser observado com uma pessoa, não inferido de um teste que encontra texto.
+Isso registra uma direção de produto, não uma validação por pessoa sem contexto
+ou prova de integração nativa. Abas não são requisito do exercício básico. D2
+continua sendo a análise única; entendimento sem contexto de “gerar novamente a
+partir do original” precisa de observação, não de um teste que encontra texto.
 
 ## 4. Cobertura de áreas e estados P1
 
@@ -99,9 +120,9 @@ ser observado com uma pessoa, não inferido de um teste que encontra texto.
 |---|---|---|
 | Simular | bibliotecas/itens/tudo; busca local; seis tipos representativos; editor completo por tipo, qualidade/sem perdas/dimensão/SSIM; preservação e limite; análise congelada; escolha explícita | vazio, nenhum tipo, item sem imagens, inspeção indisponível, relatório obsoleto, WebP sem original, filtro, referência remota/compartilhada |
 | Executar | conjunto exato; consentimentos; expiração global prevista; progresso/resultado contextual; navegação durante operação | conflito, recuperação bloqueante, espera, cancelamento, fonte invalidada, resultado parcial |
-| Automação | biblioteca/modo/qualidade/tipos/limite/preservação próprios; rascunho e estado salvo separados; autorização destrutiva própria | alterações não salvas, ociosa ≠ desativada, sem horário, tarefas indisponíveis |
-| Histórico e originais | operações agrupadas; transação ativa; evidência e restauração revisada; remoção seletiva e confirmada | anterior inativa, restaurado, removido, incerto preservado, recuperação |
-| Configurações | rascunho separado do salvo; política completa por tipo; economia/reserva/quota/retenção globais; gravação explícita | valores inválidos, não salvo, retenção com previsão em Executar |
+| Automação | uma ou mais bibliotecas ou todas explicitamente; modo/qualidade/tipos/limite/preservação próprios; edição e salvo separados; tarefas distintas explicadas; autorização destrutiva própria | vazio bloqueado, biblioteca removida, alterações não salvas, ociosa ≠ desativada, sem horário, tarefas indisponíveis; horários só no Jellyfin, indisponíveis aqui |
+| Histórico e restauração | operações agrupadas; filtro; seleção restaurável; revisão individual/lote; resultado individual; remoção separada e confirmada | anterior inativa, restaurado, removido, incerto preservado, recuperação; revisão obsoleta, bloqueio em execução |
+| Configurações | edição separada do salvo; política completa por tipo; mínimo livre/limite total de originais/retenção explicados; filtros avançados progressivos | valores inválidos, não salvo, retenção desde conclusão com previsão em Executar; consequência irreversível visível |
 
 ### Bancada do facilitador
 
@@ -135,7 +156,7 @@ Comando reproduzível (módulos instalados fora do projeto):
 ```sh
 JELLYP_PLAYWRIGHT_MODULE=/caminho/para/playwright \
 JELLYP_AXE_MODULE=/caminho/para/@axe-core/playwright \
-node scripts/smoke-prototype.cjs --screenshots /tmp/opencode/jellyp-p2-corrected
+node scripts/smoke-prototype.cjs --screenshots /tmp/opencode/jellyp-p2-feedback
 ```
 
 O axe é opcional: sem `JELLYP_AXE_MODULE`, apenas as verificações do fluxo são
@@ -143,24 +164,38 @@ executadas. Para auditar `file://`, o teste troca temporariamente o `<link>` pel
 **mesmo CSS local inline**, evitando o XHR de CSS que o axe tenta fazer e o
 Chromium bloqueia. O produto não faz esse XHR. HTTP é bloqueado e contabilizado.
 
-**Resultado em 05/11/2026 (revisão corretiva):** Playwright 1.64.1, Chromium
-156.0.8078.4 e axe-playwright 4.14.0: **133 verificações, zero falhas**, incluindo
-**11 auditorias axe** (tags WCAG 2 A/AA, 2.1 AA e 2.2 AA); zero erros de
+**Resultado em 05/11/2026 (iteração do feedback):** Playwright 1.64.1 e
+axe-playwright 4.14.0: **189 verificações, zero falhas**, incluindo
+**14 auditorias axe** (tags WCAG 2 A/AA, 2.1 AA e 2.2 AA); zero erros de
 página/console e zero requisições HTTP/API/CDN. A rodada sem axe passou em
-**122 verificações**, também sem erros ou HTTP. `node --check` dos dois JS e
-`git diff --check` passaram. As regressões novas cobrem proteção de fundo
+**175 verificações**, também sem erros ou HTTP. `node --check` dos dois JS e
+`git diff --check` passaram. As **133 verificações anteriores (11 axe)** foram
+preservadas, incluindo as nove regressões corretivas: proteção de fundo
 compartilhado na restauração, retenção que preserva o original exigido pela
 regeneração selecionada, invalidação de análise/revisão após purga, restauração e
 execução, validação da política efetiva, pluralização, foco após confirmações e
 cancelamento, IDs obsoletos de remoção, status salvo da automação e dimensão na
 recuperação. Isso não certifica conformidade WCAG nem substitui leitor de tela ou
-usabilidade.
+usabilidade. A ampliação cobre o item Viagem com somente capa; descoberta e
+teclado do editor; ajustes gerais versus próprios; cópia global versus automação;
+narrativas de converter/recriar e consequências; restauração de subconjunto/todos,
+lista exata, recuperação separada, revisão e seleções obsoletas, shared/dimensões
+e bloqueio durante execução; automação vazia/múltipla/todas e biblioteca removida;
+semântica de armazenamento e corte estrito da idade; confirmação móvel visível e
+foco inicial no título sem esconder a introdução. Corridas são injeções controladas
+nas fixtures, não prova de concorrência/integridade do backend.
 
-Capturas desta rodada em `/tmp/opencode/jellyp-p2-corrected/`: seleção, simulação,
-revisão, conclusão, restauração, remoção, retenção, espera, abas, celular e tablet.
+Capturas desta rodada em `/tmp/opencode/jellyp-p2-feedback/`: seleção, simulação,
+revisão, conclusão, restauração, remoção, retenção, espera, abas, celular e tablet;
+mais editor expandido, Viagem só capa, revisão/resultado do lote, automação
+múltipla, armazenamento e confirmação móvel. Logs: `smoke-axe.log` e
+`smoke-no-axe.log` no mesmo diretório.
 Arquivos `*-viewport.png` mostram a janela real; os demais são página inteira. A
 suíte verificou overflow em 1440 px, 360×800, 360×640, 768×1024 e 1280×900; nesta
-revisão foram reinspecionadas visualmente a revisão e a retenção em desktop. As
+revisão foram inspecionados visualmente editor/status, narrativa da capa,
+revisão/resultado de restauração, automação e armazenamento em desktop, além da
+narrativa e confirmação em celular. O modal móvel mantém as ações visíveis,
+conteúdo rolável e foco inicial no título. As
 capturas são evidência local regenerável, não registro de sessão humana nem
 arquivos de produção.
 
@@ -197,9 +232,34 @@ Outros limites:
   exercita os principais campos próprios; o editor avançado completo de políticas
   da automação e todos os tipos do runtime não são exaustivamente reproduzidos.
 - Retenção é sintética por idade da fixture; a previsão e consentimento são proposta
-  de UX, não contrato de elegibilidade/concorrência de expiração (P3).
+  de UX, não contrato de elegibilidade/concorrência de expiração (P3). O código
+  atual usa `CompletedUtc` e corte estrito `<`, não a criação/mtime do backup;
+  otimização aplica expiração no início do lote, mas sincronização atual não.
+  A evidência exata e a distinção atual/proposto estão no adendo P1.
 - Sem durabilidade, paginação, migração, permissões reais, reload resiliente,
   reinício, desempenho ou validação de backend. Só Chromium automatizado; Firefox,
   Safari, leitor de tela e aparelhos físicos não foram validados.
-- [Exercício humano](UX-P2-EXERCISE.pt-BR.md), decisão D1 e compreensão D2 continuam
-  pendentes. Resultados pessoais vão para `.local/`, nunca para documentos públicos.
+- [Exercício sem contexto](UX-P2-EXERCISE.pt-BR.md), validação de navegação no host
+  e compreensão D2 continuam pendentes. Resultados pessoais vão para `.local/`,
+  nunca para documentos públicos.
+
+## 7. Registro sanitizado do feedback de produto
+
+Foi relatado um teste básico com contexto usando **Viagem Sintética, somente
+capa**, com simulação, aplicação e restauração. O relato indica que a jornada
+básica pôde ser percorrida, mas **não mede sucesso sem ajuda**, não tem sessão
+sem contexto registrada e não encerra P2. Não se publicam identidade, citações
+pessoais ou dados de bibliotecas reais.
+
+Fricções observadas: editor por tipo parecia status; ações secundárias desalinhadas
+e origem dos padrões ambígua; resultado exigia interpretar dados sem narrativa;
+restauração difícil de descobrir e ausência de lote; tarefas/escopo/modo da
+automação pouco claros; reserva, limite e retenção incompreensíveis. A revisão
+responde com separação de status/ação, cópia global explícita, narrativa e foco
+no resultado, área de restauração nomeada e lote revisado, escopo múltiplo/todas
+salvo e explicações de armazenamento fundamentadas no código. Páginas internas
+permanecem recomendadas; abas são comparação opcional, não nova obrigação.
+
+O registro é observação de produto, **não transcrição ou evidência de aprovação
+humana do novo desenho**. As alterações ainda precisam ser exercitadas por pessoa
+sem contexto; testes automatizados não substituem essa etapa.
