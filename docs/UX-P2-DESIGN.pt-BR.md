@@ -1,131 +1,205 @@
-# P2 — Especificação de desenho e protótipo
+# P2 — Desenho, protótipo e revisão técnica
 
-Data: **17 de outubro de 2026**. Fase: **P2 autorizada** (artefatos + exercício).
-Contrato de referência: [UX-P1-CONTRACT.pt-BR.md](UX-P1-CONTRACT.pt-BR.md).
-Especificação: [UX-REFACTOR-PLAN.pt-BR.md](UX-REFACTOR-PLAN.pt-BR.md).
+Registro inicial: **17/10/2026**. Revisão visual/UX: **05/11/2026**.
+Referências: [contrato P1](UX-P1-CONTRACT.pt-BR.md) ·
+[especificação](UX-REFACTOR-PLAN.pt-BR.md) · [plano](PLAN.md).
 
-**Status.** Artefatos de desenho concluídos; **exercício com pessoa sem contexto
-pendente**. Nada aqui é implementação: o protótipo é estático, com dados
-sintéticos, e não fala com o Jellyfin. Textos e telas permanecem propostas até a
-revisão pós-exercício (checklist P2 da especificação §11).
+**Status:** protótipo revisado, renderizado e exercitado automaticamente.
+**Validação com pessoa sem contexto continua pendente.** A autorização desta
+revisão abrange protótipo/testes/documentação, não runtime, backend, produção,
+instalação ou release. Não confundir a implementação deste estudo com P4–P6.
 
-## 1. Protótipo
+## 1. Abrir e experimentar
 
-Arquivo único: [ux-prototype/jellyp-p2.html](ux-prototype/jellyp-p2.html).
-Abrir diretamente no navegador (sem servidor, sem login). Faixa "PROTÓTIPO
-SINTÉTICO" sempre visível; nenhuma ação é real.
+Abrir [ux-prototype/jellyp-p2.html](ux-prototype/jellyp-p2.html) diretamente no
+navegador, sem servidor ou login. Manter na mesma pasta seus dois arquivos
+auxiliares: `jellyp-p2.css` e `jellyp-p2.js`. Não é mais um HTML autocontido.
+Não há bibliotecas JS, fontes remotas, API, armazenamento persistente ou credenciais.
+Recarregar reinicia as fixtures; navegar entre áreas preserva o estado da sessão.
 
-- **Bancada de estados** (barra tracejada, fora do produto): permite ao
-  facilitador colocar a tela em cada estado do contrato sem depender de dados
-  reais — vazio, indisponível, conflito, espera, cancelamento, sucesso parcial,
-  recuperação necessária. Ativar um estado **abre a área afetada**; cada item
-  indica onde aparece e tem atalho "ver".
-- **Seletor de estrutura (D1)**: fica na bancada e alterna a mesma interface
-  entre *Páginas internas* e *Abas*, sem mudar o conteúdo e preservando o
-  rascunho. Em Páginas: barra lateral de áreas + breadcrumb + URL simulada da
-  página. Em Abas: barra de abas com indicador, uma única página. É o insumo
-  central do exercício.
-- **Idioma**: protótipo só em pt-BR (a implementação final terá a alternância
-  existente en↔pt-BR); anotado para P5.
-- **Dados sintéticos**: bibliotecas "Filmes" e "Séries"; itens "Viagem
-  Sintética (2024)", "Cidade Exemplo (2021)", "Série Demonstração"; pessoa
-  "Pessoa Exemplo"; números redondos e claramente fictícios.
+A faixa fixa **PROTÓTIPO SINTÉTICO** distingue o estudo do host. O cabeçalho
+“Jellyfin / Administração / Plugins” é contexto visual, sem controles falsos.
+As pequenas ilustrações geométricas “P2” são CSS próprio, não capas de mídia.
 
-## 2. D1 — alternativas comparadas no exercício
+### Jornada principal
 
-Evidência do host (assemblies fixados do Jellyfin 12.1,
-`MediaBrowser.Model.Plugins.PluginPageInfo` e `IHasWebPages`):
+1. **Simular:** selecionar bibliotecas, itens ou explicitamente tudo; marcar tipos,
+   editar qualidade e escolher preservação. Origem dos valores: rascunho manual,
+   iniciado com padrões sintéticos. “Usar padrões salvos” faz cópia explícita,
+   confirmada, sem trocar alcance, tipos ou preservação.
+2. **Simular → resultado:** a análise substitui o editor na mesma área. Snapshot
+   identificado, ações por imagem e motivos ficam juntos, sem procurar abaixo de
+   um formulário extenso. Qualidade 80 propõe regenerar a capa de Viagem a partir
+   do original; a miniatura pode ser convertida; WebP externo é mantido e um filtro
+   rejeita outra imagem. Não existe botão manual separado de sincronização.
+3. **Escolher:** nenhuma proposta vem marcada. Checkbox por identidade de imagem;
+   “Selecionar propostas” é uma ação explícita. Sem seleção, revisão bloqueada.
+4. **Executar → revisão:** lista apenas as imagens selecionadas, com slots, ajustes,
+   ações e impacto do conjunto. Consentimento é obrigatório e funcional. Remover
+   originais e expiração global exigem consentimentos separados, não herdados
+   da automação. Não há segundo formulário capaz de divergir da análise.
+5. **Acompanhar:** inventário sem percentual inventado → processamento → resultado.
+   Execução tem identidade, origem e contagens próprias. O indicador global permite
+   voltar à operação; navegar não a cancela. A conclusão da encenação é automática.
+6. **Histórico:** a aplicação cria registros da própria seleção. Restaurar revisa a
+   transação ativa e exibe formato/dimensões/bytes; após confirmar, abre a evidência
+   sintética. Transações anteriores do mesmo slot não oferecem restauração.
+7. **Remover originais:** marcar → revisar lista/quantidade/bytes → autorizar →
+   confirmar. “Todos os elegíveis do plugin” só seleciona, não remove. Incertos
+   não são selecionáveis. Escape/voltar no diálogo não altera dados.
 
-- `GetPages()` devolve `IEnumerable<PluginPageInfo>`: **multi-página nativa**.
-- `PluginPageInfo` oferece `Name`, `DisplayName`, `EmbeddedResourcePath`,
-  `EnableInMainMenu`, `MenuSection`, `MenuIcon`. `MenuSection` é string livre
-  interpretada pelo jellyfin-web; não há enum nem primitiva de abas no servidor.
+Editar alcance, tipos, preservação ou política invalida a análise para aplicação,
+mas mantém o relatório consultável. Salvar novos limites/padrões também invalida
+a revisão conservadoramente. Fontes/identidades sintéticas são rechecadas antes de
+aplicar; uma imagem inválida não é substituída. Isso demonstra o contrato de UX,
+**não implementa integridade, idempotência ou autorização de servidor**.
 
-| | **D1-A: páginas internas** | **D1-B: abas ARIA em uma página** |
+## 2. Hierarquia e vocabulário visual
+
+- Tema escuro consistente, superfícies `#1c1c1c` sobre `#101010`, bordas discretas,
+  raio de 4 px. Ciano `#00a4dc` para foco/seleção, não gráficos decorativos.
+- Ação primária ciano mais escuro (`#007da8`) com texto branco; o ciano original
+  não dava contraste suficiente para texto pequeno, detectado no audit automatizado.
+- Tipografia de sistema (`Roboto`, `Noto Sans`, Arial): nenhum arquivo de fonte
+  copiado. Corpo 15 px no desktop / 14 px no celular; títulos 24–28 px, textos
+  auxiliares 12–13 px. Espaçamento principal 12/16/20/24 px.
+- Formulário com três seções numeradas e resumo lateral, não grade de cartões
+  equivalentes. Resultado usa linhas de imagens, rótulos de ação e detalhes
+  progressivos. IDs são secundários, títulos/ano/tipo/posição são principais.
+- Métricas da operação não se misturam aos totais do plugin. Na fixture inicial,
+  qualidade 80 + guardar os dois originais propostos: redução de **152 KiB** nas
+  imagens, **220 KiB** de novos originais e **68 KiB a mais em uso**; regeneração
+  reutiliza o original existente. Não chamar redução de imagem de espaço livre.
+
+## 3. D1 — duas estruturas, decisão humana ainda aberta
+
+A **bancada**, recolhida no rodapé, alterna as mesmas áreas entre:
+
+| | Páginas internas (inicial) | Abas |
 |---|---|---|
-| No host | 5 entradas em `GetPages()`; URLs distintas por área | 1 página; abas no HTML (padrão W3C APG, citado na especificação §14) |
-| Voltar/avançar | Histórico do navegador nativo por URL | Exige sincronizar hash manualmente para não perder histórico |
-| Link direto para uma área | Nativo | Só se o hash for mantido |
-| Rascunho ao trocar de área | Precisa de retenção explícita (sessão/servidor) | Natural: um único contexto de página |
-| Menu do Jellyfin | Cada página pode aparecer no menu (`EnableInMainMenu`/`MenuSection`/`MenuIcon`) — exposição maior, decisão do produto | Uma entrada só |
-| Mobile | Navegação por menu/URL do host | Abas roláveis/empilhadas; tudo à vista |
+| Desktop | Navegação lateral, área ativa com `aria-current` | Barra `tablist`, indicador e foco móvel |
+| Até 980 px | Navegação horizontal | Abas horizontais |
+| Até 700 px | Seletor nativo rotulado com todas as cinco áreas | Abas roláveis; teclado/foco fazem a área entrar em vista |
+| Estado | Mesmo rascunho em memória | Mesmo rascunho em memória |
+| Histórico neste estudo | Hash `#/p2/paginas/área` | Hash `#/p2/abas/área` |
 
-O protótipo implementa as duas com **hash sincronizado nas duas** (para o
-exercício comparar compreensão, não a limitação de uma implementação ingênua);
-a diferença técnica real (histórico nativo vs. manual) está registrada acima
-para P3/P5.
+Ambas usam hash real para voltar/avançar e links diretos dentro do estudo.
+Não há URL fictícia `configurationpage` nem alegação de que cinco páginas reais
+do plugin foram registradas. A referência de P1 sobre `GetPages()` e
+`PluginPageInfo` permanece válida como direção; routing e retenção de rascunho
+entre páginas reais precisam ser projetados em P3 e validados em P5.
 
-**O que o exercício precisa decidir:** em qual estrutura uma pessoa sem
-contexto (a) localiza as cinco áreas, (b) volta para onde estava, (c) mantém o
-rascunho e (d) usa razoavelmente em viewport estreito.
+Escolher a alternativa inicial não fecha D1. D2 é a análise única proposta pelo
+produto; o entendimento de “gerar novamente a partir do original” ainda precisa
+ser observado com uma pessoa, não inferido de um teste que encontra texto.
 
-## 3. D2 — representação da análise única
+## 4. Cobertura de áreas e estados P1
 
-Direção da especificação §7.3: uma simulação manual avalia os ajustes desejados
-e propõe, por imagem, converter, regenerar do original, manter ou descartar.
-
-No protótipo (área Simular → resultado):
-
-1. Cada linha mostra item, tipo/posição, estado atual ("WebP com ajustes
-   anteriores não registrados"), **ação proposta** com o texto principal
-   ("Gerar novamente a partir do original", "Converter para WebP", "Manter —
-   já utiliza estes ajustes", "Manter — redução abaixo do mínimo") e detalhe do
-   motivo.
-2. Cabeçalho separa as quantidades: analisadas · propostas · mantidas ·
-   descartadas · falhas; e os totais da simulação (redução estimada, originais
-   a guardar, impacto líquido estimado) ficam **separados** dos totais do
-   plugin.
-3. Seleção explícita por imagem (checkbox por linha + "selecionar todas as
-   propostas") para Executar.
-4. Sem instrução sobre botões técnicos: não existe "sincronizar" na área
-   manual; regeneração é uma ação proposta.
-
-**O que o exercício precisa validar:** uma pessoa entende "gerar novamente a
-partir do original; qualidade 80" sem explicação prévia (tarefa 1) e autoriza
-um subconjunto exato (tarefa 2).
-
-## 4. Áreas, telas e estados no protótipo
-
-| Área | Telas implementadas | Estados de P1 alcançáveis na bancada |
+| Área | Comportamento demonstrável | Exceções |
 |---|---|---|
-| **Simular** | escopo (bibliotecas/itens/tudo) · tipos + editor por tipo + resumo efetivo · preservação e limite · resultado por imagem | vazio (sem bibliotecas; sem tipos; item sem imagens), indisponível, dados parciais |
-| **Executar** | revisão ("Aplicar às N imagens", consequência da remoção) · andamento (inventário → espera por metadata → processando) · resultado | conflito (outra operação), espera, cancelamento, sucesso parcial, recuperação necessária |
-| **Automação** | escopo/modo próprios · gravação explícita · tarefas nativas (estado/disparos) | ociosa ≠ desativada, sem horário, tempo de execução |
-| **Histórico e originais** | lista por operação · detalhe por imagem (formato/dimensões/tamanho armazenados + nota sobre WebP de resposta) · restauração · remoção seletiva | recuperação necessária, original restaurado, original removido, incerto preservado |
-| **Configurações** | padrões globais e por tipo com alcance indicado · limites, reserva, quota, retenção (globais) · rascunho alterado + gravação explícita | rascunho alterado, valores efetivos |
+| Simular | bibliotecas/itens/tudo; busca local; seis tipos representativos; editor completo por tipo, qualidade/sem perdas/dimensão/SSIM; preservação e limite; análise congelada; escolha explícita | vazio, nenhum tipo, item sem imagens, inspeção indisponível, relatório obsoleto, WebP sem original, filtro, referência remota/compartilhada |
+| Executar | conjunto exato; consentimentos; expiração global prevista; progresso/resultado contextual; navegação durante operação | conflito, recuperação bloqueante, espera, cancelamento, fonte invalidada, resultado parcial |
+| Automação | biblioteca/modo/qualidade/tipos/limite/preservação próprios; rascunho e estado salvo separados; autorização destrutiva própria | alterações não salvas, ociosa ≠ desativada, sem horário, tarefas indisponíveis |
+| Histórico e originais | operações agrupadas; transação ativa; evidência e restauração revisada; remoção seletiva e confirmada | anterior inativa, restaurado, removido, incerto preservado, recuperação |
+| Configurações | rascunho separado do salvo; política completa por tipo; economia/reserva/quota/retenção globais; gravação explícita | valores inválidos, não salvo, retenção com previsão em Executar |
 
-Regras do contrato respeitadas no desenho: rascunho não grava; automação não é
-alterada pelo manual; execução revalida e não substitui imagens descartadas;
-métricas por execução vs. totais separadas; remoção de originais é seletiva
-(a opção "todos os elegíveis" aparece como escolha explícita e destacada).
+### Bancada do facilitador
 
-## 5. Acessibilidade e responsividade embutidas
+Está **abaixo** do produto, não no topo; abrir para preparar cenários e recolher
+durante as tarefas. Cada cenário abre a área correspondente. “Outra operação” e
+“Recuperação” bloqueiam aplicação sem apagar a revisão. “Fonte alterada” invalida
+uma das identidades autorizadas durante a encenação, sem incluir substituta.
 
-- Estrutura *Abas*: `role=tablist/tab/tabpanel`, setas ←/→, `aria-selected`.
-- Estrutura *Páginas*: navegação lateral com `aria-current` e breadcrumb da área.
-- Foco visível em todos os controles; link "pular para o conteúdo".
-- Ao concluir uma análise ou iniciar/terminar uma execução, o foco vai para o
-  título do resultado/andamento, que é anunciado sem depender de rolagem
-  manual.
-- Alvos de toque ≥ 2.5em em viewport estreita; nenhum conteúdo essencial
-  depende de hover; layout em coluna abaixo de 45em.
-- Mensagens de progresso/resultado em regiões `aria-live` (a implementação
-  real segue a referência W3C da especificação §14).
+“Espera por metadata” pausa a operação ativa ou cria uma operação de exemplo se
+não houver trabalho ativo. “Próxima aplicação aguardará metadata” permite preparar
+a espera **sem criar operação**, preservando a futura seleção do participante.
+Voltar a “Jornada normal” durante espera retoma a encenação. Cancelar espera não
+inventa imagens convertidas; cancelar processamento termina a transação sintética
+atual antes de parar. O resultado parcial é uma **operação de exemplo distinta**,
+com quatro imagens e resultados separados, não números inventados para a seleção
+do participante. Recomeçar limpa toda a sessão sintética.
 
-## 6. Limites declarados
+## 5. Responsividade, teclado e verificação
 
-- Não é a implementação, não valida runtime, não mede desempenho.
-- Simplificações declaradas: a análise sintética depende da qualidade efetiva
-  por tipo e do escopo; SSIM, dimensões e limites não alteram os números
-  exibidos. O editor por tipo substitui a política completa (D3) e a economia
-  permanece global.
-- Não substitui a validação em Jellyfin descartável (P5/P7): routing real do
-  host para D1-A e integração de abas com o theme do host só se confirmam lá.
-- Os textos do protótipo são candidatos; após o exercício serão revisados antes
-  de virarem contrato (P2 → P3).
+Desktop usa duas colunas; até 700 px, formulário/revisão em coluna, métricas da
+revisão empilhadas e resumo inicial sem repetir todos os campos. Barra de seleção
+permanece junto ao limite inferior da janela. Diálogo nativo fornece modal,
+contenção de foco e Escape. Controles rotulados, foco visível, `aria-current`,
+`aria-selected`, link de salto e região de anúncio; abas suportam ←/→/Home/End.
+Digitação numérica e atualizações de progresso preservam os controles em foco;
+digitar e clicar em simular funciona sem precisar clicar duas vezes. A encenação
+não usa movimento essencial e respeita `prefers-reduced-motion`.
 
-## 7. Registro do exercício
+Comando reproduzível (módulos instalados fora do projeto):
 
-Roteiro e template: [UX-P2-EXERCISE.pt-BR.md](UX-P2-EXERCISE.pt-BR.md).
-O registro preenchido é **privado** (inclui observações sobre uma pessoa) e vai
-para `.local/`, nunca para os documentos públicos.
+```sh
+JELLYP_PLAYWRIGHT_MODULE=/caminho/para/playwright \
+JELLYP_AXE_MODULE=/caminho/para/@axe-core/playwright \
+node scripts/smoke-prototype.cjs --screenshots /tmp/opencode/jellyp-p2-corrected
+```
+
+O axe é opcional: sem `JELLYP_AXE_MODULE`, apenas as verificações do fluxo são
+executadas. Para auditar `file://`, o teste troca temporariamente o `<link>` pelo
+**mesmo CSS local inline**, evitando o XHR de CSS que o axe tenta fazer e o
+Chromium bloqueia. O produto não faz esse XHR. HTTP é bloqueado e contabilizado.
+
+**Resultado em 05/11/2026 (revisão corretiva):** Playwright 1.64.1, Chromium
+156.0.8078.4 e axe-playwright 4.14.0: **133 verificações, zero falhas**, incluindo
+**11 auditorias axe** (tags WCAG 2 A/AA, 2.1 AA e 2.2 AA); zero erros de
+página/console e zero requisições HTTP/API/CDN. A rodada sem axe passou em
+**122 verificações**, também sem erros ou HTTP. `node --check` dos dois JS e
+`git diff --check` passaram. As regressões novas cobrem proteção de fundo
+compartilhado na restauração, retenção que preserva o original exigido pela
+regeneração selecionada, invalidação de análise/revisão após purga, restauração e
+execução, validação da política efetiva, pluralização, foco após confirmações e
+cancelamento, IDs obsoletos de remoção, status salvo da automação e dimensão na
+recuperação. Isso não certifica conformidade WCAG nem substitui leitor de tela ou
+usabilidade.
+
+Capturas desta rodada em `/tmp/opencode/jellyp-p2-corrected/`: seleção, simulação,
+revisão, conclusão, restauração, remoção, retenção, espera, abas, celular e tablet.
+Arquivos `*-viewport.png` mostram a janela real; os demais são página inteira. A
+suíte verificou overflow em 1440 px, 360×800, 360×640, 768×1024 e 1280×900; nesta
+revisão foram reinspecionadas visualmente a revisão e a retenção em desktop. As
+capturas são evidência local regenerável, não registro de sessão humana nem
+arquivos de produção.
+
+## 6. Referência do Jellyfin e limites honestos
+
+Inspeção do código atual `Jellyfin.Plugin.JellyP/Web/config.html` confirmou
+`data-require="emby-input,emby-button,emby-linkbutton,emby-select,emby-checkbox"`,
+`paperList`, `raised` e o acento `#00a4dc`. Nenhum desses arquivos de runtime foi
+alterado. Não foram encontrados assets públicos de `jellyfin-web` nas localizações
+locais verificadas (`.local` do projeto, `/usr/share`, `/opt`, `/srv` e busca por
+diretórios de instalação/tooling no home). Nenhum banco, log ou credencial foi lido.
+
+Referência pública consultada em 05/11/2026, branch `master` (não prova da versão
+12.1 instalada):
+
+- [emby-button.scss](https://github.com/jellyfin/jellyfin-web/blob/master/src/elements/emby-button/emby-button.scss): `inline-flex`, padding `0.9em 1em`, raio `0.2em`, peso 600.
+- [emby-input.scss](https://github.com/jellyfin/jellyfin-web/blob/master/src/elements/emby-input/emby-input.scss): campo de largura total, fonte herdada e tamanho pelo menos 16 px para evitar zoom em iOS.
+- [dark/theme.scss](https://github.com/jellyfin/jellyfin-web/blob/master/src/themes/dark/theme.scss): paleta ciano/azul de cartões e referência à superfície `32 32 32`.
+
+Os arquivos foram lidos; não foram importados, compilados ou distribuídos neste
+estudo. **É aproximação visual standalone**, não controles customizados `emby-*`,
+não reprodução pixel-perfect, não prova de integração com tema/roteador do host.
+Sem bundle local de host pronto, não foi montado Jellyfin descartável. Nenhum
+serviço foi iniciado/reiniciado ou configuração de instalação alterada. A integração
+real continua sendo aceite de P5/P7.
+
+Outros limites:
+
+- Dados, dimensões, tamanhos e evidência são inventados. O codec, hashes, SSIM,
+  referências globais, espaço livre e journals **não são executados**. Qualidade,
+  política, seleção, escopo e limite orientam o fluxo; os bytes de saída e os
+  cenários de filtro são fixtures, não cálculo de qualidade/compressão.
+- O editor demonstra substituição completa (D3), não herança por campo. Automação
+  exercita os principais campos próprios; o editor avançado completo de políticas
+  da automação e todos os tipos do runtime não são exaustivamente reproduzidos.
+- Retenção é sintética por idade da fixture; a previsão e consentimento são proposta
+  de UX, não contrato de elegibilidade/concorrência de expiração (P3).
+- Sem durabilidade, paginação, migração, permissões reais, reload resiliente,
+  reinício, desempenho ou validação de backend. Só Chromium automatizado; Firefox,
+  Safari, leitor de tela e aparelhos físicos não foram validados.
+- [Exercício humano](UX-P2-EXERCISE.pt-BR.md), decisão D1 e compreensão D2 continuam
+  pendentes. Resultados pessoais vão para `.local/`, nunca para documentos públicos.

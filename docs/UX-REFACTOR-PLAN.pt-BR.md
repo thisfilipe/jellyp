@@ -19,7 +19,13 @@ caixa desmarcada como autorização para trabalhar nela automaticamente.
 
 > **Registro de execução (17/10/2026):** o mantenedor autorizou a fase P1. A
 > entrega está em [UX-P1-CONTRACT.pt-BR.md](UX-P1-CONTRACT.pt-BR.md). As fases
-> P2–P8 continuam pendentes de autorização.
+> seguintes dependem de autorização específica.
+>
+> **Atualização P2 (05/11/2026):** P2 foi autorizada para artefatos e exercício;
+> a revisão visual/UX do protótipo, seus testes locais e documentação também
+> foram autorizados. Protótipo revisado e verificado em navegador; **exercício
+> humano e validação D1/D2 pendentes**. P3–P8, runtime, backend e produção não
+> foram autorizados. Evidência e limites: [desenho P2](UX-P2-DESIGN.pt-BR.md).
 
 Este documento é a especificação de referência da proposta. O [PLAN.md](PLAN.md)
 é seu ponto de entrada em inglês. A [arquitetura atual](ARCHITECTURE.md) descreve
@@ -474,9 +480,9 @@ explicitadas, não introduzidas silenciosamente durante a implementação.
 
 ## 11. Etapas, dependências e entregáveis
 
-Todas as etapas posteriores a P0 permanecem pendentes de instrução que autorize
-o trabalho correspondente. Não iniciar implantação a partir de uma autorização
-genérica para documentação ou revisão.
+Cada etapa depende de instrução que autorize o trabalho correspondente. P1 e os
+artefatos/exercício de P2 têm os registros de autorização abaixo; P3–P8 continuam
+pendentes. Não iniciar implantação a partir de autorização de prototipação ou revisão.
 
 ### P0 — Registrar a baseline e os limites
 
@@ -514,9 +520,19 @@ Dependência: P1. Artefatos de desenho/protótipo também precisam estar no esco
 Autorizada em 17/10/2026 (artefatos + exercício). Artefatos entregues; exercício
 pendente de sessão com pessoa sem contexto.
 
+Revisão autorizada em 05/11/2026: protótipo standalone refeito em torno da jornada
+selecionar → simular → escolher subconjunto → revisar → acompanhar → restaurar.
+Seleção inicial vazia, consentimentos funcionais, remoção com revisão separada,
+isolamento de estado, invalidação de simulação e retenção global explícita.
+Renderização desktop/mobile inspecionada; 96 verificações de navegador/auditoria
+aprovadas (incluem 11 auditorias axe), sem API real. A referência ao Jellyfin é
+aproximada a partir de código público; **não houve integração real no host**.
+Esse resultado técnico não fecha o aceite humano nem D1/D2.
+
 - [x] Criar wireframes das cinco áreas, incluindo celular e navegação por teclado.
 - [x] Representar seleção, editor por tipo, lista de resultado e revisão de execução.
 - [x] Representar todos os estados definidos em P1, não apenas o caminho de sucesso.
+- [x] Revisar visual/fluxo do protótipo e exercitar os contratos sintéticos no navegador, sem tocar no runtime.
 - [ ] Validar D1/D2 com tarefas descritas pelo objetivo, sem ensinar nomes de botões.
 - [ ] Registrar onde o participante hesitou, procurou feedback ou interpretou alcance errado.
 - [ ] Revisar o fluxo antes de considerar a quantidade de telas e seus textos fechados.

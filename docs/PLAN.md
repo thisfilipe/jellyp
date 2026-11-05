@@ -1,11 +1,12 @@
 # JellyP UX refactor: handoff and authorization boundary
 
-Status: **P1 product/state contract recorded; P2 design artifacts delivered;
-the P2 usability exercise awaits a session with a person without context.
-Implementation is not authorized.** P0–P1 are complete under explicit owner
+Status: **P1 product/state contract recorded; P2 prototype visually/behaviorally
+revised and browser-tested on 2026-11-05; the P2 usability exercise still awaits
+a person without context. Plugin runtime/backend implementation is not authorized.**
+P0–P1 are complete under explicit owner
 authorization. P3–P8 remain pending a phase-specific instruction.
 Baseline: JellyP **0.3.0.1**, Jellyfin **12.1**, .NET **10**.
-Recorded: 2026-10-17.
+Recorded: 2026-10-17; P2 revision: 2026-11-05.
 
 The owner asked for evaluation and detailed documentation of a complete UX
 refactor, explicitly instructing the agent not to modify the implementation yet.
@@ -13,6 +14,11 @@ The subsequent request to document the plan authorizes documentation changes;
 it does not lift that implementation hold. A later explicit instruction can
 authorize a defined implementation phase. Do not interpret this file, its
 checklists, or an unchecked task as permission to start coding or deploying.
+
+The subsequent 2026-11-05 instruction authorizes reworking the **synthetic P2
+prototype**, local browser validation and its documentation until technically
+reviewable. It does not authorize production, backend changes, runtime integration,
+publishing or deployment. Automated/visual review is not human usability approval.
 
 ## Start here
 
@@ -58,8 +64,8 @@ requirements; they are not implemented in 0.3.0.1.
 | Phase | Deliverable | Dependency / status |
 |---|---|---|
 | P0 | Context, baseline, constraints and this specification | Documentation recorded; no implementation started |
-| P1 | Resolve product/state decisions and map the existing behavior | Delivered: [UX-P1-CONTRACT.pt-BR.md](UX-P1-CONTRACT.pt-BR.md); P2 awaits authorization |
-| P2 | Reviewable screen flows and prototype usability exercises | Artifacts delivered: [design + prototype + script](UX-P2-DESIGN.pt-BR.md); exercise pending a session |
+| P1 | Resolve product/state decisions and map the existing behavior | Delivered: [UX-P1-CONTRACT.pt-BR.md](UX-P1-CONTRACT.pt-BR.md) |
+| P2 | Reviewable screen flows and prototype usability exercises | Prototype revised; 96 browser/audit checks passed; [evidence and limits](UX-P2-DESIGN.pt-BR.md); human exercise pending |
 | P3 | Analysis/execution/state contracts and migration design | P1 + validated P2 |
 | P4 | Backend support for reviewed selections and independent state | P3 |
 | P5 | Jellyfin-native UI, navigation and contextual progress | P2 + P4 |

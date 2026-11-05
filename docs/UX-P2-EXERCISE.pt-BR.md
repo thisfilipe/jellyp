@@ -1,5 +1,9 @@
 # P2 — Roteiro do exercício de usabilidade
 
+Revisado em **05/11/2026** para o novo protótipo. **Sessão humana não realizada.**
+A revisão técnica automatizada está registrada em
+[UX-P2-DESIGN.pt-BR.md](UX-P2-DESIGN.pt-BR.md); não conta como este exercício.
+
 Fase: **P2 autorizada** (artefatos + exercício). Artefatos:
 [UX-P2-DESIGN.pt-BR.md](UX-P2-DESIGN.pt-BR.md) ·
 [ux-prototype/jellyp-p2.html](ux-prototype/jellyp-p2.html).
@@ -13,11 +17,15 @@ documentos públicos do repositório.
 
 ## 1. Preparação (facilitador, ~5 min)
 
-1. Abrir `docs/ux-prototype/jellyp-p2.html` no navegador (arquivo local; não
-   precisa de servidor). Começar na estrutura **Páginas internas**.
+1. Abrir `docs/ux-prototype/jellyp-p2.html` no navegador, com seus arquivos `.css`
+   e `.js` ao lado (arquivo local; sem servidor). Começar em **Páginas internas**.
+   Marcar também a biblioteca **Séries** antes da sessão: haverá três propostas
+   ao usar qualidade 80, permitindo observar a escolha de duas, não tudo.
+   Qualidade inicial 85, Capa principal + Miniatura, guardar originais.
 2. Ler em voz alta a introdução:
    > "Este é um protótipo de um plugin do Jellyfin para reduzir espaço de
-   > imagens. Nada é real: os dados são inventados e nenhum botão altera nada.
+   > imagens. Os dados são inventados; os botões alteram só este cenário de teste,
+   > nunca uma biblioteca real.
    > Vou pedir algumas tarefas. Não há resposta certa ou errada, e o que me
    > interessa é como você procura."
 3. **Regras do facilitador** (as mais importantes):
@@ -27,9 +35,18 @@ documentos públicos do repositório.
      dica mínima, anotando que houve intervenção.
    - Anotar hesitações, idas e vindas, e frases sobre alcance ("acho que isso
      vale para tudo…").
-   - Para trocar de estado, use a **bancada tracejada** no topo (não faz parte
-     do produto; diga isso antes de usá-la quando necessário). Ativar um estado
-     também **abre a área afetada**, o que dispensa explicar onde olhar.
+   - Para trocar de estado, abra a **bancada no rodapé** (fora do produto),
+     prepare o cenário e recolha-a. Ativar um cenário abre a área afetada.
+     Não deixe os controles de teste competindo com os controles do produto.
+   - O processamento normal termina automaticamente em poucos segundos; esse
+     tempo não representa desempenho real. Para a tarefa 3, aguarde a conclusão
+     da tarefa 2 e injete **Espera por metadata (operação de exemplo)**. Ela tem
+     identidade própria e não substitui o histórico da aplicação anterior.
+   - Alternativamente, para observar cancelamento da própria seleção, prepare
+     **Próxima aplicação aguardará metadata** antes da tarefa 2. Nesse caso, após
+     cancelar não haverá conversões novas: a tarefa 4 usa uma alteração anterior
+     de exemplo. Registrar qual variante foi usada, sem inventar uma restauração
+     daquilo que não foi aplicado.
 
 ## 2. Bloco A — estrutura "Páginas internas" (~20 min)
 
@@ -37,9 +54,9 @@ Tarefas por objetivo, na ordem. Cada uma começa no estado indicado.
 
 | # | Estado inicial (bancada) | Tarefa (ler como está) |
 |---|---|---|
-| 1 | Simular; qualidade 85; tipos Capa principal + Miniatura; guardar originais; execução ociosa | "Descubra o que mudaria nestas imagens se você usar qualidade 80." |
-| 2 | Logo após a tarefa 1 (análise na tela) | "Aplique somente a estas duas imagens e mantenha a possibilidade de desfazer." |
-| 3 | Após iniciar a aplicação, facilitador muda a bancada para "aguardando metadata" | "Encontre a operação enquanto ela espera por metadata e interrompa a espera." |
+| 1 | Simular; Filmes e Séries; qualidade 85; tipos Capa principal + Miniatura; guardar originais; execução ociosa | "Descubra o que mudaria nestas imagens se você usar qualidade 80." |
+| 2 | Logo após a tarefa 1 (análise na tela, zero propostas selecionadas) | "Aplique somente à capa principal e à miniatura de Viagem Sintética (2024), e mantenha a possibilidade de desfazer." |
+| 3 | Após concluir a aplicação, injetar a operação de exemplo em espera; ou usar a variante pré-armada descrita acima | "Encontre a operação enquanto ela espera por metadata e interrompa a espera." |
 | 4 | Histórico; execução ociosa | "Desfaça uma das alterações e confirme o formato armazenado." |
 | 5 | Voltar a Simular; mudar rascunho para "remover originais" e qualidade 80 sem aplicar | "Configure trabalho futuro em uma biblioteca sem alterar seu teste manual." |
 | 6 | Histórico | "Libere somente o original guardado que você escolheu." |
@@ -49,30 +66,37 @@ Tarefas por objetivo, na ordem. Cada uma começa no estado indicado.
 1. Encontra onde mudar a qualidade, executa a análise e identifica que a capa
    já convertida seria **gerada novamente a partir do original** — sem procurar
    um controle separado de "sincronizar".
-2. Autoriza **exatamente duas** imagens (não tudo) e entende que os originais
-   serão guardados / restauráveis.
-3. Localiza o andamento **na própria operação**, interrompe a espera e entende
-   que a imagem atual termina antes de parar.
+2. Escolhe **exatamente duas das três propostas**, revisa suas identidades,
+   confirma a aplicação e entende que os originais serão guardados/restauráveis.
+   Registrar se marcou todas por engano ou confundiu simulação com autorização.
+3. Localiza o andamento **na própria operação** e interrompe a espera sem
+   inventar imagens processadas. Distingue esse caso de interromper um
+   processamento já iniciado, no qual a transação atual termina com segurança.
 4. Acha a transação, restaura, e lê formato/dimensões/tamanho armazenados,
    entendendo que o navegador pode continuar recebendo WebP.
-5. Salva a automação e explica que o teste manual não mudou (escopo/modo/
-   preservação manuais intactos).
-6. Remove **um** original escolhido, e nota que o incerto foi preservado e que
-   "todos os elegíveis" era uma escolha explícita e separada.
+5. Muda e salva a biblioteca/qualidade/modo/preservação próprios da automação e
+   explica que o rascunho manual não mudou. A área mostra estado salvo separado
+   das edições ainda não salvas. Consentimento destrutivo é próprio da automação.
+6. Marca **um** original escolhido, revisa lista/bytes, confirma a consequência e
+   só então remove. Nota que o incerto foi preservado e que “todos os elegíveis”
+   apenas seleciona, nunca exclui imediatamente.
 
 ## 3. Bloco B — estrutura "Abas" (~7 min)
 
-Trocar a estrutura para **Abas** (controle "Estrutura de navegação (D1)" na
-bancada do topo) e repetir:
+Trocar a estrutura para **Abas** (controle “Estrutura (D1)” na bancada do rodapé),
+recolher a bancada e repetir:
 
 1. "Você estava em Executar. Vá para Configurações e volte para onde estava,
    usando o navegador (botão voltar)." — observar se voltar/avançar funciona e
    se a pessoa reencontra o que estava fazendo.
 2. Repetir rapidamente as tarefas **1** e **4** na estrutura de abas.
-3. Viewport estreito (360×640, modo dispositivo do navegador): **recolha a
-   bancada** (clique no resumo dela) e peça: "Encontre cada uma das cinco áreas
-   e diga qual é a ação principal de cada uma." — observar se algo essencial
-   fica fora da tela ou depende de hover.
+3. Viewport estreito (360×640): “Encontre cada uma das cinco áreas e diga qual é
+   a ação principal de cada uma.” Observar se percebe a rolagem das abas e chega
+   a Configurações. Repetir em **Páginas internas** com o seletor móvel de áreas;
+   observar a descoberta das opções sem explicar o controle.
+4. Ainda no celular, escolher uma proposta e chegar à revisão; abrir um diálogo
+   de remoção e voltar sem alterar. Verificar alcance, leitura, rolagem, alvos de
+   toque e se o usuário diferencia selecionar, revisar e confirmar.
 
 ## 4. Perguntas finais (2 min)
 
@@ -87,6 +111,7 @@ bancada do topo) e repetir:
 # Exercício P2 — registro (privado)
 Data: ____  Participante: (não registrar nome; usar "P1")  Duração: ____
 Navegador/viewport: ____   Estrutura inicial: Páginas internas
+Variante de espera: operação de exemplo após conclusão / própria seleção pré-armada
 
 | Tarefa | Tempo até a 1ª ação | 1ª ação dada | Hesitações / procuras | Interpretação de alcance (citação) | Intervenções | Resultado |
 |---|---|---|---|---|---|---|
@@ -98,6 +123,7 @@ Navegador/viewport: ____   Estrutura inicial: Páginas internas
 | 6 liberar um original | | | | | | |
 
 Bloco B (Abas): voltar/avançar: ____ ; tarefas 1 e 4: ____ ; viewport estreito: ____
+Celular: abas roláveis vs seletor de páginas: ____ ; revisão/diálogo: ____
 
 Perguntas finais: D1 preferência + motivo: ____ ; D2 texto "gerar novamente a
 partir do original" foi entendido? ______ ; frases literais úteis: ______
