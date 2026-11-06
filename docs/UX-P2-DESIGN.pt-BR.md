@@ -10,6 +10,23 @@ e exercitado automaticamente. O ensaio relatado não equivale a validação sem 
 revisão abrange protótipo/testes/documentação, não runtime, backend, produção,
 instalação ou release. Não confundir a implementação deste estudo com P4–P6.
 
+### Retorno após os testes de paginação e automação
+
+O ensaio com contexto relatou sucesso na seleção com saldo dinâmico, seleção
+entre páginas, restauração e exclusão seletivas. Também identificou que colocar
+a calculadora antes dos itens prejudicava a sequência de trabalho: o saldo foi
+reposicionado **depois da lista**, mantendo atualização pela seleção. O smoke
+verifica tanto a ordem no DOM quanto a posição renderizada.
+
+A análise agendada é diagnóstico antes de habilitar alterações automáticas,
+não um plano aguardando aprovação. A microcopy agora explica que mudar o modo
+não aplica o relatório anterior: a próxima tarefa reanalisa as imagens.
+Isso não adiciona um fluxo de aprovação agendada nem conclui a validação sem contexto.
+
+Conferência desta correção: **311 verificações, zero falhas**, incluindo 20 axe;
+sintaxe e `git diff --check` aprovados. Capturas regeneradas em
+`/tmp/opencode/jellyp-p2-bill-after-list/`; tela de simulação inspecionada.
+
 ## 1. Abrir e experimentar
 
 Abrir [ux-prototype/jellyp-p2.html](ux-prototype/jellyp-p2.html) diretamente no
