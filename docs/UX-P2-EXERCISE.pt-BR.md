@@ -13,6 +13,11 @@ Fase: **P2 autorizada** (artefatos + exercício). Artefatos:
 
 **Participante**: alguém **sem contexto** do JellyP (não deve ter lido o plano,
 o contrato ou este documento). Uma pessoa basta nesta fase.
+Não precisa usar ou conhecer o Jellyfin: nesse caso, apresentar a introdução
+abaixo. “Sem contexto” significa não conhecer os caminhos da interface testada,
+não desconhecer o domínio. Registrar a familiaridade prévia; um ensaio com quem
+não usa Jellyfin avalia descoberta e compreensão inicial, mas não substitui a
+validação posterior com administradores reais do Jellyfin.
 
 **Registro**: preencher o template da seção 5 e guardar o resultado em
 `.local/` (privado). Nunca colocar nome do participante ou dados pessoais em
@@ -26,12 +31,37 @@ documentos públicos do repositório.
     guardar originais. A tarefa básica usará **somente a capa de Viagem Sintética**.
     Páginas internas são a direção recomendada; não pedir uma escolha de estrutura
     antes de começar. Abas ficam como comparação opcional da bancada.
-2. Ler em voz alta a introdução:
-   > "Este é um protótipo de um plugin do Jellyfin para reduzir espaço de
-   > imagens. Os dados são inventados; os botões alteram só este cenário de teste,
-   > nunca uma biblioteca real.
-   > Vou pedir algumas tarefas. Não há resposta certa ou errada, e o que me
-   > interessa é como você procura."
+2. Antes de mostrar os controles, perguntar se a pessoa já conhece Jellyfin ou
+   administra uma coleção de filmes/séries. Registrar sem exigir experiência.
+   Para quem não conhece Jellyfin, ler esta contextualização (~1 minuto):
+
+   > "O Jellyfin é um programa para organizar e assistir a uma coleção própria
+   > de filmes e séries. Ele apresenta essa coleção com capas e outras imagens,
+   > como um catálogo de streaming. Uma biblioteca é um grupo dessa coleção,
+   > por exemplo Filmes ou Séries; um item pode ser um filme ou uma série.
+   >
+   > Um plugin acrescenta funções ao programa. Este se chama JellyP e serve
+   > para reduzir o espaço ocupado pelas imagens do catálogo no disco.
+   > Ele não reduz nem apaga os arquivos dos filmes ou dos episódios.
+   > Imagine que você administra essa coleção e quer experimentar ajustes nas
+   > imagens, decidir o que alterar e, em alguns casos, poder desfazer depois."
+
+   Em seguida, ler para qualquer participante:
+
+   > "Vamos usar um protótipo, não o Jellyfin de verdade. Os filmes, imagens e
+   > números são inventados; nenhuma ação afeta arquivos reais. Algumas imagens
+   > do exemplo já passaram pelo plugin antes.
+   > Vou pedir algumas tarefas. Estamos avaliando a interface, não você.
+   > Pode dizer em voz alta o que está procurando ou o que espera que aconteça.
+   > Se algo não fizer sentido, diga; não precisa saber termos técnicos nem
+   > acertar um caminho."
+
+   **Limite da contextualização:** explicar o que são Jellyfin, biblioteca,
+   item, plugin e imagens do catálogo é permitido. Não apontar áreas/botões,
+   demonstrar uma tarefa, explicar antecipadamente onde restaurar, como usar
+   ajustes próprios ou como funcionam seleção, saldo e retenção. Essas são
+   compreensões que o exercício deve observar. Não exigir instalação, conta ou
+   aprendizado do Jellyfin real antes da sessão.
 3. **Regras do facilitador** (as mais importantes):
    - Ler a tarefa como está escrita, **sem ensinar nomes de botões ou áreas**.
    - Não corrigir o caminho; não apontar elementos; não dizer "é ali em cima".
@@ -39,6 +69,11 @@ documentos públicos do repositório.
      dica mínima, anotando que houve intervenção.
    - Anotar hesitações, idas e vindas, e frases sobre alcance ("acho que isso
      vale para tudo…").
+   - Se houver dúvida de vocabulário do domínio, responder de forma breve e
+     neutra, sem indicar a solução na tela, e registrar o termo e a explicação.
+     Separar esse esclarecimento de uma dica de navegação. Se for necessário
+     explicar uma regra do produto (por exemplo, retenção), registrar que essa
+     compreensão só ocorreu com ajuda; não contabilizar como descoberta autônoma.
    - Para trocar de estado, abra a **bancada no rodapé** (fora do produto),
      prepare o cenário e recolha-a. Ativar um cenário abre a área afetada.
      Não deixe os controles de teste competindo com os controles do produto.
@@ -161,6 +196,10 @@ escolha D1 obrigatória, e não substitui validar as páginas recomendadas:
 # Exercício P2 — registro (privado)
 Data: ____  Participante: (não registrar nome; usar "P1")  Duração: ____
 Navegador/viewport: ____   Estrutura inicial: Páginas internas
+Familiaridade prévia com Jellyfin: nenhuma / conhece / usa / administra
+Familiaridade prévia com JellyP: ____
+Introdução de domínio apresentada? ____
+Esclarecimentos de vocabulário oferecidos (termo + explicação): ____
 Variante de espera: operação de exemplo após conclusão / própria seleção pré-armada
 
 | Tarefa | Tempo até a 1ª ação | 1ª ação dada | Hesitações / procuras | Interpretação de alcance (citação) | Intervenções | Resultado |
