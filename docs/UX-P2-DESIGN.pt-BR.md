@@ -6,9 +6,19 @@ Referências: [contrato P1](UX-P1-CONTRACT.pt-BR.md) ·
 
 **Status:** protótipo revisado a partir de feedback real com contexto, renderizado
 e exercitado automaticamente. O ensaio relatado não equivale a validação sem contexto.
-**Validação com pessoa sem contexto continua pendente.** A autorização desta
-revisão abrange protótipo/testes/documentação, não runtime, backend, produção,
+**Decisão de 06/11/2026:** direção de produto aceita pelo mantenedor para
+implementação nativa. A validação com pessoa sem contexto fica **adiada, sem
+bloquear o avanço**; não está aprovada. Este estudo não valida componentes reais
+do Jellyfin nem a interação com o backend. Isso será implementado e validado por
+jornadas integradas em P3–P7, preservando serviços funcionais existentes.
+A atualização do plano autoriza documentação, não runtime, backend, produção,
 instalação ou release. Não confundir a implementação deste estudo com P4–P6.
+
+O exercício continua disponível quando houver oportunidade. Não é necessário
+prolongar o protótipo sintético aguardando participantes: suas correções seguem
+como referência de produto, e novas evidências do host real podem revisar o desenho.
+Feedback independente/assíncrono pode continuar durante o alpha, sem dispensar
+validação técnica de integridade, migração e recuperação antes da entrega.
 
 ### Retorno após os testes de paginação e automação
 

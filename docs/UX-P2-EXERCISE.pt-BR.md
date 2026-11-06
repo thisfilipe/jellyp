@@ -7,6 +7,15 @@ sem identidade ou citações pessoais. Não conta como aprovação desta nova it
 A revisão técnica automatizada está registrada em
 [UX-P2-DESIGN.pt-BR.md](UX-P2-DESIGN.pt-BR.md); não conta como este exercício.
 
+**Atualização de continuidade (06/11/2026):** pela indisponibilidade de participante,
+este exercício fica adiado e **não é requisito para avançar à implementação**.
+A direção do protótipo foi aceita pelo mantenedor, sem alegar validação sem contexto.
+Este roteiro permanece utilizável no protótipo ou, adaptado às fixtures, na interface
+nativa quando disponível. Feedback assíncrono de usuários também pode orientar
+correções no alpha, mas não deve ser registrado como observação ao vivo. A validação
+real de componentes Jellyfin/API ocorre com implementação integrada em ambiente
+descartável; testes de integridade não são adiados para usuários em produção.
+
 Fase: **P2 autorizada** (artefatos + exercício). Artefatos:
 [UX-P2-DESIGN.pt-BR.md](UX-P2-DESIGN.pt-BR.md) ·
 [ux-prototype/jellyp-p2.html](ux-prototype/jellyp-p2.html).
@@ -228,8 +237,9 @@ Estados ambíguos ou confusos (com tarefa e tela): ______
 
 1. Guardar o registro preenchido em `.local/` (privado).
 2. Trazer o registro (ou as observações) para o agente: as hesitações viram
-   revisão de fluxo e de texto antes de fechar P2.
-3. Só depois de observar e tratar as fricções, considerar o aceite de P2.
-   Registrar navegação recomendada e entendimento D2 com a evidência real, sem
-   transformar o relato com contexto em teste sem contexto. P3 exige autorização
-   própria; esta revisão não a concede.
+   revisão de fluxo e de texto na etapa em andamento, inclusive após o alpha.
+3. Registrar navegação recomendada e entendimento D2 com a evidência real, sem
+   transformar o relato com contexto em teste sem contexto. O aceite de P2 para
+   implementação já foi registrado em 06/11/2026; este exercício futuro amplia
+   a evidência de usabilidade, não é um bloqueio retroativo. P3 e implementação
+   exigem autorização própria; este roteiro não a concede.

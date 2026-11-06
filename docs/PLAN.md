@@ -1,12 +1,13 @@
 # JellyP UX refactor: handoff and authorization boundary
 
-Status: **P1 product/state contract recorded; P2 prototype visually/behaviorally
-revised and browser-tested on 2026-11-05; the P2 usability exercise still awaits
-a person without context. Plugin runtime/backend implementation is not authorized.**
+Status (2026-11-06): **P1 recorded; P2 accepted by the maintainer as the direction
+for native implementation, after iterative use and corrections. Independent
+usability testing is deferred and is not a gate for moving forward. Native host
+integration and runtime/backend changes have not yet been implemented or authorized.**
 P0–P1 are complete under explicit owner
 authorization. P3–P8 remain pending a phase-specific instruction.
 Baseline: JellyP **0.3.0.1**, Jellyfin **12.1**, .NET **10**.
-Recorded: 2026-10-17; P2 revision: 2026-11-05.
+Recorded: 2026-10-17; execution-plan revision: 2026-11-06.
 
 The owner asked for evaluation and detailed documentation of a complete UX
 refactor, explicitly instructing the agent not to modify the implementation yet.
@@ -19,6 +20,10 @@ The subsequent 2026-11-05 instruction authorizes reworking the **synthetic P2
 prototype**, local browser validation and its documentation until technically
 reviewable. It does not authorize production, backend changes, runtime integration,
 publishing or deployment. Automated/visual review is not human usability approval.
+
+The 2026-11-06 instruction authorizes this **plan revision**. It accepts the P2
+product direction for implementation without claiming independent usability
+validation. It does not itself authorize runtime coding, deployment or a release.
 
 ## Start here
 
@@ -65,16 +70,41 @@ requirements; they are not implemented in 0.3.0.1.
 |---|---|---|
 | P0 | Context, baseline, constraints and this specification | Documentation recorded; no implementation started |
 | P1 | Resolve product/state decisions and map the existing behavior | Delivered: [UX-P1-CONTRACT.pt-BR.md](UX-P1-CONTRACT.pt-BR.md) |
-| P2 | Reviewable screen flows and prototype usability exercises | Maintainer-feedback iteration 2; 241 checks passed (15 axe), 226 without axe; [evidence and limits](UX-P2-DESIGN.pt-BR.md); no-context exercise pending |
-| P3 | Analysis/execution/state contracts and migration design | P1 + validated P2 |
-| P4 | Backend support for reviewed selections and independent state | P3 |
-| P5 | Jellyfin-native UI, navigation and contextual progress | P2 + P4 |
-| P6 | Automation, history, restoration and explicit backup retirement | P4 + P5 |
-| P7 | Functional, integrity, accessibility and usability validation | P4–P6 |
-| P8 | Documentation, migration proof and release preparation | P7; deployment remains separately scoped |
+| P2 | Accepted product direction and synthetic prototype | Accepted for native implementation; 311 checks passed (20 axe); [evidence and limits](UX-P2-DESIGN.pt-BR.md); independent usability exercise deferred, not a gate |
+| P3 | Map existing backend capabilities to the next native journey; define necessary contracts and tests | P1 + maintainer acceptance of P2; design review is not runtime validation |
+| P4 | Minimal backend/API adaptations where the journey requires them | Per-journey P3 decisions; reuse existing services and integrity mechanisms |
+| P5 | Real Jellyfin components and end-to-end manual flow | P2 direction + per-journey P3; iterate with P4, not after all backend work is complete |
+| P6 | Native automation, history, restoration and explicit backup retirement | Per-journey P3/P4/P5 integration; not a separate rewrite |
+| P7 | Continuous functional, integrity, accessibility and usability checks; final regression consolidation | Starts with each implemented journey; independent user feedback continues when available |
+| P8 | Document and prepare an alpha after technical release gates pass | Required integrity/migration/host checks pass; disclose deferred usability evidence; publication remains separately authorized |
 
 Detailed tasks, acceptance criteria, decision records and scenario IDs are in
 the specification. Do not mark phases complete from this summary alone.
+
+### Native integration first, in complete journeys
+
+P3 is a bounded capability/gap review, not another standalone prototype or a
+requirement to prove the unimplemented UI. The existing published backend is the
+baseline to reuse, not evidence that every new interaction already has an API.
+Reviewed exact selections, independent drafts/automation, pagination and batch
+restoration may require adaptations; establish gaps from the actual code.
+
+The first implementation slice should render a real plugin page in a marked
+disposable Jellyfin instance using native controls, then connect selection and
+analysis to the existing services. Complete that same journey with exact reviewed
+application, progress and restoration, adding only necessary backend contracts.
+Keep mutating actions unavailable until the slice has safe server-side support;
+never disguise a global cursor endpoint as exact selected-image application.
+
+P3/P4/P5/P7 iterate within that slice: specify the boundary, implement it, inspect
+the rendered host, exercise the real API and refine. Native appearance, routing,
+focus, client/backend behavior and persistence can only be validated there, not
+from the synthetic prototype or design documents. P7 is not the first integration
+test at the end of a frontend/backend waterfall.
+
+An alpha can collect asynchronous task-based feedback without observed sessions.
+It must identify usability limitations honestly. Alpha status does not waive
+selection integrity, authorization, recovery, migration, storage or deletion gates.
 
 ## Non-negotiable handoff notes
 

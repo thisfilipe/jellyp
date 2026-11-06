@@ -27,6 +27,14 @@ caixa desmarcada como autorização para trabalhar nela automaticamente.
 > sem contexto e validação de navegação/compreensão D2 pendentes**. P3–P8, runtime, backend e produção não
 > foram autorizados. Evidência e limites: [desenho P2](UX-P2-DESIGN.pt-BR.md).
 
+> **Decisão de continuidade (06/11/2026, substitui o bloqueio acima):** a direção
+> de P2 foi aceita pelo mantenedor para implementação nativa após testes e
+> correções iterativas. O exercício com pessoa sem contexto fica **adiado e não
+> bloqueia o avanço**; não foi executado nem será declarado aprovado. A integração
+> real será implementada e validada por jornadas completas, reaproveitando o
+> backend publicado e adaptando apenas lacunas demonstradas. Esta instrução
+> autoriza atualizar o plano, não iniciar runtime, implantar ou publicar.
+
 Este documento é a especificação de referência da proposta. O [PLAN.md](PLAN.md)
 é seu ponto de entrada em inglês. A [arquitetura atual](ARCHITECTURE.md) descreve
 o que existe no código; não deve ser confundida com a arquitetura pretendida aqui.
@@ -530,13 +538,14 @@ Dependência: P0 e autorização para esta etapa. Autorizada e entregue em 17/10
 **Aceite:** cada ação tem alcance, efeito persistido, estados e resultado definidos.
 Não há seletor distante que altere o significado de um botão de outra tarefa.
 O contrato §7 registra como o aceite foi demonstrado; a validação com pessoa sem
-contexto continua sendo de P2.
+contexto permanece evidência desejável, adiada sem bloquear a implementação.
 
 ### P2 — Desenhar e validar os fluxos antes de implementar o runtime
 
 Dependência: P1. Artefatos de desenho/protótipo também precisam estar no escopo autorizado.
 Autorizada em 17/10/2026 (artefatos + exercício). Artefatos entregues; exercício
-pendente de sessão com pessoa sem contexto.
+sem contexto adiado pela decisão de 06/11/2026. **Direção de produto aceita pelo
+mantenedor para implementação**; isso não equivale a validação independente ou no host.
 
 Revisão autorizada em 05/11/2026: protótipo standalone refeito em torno da jornada
 selecionar → simular → escolher subconjunto → revisar → acompanhar → restaurar.
@@ -567,16 +576,29 @@ evidência de código: desenho P2 e adendo P1. Nenhuma dessas mudanças autoriza
 **Artefatos:** [UX-P2-DESIGN.pt-BR.md](UX-P2-DESIGN.pt-BR.md) ·
 [ux-prototype/jellyp-p2.html](ux-prototype/jellyp-p2.html) ·
 [UX-P2-EXERCISE.pt-BR.md](UX-P2-EXERCISE.pt-BR.md) (roteiro + template de registro).
-P2 só é marcada como concluída após o exercício.
+O desenho de P2 está encerrado como referência aceita para iniciar implementação,
+sem congelar futuras correções de UX. Os itens de exercício externo permanecem
+desmarcados como evidência adiada, não como impedimento para P3–P6.
 
-**Aceite:** uma pessoa sem contexto consegue localizar o caminho completo de
-simular uma mudança em WebP, revisar, aplicar e restaurar. Dúvidas recorrentes
-geram revisão do desenho, não um tutorial obrigatório maior.
+**Aceite para avançar:** direção aceita pelo mantenedor após as jornadas
+exercitadas e correções registradas; 311 verificações sintéticas aprovadas,
+incluindo 20 axe. Integração nativa e compreensão por novos usuários ainda não
+comprovadas. O exercício por objetivo continua disponível para quando houver
+participantes; dúvidas recorrentes geram revisão, não um tutorial obrigatório maior.
 
-### P3 — Projetar contratos, migração e persistência
+### P3 — Mapear capacidades existentes e definir contratos por jornada
 
-Dependências: P1 e P2 validadas.
+Dependências: P1 e direção de P2 aceita pelo mantenedor. Não depende do exercício
+externo adiado nem de validação em runtime que só a implementação poderá fornecer.
 
+P3 é uma definição técnica curta, incremental e vinculada à próxima jornada real,
+não outra fase de protótipo standalone ou uma reescrita presumida do backend.
+O backend publicado é a baseline funcional a preservar; o problema observado é
+o fluxo confuso. Capacidades novas do desenho, contudo, não devem ser tratadas
+como existentes sem conferir o código e os contratos de API.
+
+- [ ] Mapear, para a próxima jornada nativa, serviços/endpoints existentes reutilizáveis,
+  lacunas demonstradas e checagens necessárias; evitar reformular mecanismos funcionais.
 - [ ] Definir responsabilidades do quadro da seção 9 e resolver D5–D8.
 - [ ] Definir formato das solicitações/resultados, identidades e snapshots necessários.
 - [ ] Definir validade e revalidação de uma seleção revisada, incluindo múltiplos fundos.
@@ -588,11 +610,30 @@ Dependências: P1 e P2 validadas.
 
 **Aceite:** existe um desenho revisável de dados e estados que sustenta a UX sem
 substituir seleção por cursor ou enfraquecer checagens. Não chamar contratos de
-“prontos” só porque novas classes compilam.
+“validados em runtime” por terem sido descritos ou compilados. Resolver antes da
+mutação as decisões críticas daquela jornada; refinar decisões das demais à medida
+que forem implementadas. Aparência nativa, routing, foco e interação real com a API
+só podem ser aceitos com implementação no Jellyfin, em P4/P5/P7 por jornada.
+
+#### Execução incremental de P3–P7
+
+Primeira fatia proposta: página real de plugin em **Jellyfin descartável marcado**,
+com componentes nativos, seleção e análise conectadas aos serviços existentes;
+completar a mesma jornada com seleção revisada exata, aplicação, andamento e
+restauração. O teste de ponta a ponta usa arquivos sintéticos, não produção.
+
+Definir o contrato necessário (P3), implementar a conexão/ajuste mínimo (P4/P5),
+inspecionar e exercitar no host (P7), e corrigir com a evidência obtida. A aplicação
+fica indisponível até existir suporte seguro no servidor; não conectar uma seleção
+exata a um endpoint que usa outro cursor ou alcance apenas para fazer a UI funcionar.
+Não é preciso concluir todo o backend antes de renderizar a primeira tela nativa,
+nem esperar todas as telas para testar a primeira jornada integrada.
 
 ### P4 — Implementar o suporte de backend
 
-Dependência: P3 e autorização de implementação.
+Dependência: decisões P3 necessárias à jornada e autorização de implementação.
+Reaproveitar o backend atual; mudanças P4 só para lacunas comprovadas, em conjunto
+com a integração P5 e testes P7 daquela jornada.
 
 - [ ] Implementar análise identificada com ações por imagem e motivos explícitos.
 - [ ] Implementar a aplicação do conjunto exato autorizado com revalidação atual.
@@ -606,7 +647,9 @@ nenhum caminho escreve fora da seleção para compensar um descarte.
 
 ### P5 — Implementar navegação e fluxo manual
 
-Dependências: P2 e P4.
+Dependências: direção aceita de P2, decisões P3 da jornada e autorização de
+implementação. Iterar com P4; não esperar a conclusão de todo o backend. Controles,
+tema e comportamento reais do Jellyfin são critérios desta implementação, não de P2.
 
 - [ ] Separar a página monolítica em responsabilidades de navegação, edição de
   rascunho, análise, execução e apresentação de resultados.
@@ -622,7 +665,8 @@ o status em outra área, e uma mudança de qualidade não exige descobrir um bot
 
 ### P6 — Implementar automação, histórico e administração de originais
 
-Dependências: P4 e P5.
+Dependências: contratos e suporte necessários à respectiva jornada em P3/P4/P5.
+Também se implementa e valida por fatias; não exige reescrever os serviços atuais.
 
 - [ ] Implementar configuração independente de automação e vínculo com o scheduler nativo.
 - [ ] Implementar histórico por operação com detalhes por imagem.
@@ -636,17 +680,25 @@ e uma exclusão não alcança originais que o usuário não selecionou.
 
 ### P7 — Validar integridade, comportamento e usabilidade
 
-Dependências: P4–P6.
+Começa junto à primeira jornada implementada em P4/P5 e acompanha P6.
+P4–P6 completas são dependência da consolidação final, não do início dos testes.
 
 - [ ] Executar a matriz V01–V15, registrando versão, fixture, resultado e evidência.
 - [ ] Executar suíte .NET e testes de publicação pertinentes, com dependências fixadas.
 - [ ] Validar em Jellyfin descartável real, incluindo reinício e disparo nativo.
 - [ ] Revisar teclado, foco estável, leitura de status e layout móvel.
-- [ ] Repetir tarefas com pessoa sem contexto e sem instruções sobre botões.
+- [ ] Repetir tarefas com pessoa sem contexto quando houver participantes
+  (validação adiada, não bloqueia alpha; registrar como não executada se continuar indisponível).
+- [ ] Coletar feedback assíncrono por tarefa quando disponível, sem classificá-lo
+  como sessão observada ou supor que ausência de relatos comprova usabilidade.
 - [ ] Separar testes aprovados, reprovados, não executados e limitações remanescentes.
 
 **Aceite:** critérios de UX e integridade passam separadamente. Não marcar a etapa
 concluída apenas pelo número de testes, por HTTP 200 ou por screenshots sem overflow.
+Uma entrega alpha pode ter validação independente de usabilidade adiada e declarada;
+isso **não dispensa** os testes de integridade, autorização, restauração, exclusão,
+migração e integração real aplicáveis aos recursos entregues. Feedback de uso
+continua após disponibilização, sem substituir esses critérios prévios.
 
 ### P8 — Documentar a versão final e preparar uma entrega
 
@@ -657,6 +709,9 @@ Dependência: P7.
   decisões abandonadas somente quando explicarem uma limitação relevante.
 - [ ] Auditar publicação, privacidade, arquivos novos e mudanças no pacote.
 - [ ] Preparar versão e release somente se uma instrução posterior também autorizar essa entrega.
+- [ ] Preparar inicialmente entrega alpha com limitações de usabilidade conhecidas,
+  canais de feedback e testes técnicos registrados; não promover a estável por
+  tempo de uso ou silêncio de usuários. Publicação/push exigem autorização própria.
 - [ ] Validar instalação/upgrade em fixture e documentar recuperação/rollback da atualização.
 - [ ] Considerar produção somente no escopo específico autorizado, sem retomar workers
   ou ampliar a biblioteca como efeito colateral da atualização da UI.
