@@ -158,6 +158,145 @@ public sealed class JellyfinArtworkStore(ILibraryManager library, IProviderManag
         return result;
     }
 
+    /// <inheritdoc />
+    public IReadOnlyList<ArtworkInventoryEntry> DetailedInventory(CancellationToken cancellationToken,
+        IReadOnlyCollection<Guid>? includedItemIds = null, IReadOnlyCollection<Guid>? includedLibraryIds = null,
+        Action<int>? inventoryProgress = null, int? maximumEntries = null)
+    {
+        var scope = includedLibraryIds is null ? null : ResolveLibraryItems(includedLibraryIds, cancellationToken);
+        var itemFilter = includedItemIds is { Count: > 0 } ? includedItemIds.ToHashSet() : null;
+        var summary = new InventorySummary();
+        _inventorySummary = summary;
+        var entries = new List<ArtworkInventoryEntry>();
+        var referenceCounts = new Dictionary<string, int>(PathComparer);
+        var totalReferences = 0;
+        var inspectedItems = 0;
+        foreach (var items in InventoryBatches(cancellationToken))
+        {
+            foreach (var item in items)
+            {
+                summary.TotalItems++;
+                var inScope = (scope is null || scope.Contains(item.Id))
+                    && (itemFilter is null || itemFilter.Contains(item.Id));
+                if (inScope) summary.MatchedItems++;
+                if (inScope && item.ImageInfos.Length == 0) summary.ItemsWithoutImages++;
+                foreach (var group in item.ImageInfos.GroupBy(i => i.Type))
+                {
+                    var index = 0;
+                    foreach (var image in group)
+                    {
+                        if (image.IsLocalFile)
+                        {
+                            var path = Path.GetFullPath(image.Path);
+                            referenceCounts[path] = referenceCounts.GetValueOrDefault(path) + 1;
+                            if (++totalReferences > 1_000_000)
+                                throw new InvalidOperationException("Inventory exceeds one million image references; split the library before migration.");
+                            if (inScope)
+                            {
+                                summary.LocalImages++;
+                                var reference = new ArtworkReference(item.Id, group.Key, index, image.Path, item is Person);
+                                var isEligible = IsEligible(item, reference);
+                                if (!isEligible) summary.ExcludedImages++;
+                                var (state, reason) = Classify(item, reference);
+                                entries.Add(new ArtworkInventoryEntry
+                                {
+                                    Reference = reference,
+                                    Name = item.Name,
+                                    ItemType = item.GetType().Name,
+                                    ProductionYear = item.ProductionYear,
+                                    Category = item is Person ? "People" : group.Key.ToString(),
+                                    State = state,
+                                    Reason = reason,
+                                    CurrentBytes = File.Exists(path) ? new FileInfo(path).Length : null,
+                                    MimeType = MimeType(path),
+                                });
+                                if (maximumEntries is > 0 && entries.Count > maximumEntries)
+                                    throw new JellyPRequestException(409, "PlanScopeTooLarge",
+                                        $"The selected scope exceeds {maximumEntries} image slots. Narrow the scope; no plan was created.");
+                            }
+                        }
+                        else if (inScope)
+                        {
+                            summary.RemoteImages++;
+                            entries.Add(new ArtworkInventoryEntry
+                            {
+                                Reference = new ArtworkReference(item.Id, group.Key, index, image.Path, item is Person),
+                                Name = item.Name,
+                                ItemType = item.GetType().Name,
+                                ProductionYear = item.ProductionYear,
+                                Category = item is Person ? "People" : group.Key.ToString(),
+                                State = "Remote",
+                                Reason = "RemoteReference",
+                            });
+                            if (maximumEntries is > 0 && entries.Count > maximumEntries)
+                                throw new JellyPRequestException(409, "PlanScopeTooLarge",
+                                    $"The selected scope exceeds {maximumEntries} image slots. Narrow the scope; no plan was created.");
+                        }
+
+                        index++;
+                    }
+                }
+            }
+
+            inspectedItems += items.Count;
+            inventoryProgress?.Invoke(inspectedItems);
+        }
+
+        for (var index = 0; index < entries.Count; index++)
+        {
+            var entry = entries[index];
+            if (!referenceCounts.TryGetValue(Path.GetFullPath(entry.Reference.Path), out var count)) continue;
+            var shared = count > 1;
+            var state = shared && entry.State is ("Ready" or "AlreadyWebp") ? "Shared" : entry.State;
+            var reason = shared && state == "Shared" ? "SharedReference" : entry.Reason;
+            entries[index] = new ArtworkInventoryEntry
+            {
+                Reference = entry.Reference,
+                Name = entry.Name,
+                ItemType = entry.ItemType,
+                ProductionYear = entry.ProductionYear,
+                Category = entry.Category,
+                State = state,
+                Reason = reason,
+                CurrentBytes = entry.CurrentBytes,
+                MimeType = entry.MimeType,
+                IsShared = shared,
+                ReferenceCount = count,
+            };
+        }
+
+        var eligible = entries.Where(entry => entry.State is "Ready" or "AlreadyWebp").ToArray();
+        summary.EligibleImages = eligible.Length;
+        summary.SharedImages = entries.Count(entry => entry.State == "Shared");
+        summary.AlreadyWebpImages = eligible.Count(entry => Path.GetExtension(entry.Reference.Path).Equals(".webp", StringComparison.OrdinalIgnoreCase));
+        return entries.OrderBy(entry => entry.Reference.Key, StringComparer.Ordinal).ToArray();
+    }
+
+    private (string State, string? Reason) Classify(BaseItem item, ArtworkReference reference)
+    {
+        if (!File.Exists(reference.Path)) return ("Missing", "MissingFile");
+        var extension = Path.GetExtension(reference.Path);
+        if (reference.Type == ImageType.Chapter
+            || !(extension.Equals(".png", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".webp", StringComparison.OrdinalIgnoreCase)
+                || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)))
+            return ("Excluded", "UnsupportedFormat");
+        if (item.SourceType != SourceType.Library) return ("Excluded", "NotLibrary");
+        var root = Path.GetFullPath(configuration.ApplicationPaths.InternalMetadataPath).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        if (!Path.GetFullPath(reference.Path).StartsWith(root, PathComparison)) return ("Excluded", "ExternalPath");
+        if (!item.ImageInfos.All(i => i.IsLocalFile && File.Exists(i.Path))) return ("Excluded", "OtherSlotUnavailable");
+        return extension.Equals(".webp", StringComparison.OrdinalIgnoreCase) ? ("AlreadyWebp", null) : ("Ready", null);
+    }
+
+    private static string? MimeType(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".webp" => "image/webp",
+        _ => null,
+    };
+
     private HashSet<Guid> ResolveLibraryItems(IReadOnlyCollection<Guid> libraryIds, CancellationToken cancellationToken)
     {
         var selected = new HashSet<Guid>();
@@ -203,15 +342,50 @@ public sealed class JellyfinArtworkStore(ILibraryManager library, IProviderManag
     }
 
     /// <inheritdoc />
-    public bool IsPathReferenced(string path)
+    public bool IsPathReferenced(string path) => CountPathReferences(path) > 0;
+
+    /// <inheritdoc />
+    public int CountPathReferences(string path)
     {
+        var absolute = Path.GetFullPath(path);
+        return CountPathReferences([absolute]).GetValueOrDefault(absolute);
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyDictionary<string, int> CountPathReferences(IReadOnlyCollection<string> paths)
+    {
+        var absolutePaths = paths.Select(Path.GetFullPath).ToHashSet(PathComparer);
+        var counts = absolutePaths.ToDictionary(path => path, _ => 0, PathComparer);
+        if (absolutePaths.Count == 0) return counts;
         foreach (var items in InventoryBatches(CancellationToken.None))
         {
-            if (items.Any(item => item.ImageInfos.Any(image => image.IsLocalFile
-                && string.Equals(Path.GetFullPath(image.Path), Path.GetFullPath(path), PathComparison)))) return true;
+            foreach (var image in items.SelectMany(item => item.ImageInfos))
+            {
+                if (!image.IsLocalFile) continue;
+                var absolute = Path.GetFullPath(image.Path);
+                if (counts.ContainsKey(absolute)) counts[absolute]++;
+            }
         }
 
-        return false;
+        return counts;
+    }
+
+    /// <inheritdoc />
+    public bool IsSlotSafeForMutation(ArtworkReference reference)
+    {
+        var item = library.GetItemById(reference.ItemId);
+        if (item is null || item.SourceType != SourceType.Library) return false;
+        var target = Path.GetFullPath(reference.Path);
+        foreach (var image in item.ImageInfos)
+        {
+            // A remote sibling cannot be safely refreshed/persisted by SaveImage.
+            if (!image.IsLocalFile) return false;
+            // The current slot may be absent only for explicit recovery; any other
+            // absent sibling makes UpdateImagesAsync potentially mutate another slot.
+            if (!File.Exists(image.Path) && !string.Equals(Path.GetFullPath(image.Path), target, PathComparison)) return false;
+        }
+
+        return true;
     }
 
     private IEnumerable<IReadOnlyList<BaseItem>> InventoryBatches(CancellationToken cancellationToken)
@@ -237,14 +411,37 @@ public sealed class JellyfinArtworkStore(ILibraryManager library, IProviderManag
         }
     }
 
-    private IReadOnlyList<BaseItem> ReadItems(Guid[] ids) => library.GetItemList(new InternalItemsQuery
+    private IReadOnlyList<BaseItem> ReadItems(Guid[] ids)
     {
-        ItemIds = ids,
-        IncludeOwnedItems = true,
-        GroupByPresentationUniqueKey = false,
-        EnableTotalRecordCount = false,
-        DtoOptions = InventoryOptions(),
-    });
+        var items = library.GetItemList(new InternalItemsQuery
+        {
+            ItemIds = ids,
+            IncludeOwnedItems = true,
+            GroupByPresentationUniqueKey = false,
+            EnableTotalRecordCount = false,
+            DtoOptions = InventoryOptions(),
+        }).ToArray();
+        // Jellyfin's GetItemList applies an include-order (by ImageInfo Id) that
+        // differs from GetItemById/GetImageInfo and SaveImage. For items with
+        // multiple slots of one type, rehydrate through the same loader used by
+        // GetCurrent before assigning any slot index. Never sort by filename.
+        for (var index = 0; index < items.Length; index++)
+        {
+            if (!HasDuplicateImageType(items[index].ImageInfos)) continue;
+            var complete = library.GetItemById(items[index].Id);
+            if (complete is not null) items[index] = complete;
+        }
+
+        return items;
+    }
+
+    private static bool HasDuplicateImageType(IEnumerable<ItemImageInfo?> images)
+    {
+        var seen = new HashSet<ImageType>();
+        foreach (var image in images)
+            if (image is not null && !seen.Add(image.Type)) return true;
+        return false;
+    }
 
     /// <inheritdoc />
     public string GetDestination(ArtworkReference reference, string mimeType)

@@ -49,6 +49,8 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     public Guid[] IncludedLibraryIds { get; set; } = [];
     /// <summary>Gets or sets category selection and individual overrides.</summary>
     public ImageTypePolicy[] ImagePolicies { get; set; } = DefaultPolicies();
+    /// <summary>Gets or sets explicit manual analysis defaults. Null projects the legacy automation fields without writing them.</summary>
+    public ManualDefaults? ManualDefaults { get; set; }
 
     /// <summary>Resolves person artwork before ordinary image types.</summary>
     public ImageTypePolicy? PolicyFor(ArtworkReference image) => ImagePolicies.FirstOrDefault(p =>
@@ -91,15 +93,58 @@ public sealed class PluginConfiguration : BasePluginConfiguration
         {
             throw new ArgumentException("Invalid JellyP settings. Check quality, dimensions, limits and category policies.");
         }
+
+        ManualDefaults?.Validate();
     }
 
     /// <summary>Gets all writable library artwork categories. Chapter/user avatars use different Jellyfin stores.</summary>
     public static string[] Categories => ["People", "Primary", "Thumb", "Logo", "Backdrop", "Art", "Banner", "Disc", "Box", "BoxRear", "Menu"];
+
+    /// <summary>Creates a fresh default category policy set.</summary>
+    internal static ImageTypePolicy[] NewDefaultPolicies() => DefaultPolicies();
+
     private static ImageTypePolicy[] DefaultPolicies() => Categories.Select(category => new ImageTypePolicy
     {
         Category = category,
         Enabled = category is "People" or "Primary" or "Thumb" or "Logo",
     }).ToArray();
+}
+
+/// <summary>Saved defaults for manual analysis, separate from legacy automation fields.</summary>
+public sealed class ManualDefaults
+{
+    /// <summary>Gets or sets whether manual analysis proposes keeping the original after verification.</summary>
+    public bool PreserveOriginals { get; set; } = true;
+    /// <summary>Gets or sets the default lossy quality.</summary>
+    public int Quality { get; set; } = 85;
+    /// <summary>Gets or sets the default lossless encoding flag.</summary>
+    public bool Lossless { get; set; }
+    /// <summary>Gets or sets whether manual analysis may downscale by default.</summary>
+    public bool ResizeImages { get; set; }
+    /// <summary>Gets or sets the default maximum output edge when downscaling is enabled.</summary>
+    public int MaximumDimension { get; set; } = 2400;
+    /// <summary>Gets or sets the default minimum luma SSIM.</summary>
+    public double MinimumSsim { get; set; } = 0.96;
+    /// <summary>Gets or sets the maximum number of candidates analyzed by a manual plan.</summary>
+    public int BatchSize { get; set; } = 250;
+    /// <summary>Gets or sets the default category policies.</summary>
+    public ImageTypePolicy[] Policies { get; set; } = PluginConfiguration.NewDefaultPolicies();
+
+    /// <summary>Validates the saved manual defaults.</summary>
+    public void Validate()
+    {
+        if (Quality is < 0 or > 100 || MaximumDimension is < 256 or > 8192
+            || !double.IsFinite(MinimumSsim) || MinimumSsim is < 0 or > 1
+            || BatchSize is < 1 or > 10000 || Policies is null
+            || Policies.Any(policy => policy is null || !PluginConfiguration.Categories.Contains(policy.Category)
+                || policy.Quality is < 0 or > 100 || policy.MaximumDimension is < 256 or > 8192
+                || !double.IsFinite(policy.MinimumSsim) || policy.MinimumSsim is < 0 or > 1)
+            || Policies.Select(policy => policy.Category).Distinct(StringComparer.Ordinal).Count() != Policies.Length
+            || !PluginConfiguration.Categories.All(category => Policies.Any(policy => policy.Category == category)))
+        {
+            throw new ArgumentException("Invalid JellyP manual defaults. Check quality, dimensions, limits and category policies.");
+        }
+    }
 }
 
 /// <summary>Selection and optional full encoding override for a category.</summary>

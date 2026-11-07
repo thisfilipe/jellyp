@@ -14,10 +14,15 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
         serviceCollection.AddSingleton<IArtworkStore, JellyfinArtworkStore>();
-        serviceCollection.AddSingleton(services => new OptimizationCoordinator(
-            services.GetRequiredService<IArtworkStore>(),
-            () => (Plugin.Instance ?? throw new InvalidOperationException("JellyP is not loaded.")).Configuration,
-            Path.Combine((Plugin.Instance ?? throw new InvalidOperationException("JellyP is not loaded.")).DataFolderPath, "migration"),
-            services.GetRequiredService<ILogger<OptimizationCoordinator>>()));
+        serviceCollection.AddSingleton(services =>
+        {
+            var plugin = Plugin.Instance ?? throw new InvalidOperationException("JellyP is not loaded.");
+            return new OptimizationCoordinator(
+                services.GetRequiredService<IArtworkStore>(),
+                () => plugin.Configuration,
+                Path.Combine(plugin.DataFolderPath, "migration"),
+                services.GetRequiredService<ILogger<OptimizationCoordinator>>(),
+                configuration => plugin.UpdateConfiguration(configuration));
+        });
     }
 }

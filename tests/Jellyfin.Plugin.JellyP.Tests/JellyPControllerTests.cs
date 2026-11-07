@@ -4,8 +4,10 @@ using Jellyfin.Plugin.JellyP.Configuration;
 using Jellyfin.Plugin.JellyP.Migration;
 using Jellyfin.Plugin.JellyP.Tasks;
 using MediaBrowser.Model.Tasks;
+using MediaBrowser.Model.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
+using SkiaSharp;
 using Xunit;
 
 namespace Jellyfin.Plugin.JellyP.Tests;
@@ -21,15 +23,38 @@ public sealed class JellyPControllerTests : IDisposable
     private bool _failQueue;
     private int _queueCalls;
     private int _inspectionCalls;
+    private Guid _planItemId;
+    private string _planImagePath = string.Empty;
+    private bool _throwInventoryPath;
 
     public JellyPControllerTests()
     {
-        var store = Proxy<IArtworkStore>((method, args) =>
+        var store = Proxy<IArtworkStore>((method, args) => method.Name switch
         {
-            if (method.Name != "InspectItems") return null;
-            _inspectionCalls++;
-            return ((IReadOnlyCollection<Guid>)args![0]!).Select(id => new ItemArtworkInspection(id, "Synthetic", "Movie", 2026, true, [])).ToArray();
+            "InspectItems" => Inspect((IReadOnlyCollection<Guid>)args![0]!),
+            "DetailedInventory" => _throwInventoryPath
+                ? throw new InvalidOperationException("/private/secret/inventory-path")
+                : _planImagePath.Length > 0 && File.Exists(_planImagePath)
+                ? [new ArtworkInventoryEntry
+                {
+                    Reference = new ArtworkReference(_planItemId, ImageType.Primary, 0, _planImagePath),
+                    Name = "Synthetic",
+                    ItemType = "Movie",
+                    ProductionYear = 2026,
+                    Category = "Primary",
+                    State = "Ready",
+                    CurrentBytes = new FileInfo(_planImagePath).Length,
+                    MimeType = "image/png",
+                }]
+                : Array.Empty<ArtworkInventoryEntry>(),
+            "Inventory" => Array.Empty<ArtworkReference>(),
+            _ => null,
         });
+        IReadOnlyList<ItemArtworkInspection> Inspect(IReadOnlyCollection<Guid> ids)
+        {
+            _inspectionCalls++;
+            return ids.Select(id => new ItemArtworkInspection(id, "Synthetic", "Movie", 2026, true, [])).ToArray();
+        }
         _coordinator = new OptimizationCoordinator(store, () => _config, _root, NullLogger<OptimizationCoordinator>.Instance);
         var task = new OptimizeArtworkTask(_coordinator);
         var worker = Proxy<IScheduledTaskWorker>((method, _) => method.Name switch
@@ -133,6 +158,111 @@ public sealed class JellyPControllerTests : IDisposable
         Assert.IsType<AcceptedResult>(_controller.Cancel());
         Assert.Equal("Cancelled", _coordinator.GetStatus().LastRun.Phase);
         Assert.Equal(1, _queueCalls);
+    }
+
+    [Fact]
+    public void NewAnalysisEndpointReturnsPathFreeResultWithoutQueueingMutation()
+    {
+        var result = Assert.IsType<OkObjectResult>(_controller.Analyze(new PlanAnalyzeRequest { Scope = "all" }, default).Result);
+        var summary = Assert.IsType<PlanSummary>(result.Value);
+        Assert.Equal("Ready", summary.Status);
+        Assert.DoesNotContain("poster", System.Text.Json.JsonSerializer.Serialize(summary));
+        Assert.Equal(0, _queueCalls);
+    }
+
+    [Fact]
+    public void UnknownPlanApplyAndConsentlessRetirementReturnBeforeNativeDispatch()
+    {
+        Assert.Equal(404, Assert.IsType<ObjectResult>(_controller.Apply(Guid.NewGuid(), new PlanApplyRequest { Keys = ["x"] }).Result).StatusCode);
+        Assert.Equal(0, _queueCalls);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(_controller.RetireSelected(
+            new BackupRetireRequest { RecordIds = [Guid.NewGuid()], AuthorizePermanentRemoval = false }, default).Result).StatusCode);
+        Assert.Equal(0, _queueCalls);
+    }
+
+    [Fact]
+    public void QueuedReplayWithoutRunnerNeverClaimsSuccessOrFallsBackToLegacy()
+    {
+        _config.MinimumSavingsBytes = 0;
+        _config.MinimumSavingsRatio = 0;
+        _config.MinimumSsim = 0;
+        _planItemId = Guid.NewGuid();
+        _planImagePath = Path.Combine(_root, "artwork", "poster.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(_planImagePath)!);
+        File.WriteAllBytes(_planImagePath, Png());
+        var plan = Assert.IsType<OkObjectResult>(_controller.Analyze(new PlanAnalyzeRequest
+        {
+            Scope = "items",
+            ItemIds = [_planItemId],
+            BatchSize = 10,
+            PreserveOriginals = true,
+        }, default).Result).Value as PlanSummary;
+        Assert.NotNull(plan);
+        var keys = _coordinator.GetPlanKeys(plan!.PlanId, "selectable").Keys.ToArray();
+        Assert.Single(keys);
+        var first = Assert.IsType<AcceptedResult>(_controller.Apply(plan.PlanId, new PlanApplyRequest { Keys = keys }).Result);
+        Assert.Equal(1, _queueCalls);
+
+        // A queued operation is not a runner. The durable marker is retained when
+        // dispatch cannot be repaired; it must never fall back to the legacy batch.
+        _state = TaskState.Idle;
+        _failQueue = true;
+        var replay = _controller.Apply(plan.PlanId, new PlanApplyRequest { Keys = keys }).Result;
+        Assert.Equal(409, Assert.IsType<ObjectResult>(replay).StatusCode);
+        Assert.Equal("Reserved", _coordinator.GetPlan(plan.PlanId).Status);
+        Assert.NotNull(_coordinator.PendingOperationId);
+
+        _failQueue = false;
+        _available = false;
+        var missing = _controller.Apply(plan.PlanId, new PlanApplyRequest { Keys = keys }).Result;
+        Assert.Equal(503, Assert.IsType<ObjectResult>(missing).StatusCode);
+        Assert.Equal("Reserved", _coordinator.GetPlan(plan.PlanId).Status);
+
+        _available = true;
+        _state = TaskState.Running;
+        var busy = _controller.Apply(plan.PlanId, new PlanApplyRequest { Keys = keys }).Result;
+        Assert.Equal(409, Assert.IsType<ObjectResult>(busy).StatusCode);
+        Assert.Equal("Reserved", _coordinator.GetPlan(plan.PlanId).Status);
+
+        _state = TaskState.Idle;
+        var receipt = Assert.IsType<OperationReceipt>(first.Value);
+        var retried = Assert.IsType<AcceptedResult>(_controller.RetryExecution(receipt.OperationId).Result);
+        Assert.Equal(receipt.OperationId, Assert.IsType<OperationReceipt>(retried.Value).OperationId);
+    }
+
+    [Fact]
+    public void AnalysisApiDoesNotLeakUnknownInventoryPaths()
+    {
+        _throwInventoryPath = true;
+        var result = Assert.IsType<ObjectResult>(_controller.Analyze(new PlanAnalyzeRequest { Scope = "all" }, default).Result);
+        Assert.Equal(409, result.StatusCode);
+        Assert.DoesNotContain("/private", System.Text.Json.JsonSerializer.Serialize(result.Value));
+    }
+
+    [Fact]
+    public void TasksResponseSanitizesLegacyFailurePaths()
+    {
+        Jellyfin.Plugin.JellyP.Infrastructure.DurableFiles.WriteJson(Path.Combine(_root, "last-run.json"), new RunReport
+        {
+            Phase = "Failed",
+            Message = "/private/customer/poster.png",
+        });
+        var result = Assert.IsType<OkObjectResult>(_controller.NativeTasks().Result);
+        var text = System.Text.Json.JsonSerializer.Serialize(result.Value);
+        Assert.DoesNotContain("/private", text);
+        Assert.Contains("Legacy JellyP run needs attention", text);
+    }
+
+    private static byte[] Png()
+    {
+        using var bitmap = new SKBitmap(512, 512);
+        var random = new Random(42);
+        for (var y = 0; y < 512; y++)
+        for (var x = 0; x < 512; x++)
+            bitmap.SetPixel(x, y, new SKColor((byte)(x / 2), (byte)(y / 2), (byte)(128 + random.Next(5)), 255));
+        using var image = SKImage.FromBitmap(bitmap);
+        using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
+        return encoded.ToArray();
     }
 
     private static T Proxy<T>(Func<MethodInfo, object?[]?, object?> invoke) where T : class

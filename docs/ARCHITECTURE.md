@@ -1,9 +1,45 @@
 # Execution and scope
 
-This document describes the current implementation. The proposed UX and state
-refactor is recorded in [PLAN.md](PLAN.md) and the
-[detailed design plan](UX-REFACTOR-PLAN.pt-BR.md). That proposal is not implemented
-and does not authorize implementation or deployment by itself.
+The sections below describe the published 0.3.0.1 execution engine and legacy
+endpoints. The working tree now adds the native UX integration summarized here;
+its implemented DTOs are documented in
+[UX-P3-INTEGRATION.pt-BR.md](UX-P3-INTEGRATION.pt-BR.md), with
+[real-host evidence and limits](UX-P3-NATIVE-VALIDATION.pt-BR.md).
+[PLAN.md](PLAN.md) and the [detailed plan](UX-REFACTOR-PLAN.pt-BR.md) distinguish
+implementation authority from publication/production deployment, neither of which
+follows from local validation.
+
+## Native integration added in the working tree
+
+- The embedded page uses the real Jellyfin web host, dynamically enhanced
+  `emby-*` controls and theme styles. Its five task views connect to authenticated
+  APIs; prototype fixture data is not shipped in the UI.
+- Manual drafts never save automation. Nullable manual defaults project legacy
+  values on read without migrating them; explicit saves separate manual defaults
+  while preserving legacy automation fields and task triggers.
+- Read-only analysis produces a bounded, expiring server-owned plan with explicit
+  Convert/Regenerate/Keep actions and stable image keys. Review and billing use
+  the exact selected subset across server pages, not scan cursors.
+- Apply, restore and retire persist their exact intent before dispatch to the
+  existing native task. Operations have individual results, safe cancellation,
+  idempotent application, queued retry and conservative restart reconciliation;
+  restart never automatically replays an interrupted mutation.
+- The existing transaction engine still performs conversion, verified restoration,
+  journaling and storage checks. Additional guards protect shared paths and items
+  with unavailable sibling images before mutation; reference counts are batched.
+- Detailed inventory rehydrates repeated image types through `GetItemById`, matching
+  native slot order rather than the differently ordered `GetItemList` result.
+- Retention review pages every affected identity and binds consent to its complete
+  fingerprint. The persisted operation cannot silently expand that ID set and
+  excludes originals needed by selected regenerations.
+- Plans/operations are separate from legacy `last-run.json`, scan cursors and
+  image journals. Old journals remain readable; optional new fields add dimensions,
+  policy/evidence, execution identity and deletion intent.
+- New DTOs are path-free and unknown errors sanitized. The elevated legacy
+  `/Status` response retains its historical journal/path shape for compatibility;
+  new APIs never accept client filesystem paths.
+
+## Published engine / legacy execution path
 
 JellyP uses Jellyfin's existing scheduler. It does not install another process,
 filesystem watcher, patched saver or production database writer.

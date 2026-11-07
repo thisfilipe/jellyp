@@ -49,14 +49,26 @@ public static class DurableFiles
     {
         EnsureDirectory(System.IO.Path.GetDirectoryName(path)!);
         EnsureRegularPath(System.IO.Path.GetDirectoryName(path)!);
-        var temp = path + ".tmp";
-        using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+        // A unique temp avoids collisions when independent durable owners touch the
+        // same path concurrently. The rename remains the only publication step.
+        var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
         {
-            stream.Write(bytes);
-            stream.Flush(flushToDisk: true);
+            using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(bytes);
+                stream.Flush(flushToDisk: true);
+            }
+
+            File.Move(temp, path, overwrite: true);
+        }
+        finally
+        {
+            try { File.Delete(temp); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
 
-        File.Move(temp, path, overwrite: true);
         FlushDirectory(System.IO.Path.GetDirectoryName(path)!);
     }
 

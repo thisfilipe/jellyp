@@ -15,7 +15,7 @@ public sealed class OptimizeArtworkTask(OptimizationCoordinator coordinator) : I
     /// <inheritdoc />
     public string Category => "JellyP";
     /// <inheritdoc />
-    public Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken) => coordinator.RunAsync(progress, cancellationToken, waitForOtherOperations: true);
+    public Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken) => coordinator.RunNativeAsync(progress, cancellationToken);
     /// <inheritdoc />
     public IEnumerable<TaskTriggerInfo> GetDefaultTriggers() => [];
 }

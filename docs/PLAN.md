@@ -1,13 +1,15 @@
 # JellyP UX refactor: handoff and authorization boundary
 
-Status (2026-11-06): **P1 recorded; P2 accepted by the maintainer as the direction
-for native implementation, after iterative use and corrections. Independent
-usability testing is deferred and is not a gate for moving forward. Native host
-integration and runtime/backend changes have not yet been implemented or authorized.**
-P0–P1 are complete under explicit owner
-authorization. P3–P8 remain pending a phase-specific instruction.
+Status (2026-11-07, native integration update): **P2 remains the accepted product
+direction. A subsequent bounded runtime instruction authorized backend work and
+the native UI in a marked disposable local Jellyfin. Backend DTOs and the native
+page are implemented in the working tree; native journeys have been exercised
+against the real 12.1 host. This does not complete all P3–P7 acceptance or authorize
+production/release.** Independent usability remains deferred, not claimed.
+See [implemented contracts](UX-P3-INTEGRATION.pt-BR.md) and
+[native verification, screenshots and remaining gaps](UX-P3-NATIVE-VALIDATION.pt-BR.md).
 Baseline: JellyP **0.3.0.1**, Jellyfin **12.1**, .NET **10**.
-Recorded: 2026-10-17; execution-plan revision: 2026-11-06.
+Recorded: 2026-10-17; execution-plan revision: 2026-11-07.
 
 The owner asked for evaluation and detailed documentation of a complete UX
 refactor, explicitly instructing the agent not to modify the implementation yet.
@@ -77,6 +79,34 @@ requirements; they are not implemented in 0.3.0.1.
 | P6 | Native automation, history, restoration and explicit backup retirement | Per-journey P3/P4/P5 integration; not a separate rewrite |
 | P7 | Continuous functional, integrity, accessibility and usability checks; final regression consolidation | Starts with each implemented journey; independent user feedback continues when available |
 | P8 | Document and prepare an alpha after technical release gates pass | Required integrity/migration/host checks pass; disclose deferred usability evidence; publication remains separately authorized |
+
+### Subsequent bounded implementation evidence (2026-11-06)
+
+The original authorization paragraphs above record the earlier documentation
+boundary; the later explicit runtime instruction permits the scoped native work,
+not production, SSH, publication or a version bump. `Web/config.html` now uses real
+host controls, the host router and server-owned plans/receipts. It does not port
+P2 fixture data or replace the backend with client-side effects. Manual analysis,
+cross-page exact application, original-based regeneration, restoration, selective
+retirement, settings and separate automation are wired to the implemented APIs.
+
+P3/P4 contracts are recorded, P5/P6 have a working native slice, and P7 has real
+host evidence. The Backdrop ordering and retention-pagination gaps found during
+integration were fixed in the backend and verified on the installed real host:
+six native slots agree with the plan, exact slot-1 conversion/restoration preserves
+other slots, and a 52-original retention review reaches its sixth page and expires
+only the reviewed IDs, retaining active WebP images. Backend hardening has 181
+passing .NET tests; native suites passed 79 UI checks (7 axe) and 16 focused
+planning checks, with 9 release tests. These numbers are separate evidence sets,
+not substitutes for the still-pending cases documented in native validation.
+**Do not mark these phases universally complete.** P8 remains pending; the old
+`smoke-ui.cjs` and synthetic P2 checks were not represented as validating the
+replacement page. Production and release remain unauthorized.
+
+Final local recheck (2026-11-07): 181 .NET + 9 release tests, 79 real native UI
+checks (7 axe), and 16 focused native planning checks passed on the latest
+installed build. See native validation for the interrupted transport attempt,
+cleanup, final evidence paths and remaining acceptance limitations.
 
 Detailed tasks, acceptance criteria, decision records and scenario IDs are in
 the specification. Do not mark phases complete from this summary alone.

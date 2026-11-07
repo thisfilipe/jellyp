@@ -11,8 +11,11 @@ namespace Jellyfin.Plugin.JellyP.Api;
 [ApiController]
 [Route("JellyP")]
 [Authorize(Policy = "RequiresElevation")]
-public sealed class JellyPController(OptimizationCoordinator coordinator, ITaskManager tasks, IArtworkStore artwork) : ControllerBase
+public sealed partial class JellyPController(OptimizationCoordinator coordinator, ITaskManager tasks, IArtworkStore artwork,
+    Microsoft.Extensions.Logging.ILogger<JellyPController>? logger = null) : ControllerBase
 {
+    private readonly Microsoft.Extensions.Logging.ILogger<JellyPController>? _logger = logger;
+
     /// <summary>Inspects up to 100 exact item IDs without downloading or changing artwork.</summary>
     [HttpGet("Selection")]
     public ActionResult<IReadOnlyList<ItemArtworkInspection>> Selection([FromQuery] string? ids, CancellationToken cancellationToken)

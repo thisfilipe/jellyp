@@ -23,6 +23,20 @@ public interface IArtworkStore
     /// <summary>Returns aggregate reasons from the last inventory without private paths.</summary>
     InventorySummary? GetInventorySummary() => null;
 
+    /// <summary>Lists scoped image slots with per-image skip evidence while still scanning global references.</summary>
+    IReadOnlyList<ArtworkInventoryEntry> DetailedInventory(CancellationToken cancellationToken,
+        IReadOnlyCollection<Guid>? includedItemIds = null, IReadOnlyCollection<Guid>? includedLibraryIds = null,
+        Action<int>? inventoryProgress = null, int? maximumEntries = null) =>
+        Inventory(cancellationToken, includedItemIds, includedLibraryIds, inventoryProgress)
+            .Take(maximumEntries is > 0 ? maximumEntries.Value + 1 : int.MaxValue)
+            .Select(reference => new ArtworkInventoryEntry
+            {
+                Reference = reference,
+                State = Path.GetExtension(reference.Path).Equals(".webp", StringComparison.OrdinalIgnoreCase) ? "AlreadyWebp" : "Ready",
+                Category = reference.IsPerson ? "People" : reference.Type.ToString(),
+            })
+            .ToArray();
+
     /// <summary>Checks that no scan or refresh is active.</summary>
     void EnsureIdle(Guid? itemId = null);
 
@@ -35,8 +49,45 @@ public interface IArtworkStore
     /// <summary>Checks every library source before removing a plugin-created orphan.</summary>
     bool IsPathReferenced(string path);
 
+    /// <summary>Counts persisted references to one exact path, including excluded and missing slots.</summary>
+    int CountPathReferences(string path) => IsPathReferenced(path) ? 1 : 0;
+
+    /// <summary>Counts several paths in one store scan when supported; the default keeps compatibility.</summary>
+    IReadOnlyDictionary<string, int> CountPathReferences(IReadOnlyCollection<string> paths) =>
+        paths.Distinct(StringComparer.Ordinal).ToDictionary(path => path, CountPathReferences, StringComparer.Ordinal);
+
+    /// <summary>Checks that no sibling slot makes a save/restore unsafe. Default preserves compatibility.</summary>
+    bool IsSlotSafeForMutation(ArtworkReference reference) => true;
+
     /// <summary>Saves staged bytes using Jellyfin and persists its reference.</summary>
     Task<ArtworkReference> SaveAsync(ArtworkReference reference, string stagingPath, string mimeType);
+}
+
+/// <summary>One scoped inventory slot with path-free client evidence. Reference.Path is internal.</summary>
+public sealed class ArtworkInventoryEntry
+{
+    /// <summary>Gets the server-owned image reference.</summary>
+    public required ArtworkReference Reference { get; init; }
+    /// <summary>Gets the item display name, when available.</summary>
+    public string? Name { get; init; }
+    /// <summary>Gets the Jellyfin item type name.</summary>
+    public string? ItemType { get; init; }
+    /// <summary>Gets the production year, when available.</summary>
+    public int? ProductionYear { get; init; }
+    /// <summary>Gets the artwork category (People or image type).</summary>
+    public string Category { get; init; } = string.Empty;
+    /// <summary>Gets the inventory state.</summary>
+    public string State { get; init; } = "Ready";
+    /// <summary>Gets an optional non-path explanation.</summary>
+    public string? Reason { get; init; }
+    /// <summary>Gets the current encoded bytes from file metadata, when available.</summary>
+    public long? CurrentBytes { get; init; }
+    /// <summary>Gets the detected current MIME type, when available.</summary>
+    public string? MimeType { get; init; }
+    /// <summary>Gets whether the physical path is referenced more than once across the whole library, independent of the UI state.</summary>
+    public bool IsShared { get; init; }
+    /// <summary>Gets the global local-reference count for this path.</summary>
+    public int ReferenceCount { get; init; } = 1;
 }
 
 /// <summary>A durable per-image recovery record.</summary>
@@ -55,8 +106,26 @@ public sealed class MigrationRecord
     public string State { get; set; } = "Prepared";
     public string? Error { get; set; }
     public bool BackupDeleted { get; set; }
+    /// <summary>Gets or sets a durable pre-delete intent for the stored original.</summary>
+    public bool BackupDeletionIntent { get; set; }
+    /// <summary>Gets or sets a non-fatal post-commit cleanup warning.</summary>
+    public string? CleanupWarning { get; set; }
     public string PolicyFingerprint { get; set; } = string.Empty;
     public int Revision { get; set; }
+    /// <summary>Gets or sets the operation that requested this transaction, for restart reconciliation. Null for legacy records.</summary>
+    public Guid? ExecutionId { get; set; }
+    /// <summary>Gets or sets the readable effective policy evidence. Null for legacy records.</summary>
+    public string? PolicySnapshot { get; set; }
+    /// <summary>Gets or sets the original encoded width. Null for legacy records.</summary>
+    public int? OriginalWidth { get; set; }
+    /// <summary>Gets or sets the original encoded height. Null for legacy records.</summary>
+    public int? OriginalHeight { get; set; }
+    /// <summary>Gets or sets the committed encoded width. Null for legacy records.</summary>
+    public int? OutputWidth { get; set; }
+    /// <summary>Gets or sets the committed encoded height. Null for legacy records.</summary>
+    public int? OutputHeight { get; set; }
+    /// <summary>Gets or sets the measured luma SSIM, when available.</summary>
+    public double? Ssim { get; set; }
 }
 
 /// <summary>Persisted scan cursor and most recent run summary.</summary>

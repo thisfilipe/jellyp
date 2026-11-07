@@ -1,5 +1,6 @@
 using System.Reflection;
 using Jellyfin.Plugin.JellyP.Infrastructure;
+using Jellyfin.Plugin.JellyP.Migration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Controller.Entities;
@@ -23,6 +24,7 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
     private readonly Dictionary<Guid, IReadOnlyList<PersonInfo>> _people = [];
     private readonly Dictionary<string, Guid> _personIds = [];
     private bool _scanning;
+    private bool _sortListImages;
     private readonly HashSet<Guid> _refreshQueue = [];
     private readonly HashSet<Guid> _activeRefreshes = [];
 
@@ -74,6 +76,63 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
         Assert.False(result.Last().Found);
         Assert.Empty(result.Last().Images);
         Assert.Equal(0, _snapshotCalls);
+    }
+
+    [Fact]
+    public void RepeatedImageTypesUseNativeOrderAcrossInventoryDetailedAndInspection()
+    {
+        var paths = new[]
+        {
+            Path.Combine(_root, "metadata", "slots", "primary.jpg"),
+            Path.Combine(_root, "metadata", "slots", "backdrop-a.jpg"),
+            Path.Combine(_root, "metadata", "slots", "backdrop-b.jpg"),
+            Path.Combine(_root, "metadata", "slots", "backdrop-c.jpg"),
+        };
+        foreach (var path in paths)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, [1, 2, 3]);
+        }
+
+        var item = new Person
+        {
+            Id = Guid.NewGuid(),
+            ImageInfos =
+            [
+                new ItemImageInfo { Type = ImageType.Primary, Path = paths[0] },
+                new ItemImageInfo { Type = ImageType.Backdrop, Path = paths[1] },
+                new ItemImageInfo { Type = ImageType.Backdrop, Path = paths[2] },
+                new ItemImageInfo { Type = ImageType.Backdrop, Path = paths[3] },
+            ],
+        };
+        _items.Add(item);
+        _snapshotIds = [item.Id];
+        _sortListImages = true;
+        var store = CreateStore();
+
+        foreach (var type in new[] { ImageType.Primary, ImageType.Backdrop })
+        {
+            var native = item.ImageInfos.Where(image => image.Type == type).Select((image, index) =>
+                new ArtworkReference(item.Id, type, index, image.Path)).ToArray();
+            var inventory = store.Inventory(default, [item.Id]).Where(reference => reference.Type == type).ToArray();
+            var detailed = store.DetailedInventory(default, [item.Id]).Where(entry => entry.Reference.Type == type)
+                .Select(entry => entry.Reference).ToArray();
+            var inspected = store.InspectItems([item.Id], default).Single().Images
+                .Where(image => image.Type == type).Select(image => image.Index).ToArray();
+
+            Assert.Equal(native.Select(reference => reference.Path), inventory.Select(reference => reference.Path));
+            Assert.Equal(native.Select(reference => reference.Index), inventory.Select(reference => reference.Index));
+            Assert.Equal(native.Select(reference => reference.Path), detailed.Select(reference => reference.Path));
+            Assert.Equal(native.Select(reference => reference.Index), detailed.Select(reference => reference.Index));
+            Assert.Equal(native.Select(reference => reference.Index), inspected);
+            foreach (var reference in inventory)
+            {
+                var current = store.GetCurrent(reference);
+                Assert.NotNull(current);
+                Assert.Equal(reference.Path, current!.Path);
+                Assert.Equal(reference.Index, current.Index);
+            }
+        }
     }
 
     [Fact]
@@ -186,6 +245,76 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
         var result = CreateStore().Inventory(default, includedLibraryIds: [folder.Id]);
         Assert.Equal(new[] { selected.Id, related.Id }.Order(), result.Select(i => i.ItemId).Order());
         Assert.DoesNotContain(result, image => image.ItemId == other.Id);
+    }
+
+    [Fact]
+    public void DetailedInventoryExplainsSharedReferenceAndKeepsLegacyAggregatesEquivalent()
+    {
+        var selected = PersonWithImage(Path.Combine(_root, "metadata", "selected", "folder.webp"));
+        var outside = new ChannelFixture { Id = Guid.NewGuid(), ImageInfos = selected.ImageInfos };
+        _items.Add(outside);
+        var store = CreateStore();
+        var detailed = store.DetailedInventory(default, [selected.Id]);
+        var entry = Assert.Single(detailed);
+        Assert.Equal("Shared", entry.State);
+        Assert.Equal("SharedReference", entry.Reason);
+        var summary = store.GetInventorySummary()!;
+        Assert.Equal(1, summary.LocalImages);
+        Assert.Equal(0, summary.ExcludedImages);
+        Assert.Equal(1, summary.SharedImages);
+        Assert.Empty(store.Inventory(default, [selected.Id]));
+    }
+
+    [Fact]
+    public void SlotSafetyRejectsMissingAndRemoteSiblings()
+    {
+        var selected = PersonWithImage(Path.Combine(_root, "metadata", "selected", "folder.jpg"));
+        var store = CreateStore();
+        var reference = new ArtworkReference(selected.Id, ImageType.Primary, 0, selected.ImageInfos[0].Path);
+        Assert.True(store.IsSlotSafeForMutation(reference));
+        selected.ImageInfos = [.. selected.ImageInfos, new ItemImageInfo
+        {
+            Path = Path.Combine(_root, "metadata", "selected", "missing.jpg"),
+            Type = ImageType.Backdrop,
+        }];
+        Assert.False(store.IsSlotSafeForMutation(reference));
+        selected.ImageInfos = [.. selected.ImageInfos.Take(1), new ItemImageInfo
+        {
+            Path = "https://example.invalid/remote.jpg",
+            Type = ImageType.Backdrop,
+        }];
+        Assert.False(store.IsSlotSafeForMutation(reference));
+    }
+
+    [Fact]
+    public void DetailedInventorySharedFlagIsIndependentOfEligibilityClassification()
+    {
+        var selected = PersonWithImage(Path.Combine(_root, "metadata", "selected", "folder.jpg"));
+        selected.ImageInfos = [.. selected.ImageInfos, new ItemImageInfo
+        {
+            Path = Path.Combine(_root, "metadata", "selected", "missing-backdrop.jpg"),
+            Type = ImageType.Backdrop,
+        }];
+        var outside = new ChannelFixture { Id = Guid.NewGuid(), ImageInfos = [selected.ImageInfos[0]] };
+        _items.Add(outside);
+        var entries = CreateStore().DetailedInventory(default, [selected.Id]);
+        var entry = Assert.Single(entries, row => row.Reference.Path == selected.ImageInfos[0].Path);
+        Assert.Equal("Excluded", entry.State);
+        Assert.True(entry.IsShared);
+        Assert.Equal(2, entry.ReferenceCount);
+    }
+
+    [Fact]
+    public void DetailedInventoryCountsMissingLocalImagesAsExcludedLikeLegacyInventory()
+    {
+        var item = PersonWithImage(Path.Combine(_root, "metadata", "selected", "missing.png"));
+        File.Delete(item.ImageInfos[0].Path);
+        var store = CreateStore();
+        var detailed = store.DetailedInventory(default, [item.Id]);
+        Assert.Equal("Missing", Assert.Single(detailed).State);
+        var summary = store.GetInventorySummary()!;
+        Assert.Equal(1, summary.LocalImages);
+        Assert.Equal(1, summary.ExcludedImages);
     }
 
     [Fact]
@@ -331,7 +460,15 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
         Assert.Equal(ItemFields.Path, Assert.Single(query.DtoOptions.Fields));
         _requestedBatches.Add(query.ItemIds);
         // SQL hydration order need not match snapshot order, and unknown types yield no object.
-        return _items.Where(i => query.ItemIds.Contains(i.Id)).Reverse().ToArray();
+        var selected = _items.Where(i => query.ItemIds.Contains(i.Id)).Reverse().ToArray();
+        if (!_sortListImages) return selected;
+        return selected.Select(item => new Person
+        {
+            Id = item.Id,
+            Name = item.Name,
+            ProductionYear = item.ProductionYear,
+            ImageInfos = item.ImageInfos.Reverse().ToArray(),
+        }).ToArray();
     }
 
     private static T Proxy<T>(Func<MethodInfo, object?[]?, object?> handler) where T : class

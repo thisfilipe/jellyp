@@ -28,6 +28,29 @@ public sealed class DurableFilesTests : IDisposable
     }
 
     [Fact]
+    public async Task ConcurrentWritesUseUniqueTemporaryFilesAndPublishOneValue()
+    {
+        var directory = Path.Combine(_root, "migration", "operations");
+        DurableFiles.CreateDirectory(directory);
+        var file = Path.Combine(directory, "operation.json");
+        await Task.WhenAll(Enumerable.Range(0, 24).Select(value => Task.Run(() => DurableFiles.Write(file, [(byte)value]))));
+        Assert.Single(File.ReadAllBytes(file));
+        Assert.Empty(Directory.EnumerateFiles(directory, "*.tmp"));
+    }
+
+    [Fact]
+    public void FailedPublicationCleansItsUniqueTemporaryFile()
+    {
+        var directory = Path.Combine(_root, "migration", "blocked");
+        DurableFiles.CreateDirectory(directory);
+        var target = Path.Combine(directory, "target.json");
+        Directory.CreateDirectory(target);
+        Assert.Throws<IOException>(() => DurableFiles.Write(target, [1, 2, 3]));
+        Assert.Empty(Directory.EnumerateFiles(directory, "*.tmp"));
+        Assert.True(Directory.Exists(target));
+    }
+
+    [Fact]
     public void LinuxDirectoryFlushRejectsSymbolicLinkParent()
     {
         if (!OperatingSystem.IsLinux()) return;

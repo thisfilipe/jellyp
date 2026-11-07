@@ -8,17 +8,32 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.JellyP.Migration;
 
 /// <summary>Serializes bounded scans, journaled image transactions and rollback operations.</summary>
-public sealed class OptimizationCoordinator
+public sealed partial class OptimizationCoordinator
 {
+    internal const int PlanSchemaVersion = 2;
+    internal const int MaximumPlanBatch = 1000;
+    internal const int MaximumPlanImages = 5000;
+    internal const int MaximumOperationBatch = 200;
+    internal const int MaximumOperationHistory = 200;
+    internal const int MaximumPlanHistory = 20;
+    internal const long MaximumPlanDiskBytes = 64L * 1024 * 1024;
+    internal static readonly TimeSpan PlanLifetime = TimeSpan.FromHours(24);
     private readonly IArtworkStore _artwork;
     private readonly Func<PluginConfiguration> _configuration;
+    private readonly Action<PluginConfiguration>? _saveConfiguration;
     private readonly string _root;
     private readonly ILogger<OptimizationCoordinator> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private volatile bool _running;
     private readonly object _requestGate = new();
+    private readonly object _operationStateGate = new();
+    private readonly object _planStateGate = new();
     private PendingExecution? _pending;
     private CancellationTokenSource? _manualCancellation;
+    private Guid? _pendingOperationId;
+    private Guid? _currentOperationId;
+    private CancellationTokenSource? _operationCancellation;
+    private volatile string? _journalIntegrityError;
     private sealed record PendingExecution(bool Synchronize, PluginConfiguration Configuration, RunReport Report)
     {
         public bool Cancelled { get; set; }
@@ -29,7 +44,8 @@ public sealed class OptimizationCoordinator
     {
         lock (_requestGate)
         {
-            if (_running || _pending is not null)
+            EnsureJournalWritable();
+            if (_running || _pending is not null || HasPendingOrRunningOperation() || HasQueuedOperationFiles())
                 throw new InvalidOperationException("A JellyP operation is already running or queued.");
             var config = SnapshotConfiguration();
             if (dryRunOverride.HasValue)
@@ -58,42 +74,77 @@ public sealed class OptimizationCoordinator
         lock (_requestGate)
         {
             _manualCancellation?.Cancel();
-            if (_pending is null) return;
-            _pending.Cancelled = true;
-            _pending.Report.Phase = "Cancelled";
-            _pending.Report.FinishedUtc = DateTime.UtcNow;
-            _pending.Report.Message = "Cancelled before execution.";
+            if (_pending is not null)
+            {
+                _pending.Cancelled = true;
+                _pending.Report.Phase = "Cancelled";
+                _pending.Report.FinishedUtc = DateTime.UtcNow;
+                _pending.Report.Message = "Cancelled before execution.";
+            }
         }
+
+        RequestCancelOperation();
     }
 
     /// <summary>Creates a coordinator; this constructor does not modify artwork.</summary>
     public OptimizationCoordinator(IArtworkStore artwork, Func<PluginConfiguration> configuration,
-        string root, ILogger<OptimizationCoordinator> logger)
+        string root, ILogger<OptimizationCoordinator> logger, Action<PluginConfiguration>? saveConfiguration = null)
     {
         _artwork = artwork;
         _configuration = configuration;
         _root = root;
         _logger = logger;
+        _saveConfiguration = saveConfiguration;
+        ReconcileStartupOperations();
+        TryRecoverBackupDeletionIntents();
+        TryPruneOperations();
+        TryPrunePlans();
     }
 
     /// <summary>Returns bounded administrator output and storage accounting.</summary>
     public OptimizerStatus GetStatus()
     {
-        var records = Records().ToArray();
         var reportPath = Path.Combine(_root, "last-run.json");
-        var report = File.Exists(reportPath) ? DurableFiles.ReadJson<RunReport>(reportPath) : new RunReport();
-        lock (_requestGate)
-            if (_pending is not null) report = JsonSerializer.Deserialize<RunReport>(JsonSerializer.Serialize(_pending.Report))!;
-        report.Running = _running;
-        var committed = records.Where(r => r.State == "Committed")
-            .GroupBy(r => r.Source.Key).Select(g => g.OrderByDescending(r => r.CompletedUtc).First())
-            .Where(r => r.OutputPath is not null && File.Exists(r.OutputPath) && !File.Exists(r.Source.Path)
-                && _artwork.GetCurrent(r.Source)?.Path == r.OutputPath).ToArray();
-        var backups = ActualBackupBytes();
-        var savings = committed.Sum(r => r.OriginalBytes - r.OutputBytes);
-        return new OptimizerStatus(report, backups, savings, savings - backups,
-            records.OrderByDescending(r => r.CreatedUtc).Take(100).ToArray(),
-            records.Count(r => r.State is "Prepared" or "Restoring" or "RecoveryRequired"));
+        RunReport report;
+        try
+        {
+            report = File.Exists(reportPath) ? DurableFiles.ReadJson<RunReport>(reportPath) : new RunReport();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException or UnauthorizedAccessException)
+        {
+            report = new RunReport
+            {
+                Phase = "RecoveryRequired",
+                Message = "Legacy JellyP report is unreadable. Review server logs.",
+            };
+        }
+
+        try
+        {
+            var records = Records().ToArray();
+            lock (_requestGate)
+                if (_pending is not null) report = JsonSerializer.Deserialize<RunReport>(JsonSerializer.Serialize(_pending.Report))!;
+            report.Running = _running;
+            var committed = records.Where(r => r.State == "Committed")
+                .GroupBy(r => r.Source.Key).Select(g => g.OrderByDescending(r => r.CompletedUtc).First())
+                .Where(r => r.OutputPath is not null && File.Exists(r.OutputPath) && !File.Exists(r.Source.Path)
+                    && _artwork.GetCurrent(r.Source)?.Path == r.OutputPath).ToArray();
+            var backups = ActualBackupBytes();
+            var savings = committed.Sum(r => r.OriginalBytes - r.OutputBytes);
+            return new OptimizerStatus(report, backups, savings, savings - backups,
+                records.OrderByDescending(r => r.CreatedUtc).Take(100).ToArray(),
+                records.Count(r => r.State is "Prepared" or "Restoring" or "RecoveryRequired"));
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException or InvalidOperationException)
+        {
+            // A corrupt journal must block mutations but must not prevent the plugin
+            // page/status from loading and explaining that recovery is required.
+            _journalIntegrityError = "JellyP journal is corrupt or unreadable. New mutations are blocked; review server logs and recovery data.";
+            report.Running = _running;
+            report.Phase = "RecoveryRequired";
+            report.Message = _journalIntegrityError;
+            return new OptimizerStatus(report, ActualBackupBytes(), 0, 0, [], 1);
+        }
     }
 
     /// <summary>Runs the next bounded batch, honoring cancellation between transactions.</summary>
@@ -104,6 +155,8 @@ public sealed class OptimizationCoordinator
         {
             lock (_requestGate)
             {
+                if (HasPendingOrRunningOperation() || HasQueuedOperationFiles())
+                    throw new InvalidOperationException("A JellyP operation is already running or queued.");
                 if (!_running && (_pending is null || _pending.Synchronize == synchronize))
                 {
                     request = _pending;
@@ -165,6 +218,7 @@ public sealed class OptimizationCoordinator
                 }
             }
 
+            RecoverBackupDeletionIntents();
             if (!config.DryRun && Records().Any(r => r.State is "Prepared" or "Restoring" or "RecoveryRequired"))
             {
                 throw new InvalidOperationException("Recover interrupted image transactions before continuing.");
@@ -281,7 +335,8 @@ public sealed class OptimizationCoordinator
                                 target = _artwork.GetCurrent(reference) ?? throw new IOException("Restored image slot is missing.");
                             }
 
-                            await ConvertAsync(target, bytes, result.OutputBytes!, config, config.Fingerprint(policy!)).ConfigureAwait(false);
+                            await ConvertAsync(target, bytes, result.OutputBytes!, config, config.Fingerprint(policy!),
+                                evidence: result, policySnapshot: JsonSerializer.Serialize(config.OptionsFor(policy!))).ConfigureAwait(false);
                             report.Converted++;
                         }
 
@@ -414,6 +469,7 @@ public sealed class OptimizationCoordinator
         {
             var config = SnapshotConfiguration();
             if (!authorizedManual) RequireMaintenance(config);
+            RecoverBackupDeletionIntents();
             await WaitForIdleAsync(null, report, cancellationToken).ConfigureAwait(false);
             report.Phase = phase;
             report.Message = null;
@@ -447,7 +503,8 @@ public sealed class OptimizationCoordinator
         }
     }
 
-    private async Task ConvertAsync(ArtworkReference reference, byte[] source, byte[] output, PluginConfiguration config, string policyFingerprint)
+    private async Task<MigrationRecord> ConvertAsync(ArtworkReference reference, byte[] source, byte[] output, PluginConfiguration config, string policyFingerprint,
+        Guid? executionId = null, WebpOptimizationResult? evidence = null, string? policySnapshot = null)
     {
         _artwork.EnsureIdle(reference.ItemId);
         var current = _artwork.GetCurrent(reference);
@@ -476,6 +533,13 @@ public sealed class OptimizationCoordinator
             OutputBytes = output.Length,
             OutputPath = destination,
             PolicyFingerprint = policyFingerprint,
+            ExecutionId = executionId,
+            PolicySnapshot = policySnapshot,
+            OriginalWidth = evidence?.SourceWidth,
+            OriginalHeight = evidence?.SourceHeight,
+            OutputWidth = evidence?.OutputWidth,
+            OutputHeight = evidence?.OutputHeight,
+            Ssim = evidence?.Ssim,
         };
         // Publish the original before the intent record. An interrupted backup write can never start a save.
         DurableFiles.Write(Backup(record), source);
@@ -528,11 +592,29 @@ public sealed class OptimizationCoordinator
         finally { File.Delete(Staging(record.Id)); }
         if (!config.PreserveOriginals)
         {
-            await RetireRecordAsync(record).ConfigureAwait(false);
+            try
+            {
+                await RetireRecordAsync(record).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // The image commit is already verified. Retaining the original is the
+                // safe fallback; report cleanup separately instead of failing the commit.
+                record.CleanupWarning = "Committed, but original cleanup did not complete. The stored original was retained.";
+                try { SaveRecord(record); }
+                catch (Exception persistence)
+                {
+                    _logger.LogError(persistence, "JellyP could not persist cleanup warning for {RecordId}", record.Id);
+                }
+                _logger.LogWarning(ex, "JellyP committed {RecordId} but retained its original after cleanup failure", record.Id);
+            }
         }
+
+        return record;
     }
 
-    private async Task RestoreCoreAsync(MigrationRecord record, PluginConfiguration config)
+    private async Task RestoreCoreAsync(MigrationRecord record, PluginConfiguration config,
+        bool? slotSafe = null, IReadOnlyDictionary<string, int>? referenceCounts = null)
     {
         _artwork.EnsureIdle(record.Source.ItemId);
         var original = DurableFiles.ReadImage(Backup(record));
@@ -554,6 +636,16 @@ public sealed class OptimizationCoordinator
         {
             throw new IOException("Image slot changed since conversion; refusing to overwrite it.");
         }
+
+        // The current reference itself is the first count; more than one means another
+        // item/slot also persists this exact physical file. Never overwrite that shared
+        // path, even when the other slot is currently missing or excluded by UI policy.
+        if (slotSafe == false || !_artwork.IsSlotSafeForMutation(current))
+            throw new IOException("A sibling image slot is unavailable; refusing to refresh metadata while restoring.");
+        var referenceCount = referenceCounts is null ? _artwork.CountPathReferences(current.Path)
+            : referenceCounts.GetValueOrDefault(Path.GetFullPath(current.Path));
+        if (referenceCount > 1)
+            throw new IOException("Image slot is shared with another item; refusing to overwrite it.");
 
         var destination = _artwork.GetDestination(current, record.OriginalMimeType);
         if (File.Exists(destination) && DurableFiles.Hash(DurableFiles.ReadImage(destination)) != record.SourceHash)
@@ -582,8 +674,10 @@ public sealed class OptimizationCoordinator
             // A failed save can publish bytes without changing/persisting the slot. Reconcile only our verified orphan.
             if (record.OutputPath is not null && record.OutputPath != restored.Path && File.Exists(record.OutputPath))
             {
+                var outputStillReferenced = referenceCounts is null
+                    ? _artwork.CountPathReferences(record.OutputPath) > 0 : false;
                 if (DurableFiles.Hash(DurableFiles.ReadImage(record.OutputPath)) != record.OutputHash
-                    || _artwork.IsPathReferenced(record.OutputPath))
+                    || outputStillReferenced)
                 {
                     throw new IOException("Uncertain output remains after restore; retaining the original for administrator recovery.");
                 }
@@ -613,7 +707,11 @@ public sealed class OptimizationCoordinator
     private async Task PurgeCoreAsync(DateTime cutoffUtc, CancellationToken cancellationToken)
     {
         _artwork.EnsureIdle();
-        foreach (var record in Records().Where(r => r.State == "Committed" && !r.BackupDeleted && r.CompletedUtc < cutoffUtc))
+        var records = Records().Where(r => r.State == "Committed" && !r.BackupDeleted && r.CompletedUtc < cutoffUtc).ToArray();
+        var referenceCounts = _artwork.CountPathReferences(records
+            .Where(record => record.OutputPath is not null && File.Exists(record.OutputPath))
+            .Select(record => record.OutputPath!).ToArray());
+        foreach (var record in records)
         {
             cancellationToken.ThrowIfCancellationRequested();
             _artwork.EnsureIdle(record.Source.ItemId);
@@ -624,13 +722,15 @@ public sealed class OptimizationCoordinator
                 continue; // Retain uncertain backups rather than retiring the only valid copy.
             }
 
+            if (referenceCounts.GetValueOrDefault(Path.GetFullPath(current.Path)) > 1) continue;
             if (File.Exists(record.Source.Path)) continue;
-            await RetireRecordAsync(record).ConfigureAwait(false);
+            await RetireRecordAsync(record, referenceCounts).ConfigureAwait(false);
         }
 
     }
 
-    private Task RetireRecordAsync(MigrationRecord record)
+    private Task RetireRecordAsync(MigrationRecord record, IReadOnlyDictionary<string, int>? referenceCounts = null,
+        bool? slotSafe = null)
     {
         _artwork.EnsureIdle(record.Source.ItemId);
         var current = _artwork.GetCurrent(record.Source);
@@ -639,8 +739,32 @@ public sealed class OptimizationCoordinator
         {
             throw new IOException("Artwork changed before backup retirement; original retained.");
         }
-        DurableFiles.Delete(Backup(record));
+
+        if (slotSafe == false || !_artwork.IsSlotSafeForMutation(current))
+            throw new IOException("A sibling image slot is unavailable; original retained.");
+        var referenceCount = referenceCounts is null ? _artwork.CountPathReferences(current.Path)
+            : referenceCounts.GetValueOrDefault(Path.GetFullPath(current.Path));
+        if (referenceCount > 1)
+            throw new IOException("Artwork is shared with another item; original retained.");
+
+        // Persist the intent before deletion. If the process dies after Delete but
+        // before the completion record, recovery can prove the bytes are gone and
+        // finish the marker without ever promising a restorable backup again.
+        record.BackupDeletionIntent = true;
+        SaveRecord(record);
+        try
+        {
+            DurableFiles.Delete(Backup(record));
+        }
+        catch
+        {
+            record.BackupDeletionIntent = false;
+            SaveRecord(record);
+            throw;
+        }
+
         record.BackupDeleted = true;
+        record.BackupDeletionIntent = false;
         SaveRecord(record);
         return Task.CompletedTask;
     }
@@ -657,6 +781,43 @@ public sealed class OptimizationCoordinator
             var name = Path.GetFileName(path);
             if ((name.EndsWith(".image", StringComparison.Ordinal) || name.EndsWith(".image.tmp", StringComparison.Ordinal))
                 && Guid.TryParseExact(name.Split('.')[0], "N", out _)) DurableFiles.Delete(path);
+        }
+    }
+
+    private void TryRecoverBackupDeletionIntents()
+    {
+        try { RecoverBackupDeletionIntents(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or JsonException or InvalidOperationException)
+        {
+            _logger.LogError(ex, "JellyP could not reconcile backup deletion intents at startup");
+        }
+    }
+
+    private void RecoverBackupDeletionIntents()
+    {
+        foreach (var record in Records().Where(record => record.BackupDeletionIntent))
+        {
+            try
+            {
+                if (!File.Exists(Backup(record)))
+                {
+                    record.BackupDeleted = true;
+                    record.BackupDeletionIntent = false;
+                    record.CleanupWarning = null;
+                    SaveRecord(record);
+                }
+                else
+                {
+                    // The delete never happened. Keep the original restorable and clear
+                    // the stale intent; a later authorized retirement can retry safely.
+                    record.BackupDeletionIntent = false;
+                    SaveRecord(record);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                _logger.LogError(ex, "JellyP could not reconcile backup deletion intent for {RecordId}", record.Id);
+            }
         }
     }
 
@@ -698,7 +859,9 @@ public sealed class OptimizationCoordinator
     {
         lock (_requestGate)
         {
-            if (_pending is not null || !_gate.Wait(0, cancellationToken))
+            EnsureJournalWritable();
+            if (_pending is not null || HasPendingOrRunningOperation() || HasQueuedOperationFiles()
+                || !_gate.Wait(0, cancellationToken))
                 throw new InvalidOperationException("A JellyP operation is already running or queued.");
             _running = true;
         }
@@ -707,9 +870,14 @@ public sealed class OptimizationCoordinator
 
     private PluginConfiguration SnapshotConfiguration()
     {
-        var config = JsonSerializer.Deserialize<PluginConfiguration>(JsonSerializer.Serialize(_configuration()))!;
-        config.Validate();
-        return config;
+        // Settings writes replace or mutate the live configuration; a plan and every
+        // transaction must observe one complete snapshot, never a half-saved object.
+        lock (_requestGate)
+        {
+            var config = JsonSerializer.Deserialize<PluginConfiguration>(JsonSerializer.Serialize(_configuration()))!;
+            config.Validate();
+            return config;
+        }
     }
 
     private static void RequireMaintenance(PluginConfiguration config)
@@ -727,9 +895,32 @@ public sealed class OptimizationCoordinator
         DurableFiles.EnsureSafeParent(path);
     }
 
-    private IEnumerable<MigrationRecord> Records() => Directory.Exists(Path.Combine(_root, "journal"))
-        ? Directory.EnumerateFiles(Path.Combine(_root, "journal"), "*.json").Select(DurableFiles.ReadJson<MigrationRecord>)
-        : [];
+    private void EnsureJournalWritable()
+    {
+        if (_journalIntegrityError is not null) throw new InvalidOperationException(_journalIntegrityError);
+    }
+
+    private IEnumerable<MigrationRecord> Records()
+    {
+        EnsureJournalWritable();
+        var directory = Path.Combine(_root, "journal");
+        if (!Directory.Exists(directory)) yield break;
+        foreach (var path in Directory.EnumerateFiles(directory, "*.json"))
+        {
+            MigrationRecord record;
+            try
+            {
+                record = DurableFiles.ReadJson<MigrationRecord>(path);
+            }
+            catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
+            {
+                _journalIntegrityError = "JellyP journal is corrupt or unreadable. New mutations are blocked; review server logs and recovery data.";
+                throw new InvalidDataException(_journalIntegrityError, ex);
+            }
+
+            yield return record;
+        }
+    }
     private MigrationRecord ReadRecord(Guid id) => DurableFiles.ReadJson<MigrationRecord>(Path.Combine(_root, "journal", id.ToString("N") + ".json"));
     private void SaveRecord(MigrationRecord record) => DurableFiles.WriteJson(Path.Combine(_root, "journal", record.Id.ToString("N") + ".json"), record);
     private string Backup(MigrationRecord record) => Path.Combine(_root, "originals", record.Id.ToString("N") + ".original");

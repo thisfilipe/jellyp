@@ -5,7 +5,11 @@ Alvo atual: **Jellyfin 12.1 / .NET 10**.
 
 ## 1. Status, autoridade e leitura deste documento
 
-**Este é um plano de produto, arquitetura e validação. A refatoração ainda não foi implementada.**
+**Este é um plano de produto, arquitetura e validação. A integração nativa já foi
+implementada na árvore de trabalho e exercitada em Jellyfin descartável; não foi
+publicada nem implantada em produção.** Contratos e limites da evidência atual:
+[integração implementada](UX-P3-INTEGRATION.pt-BR.md) e
+[validação nativa](UX-P3-NATIVE-VALIDATION.pt-BR.md).
 
 O mantenedor pediu explicitamente: avaliar e planejar a interface inteira, sem
 modificar a implementação. Depois, pediu que a avaliação fosse documentada em
@@ -34,6 +38,16 @@ caixa desmarcada como autorização para trabalhar nela automaticamente.
 > real será implementada e validada por jornadas completas, reaproveitando o
 > backend publicado e adaptando apenas lacunas demonstradas. Esta instrução
 > autoriza atualizar o plano, não iniciar runtime, implantar ou publicar.
+
+> **Autorização posterior e execução (06–07/11/2026):** o mantenedor autorizou
+> seguir com a implementação usando componentes reais do Jellyfin e adaptar o
+> backend às necessidades da UX, além de concluir correções e testes em ambiente
+> descartável. Essa instrução substitui o bloqueio anterior de runtime, mas não
+> autoriza produção, instalação remota ou release. A árvore contém página nativa,
+> APIs aditivas, planos/operações duráveis e manutenção seletiva. Conferência final:
+> 181 testes .NET, 9 de release, 79 verificações nativas (7 axe) e 16 verificações
+> específicas de fundos/retenção aprovadas. Casos ainda não exercitados no host
+> constam da validação nativa; isso não marca P3–P7 inteiras como concluídas.
 
 Este documento é a especificação de referência da proposta. O [PLAN.md](PLAN.md)
 é seu ponto de entrada em inglês. A [arquitetura atual](ARCHITECTURE.md) descreve
@@ -506,9 +520,11 @@ explicitadas, não introduzidas silenciosamente durante a implementação.
 
 ## 11. Etapas, dependências e entregáveis
 
-Cada etapa depende de instrução que autorize o trabalho correspondente. P1 e os
-artefatos/exercício de P2 têm os registros de autorização abaixo; P3–P8 continuam
-pendentes. Não iniciar implantação a partir de autorização de prototipação ou revisão.
+Cada etapa depende de instrução que autorize o trabalho correspondente. P1/P2 e a
+integração incremental P3–P7 têm os registros de autorização acima. Os checklists
+abaixo definem o aceite completo, não uma afirmação de que todos os cenários já
+foram exercitados. P8/publicação e implantação em produção continuam pendentes.
+Não inferir implantação a partir de autorização de implementação e testes locais.
 
 ### P0 — Registrar a baseline e os limites
 
