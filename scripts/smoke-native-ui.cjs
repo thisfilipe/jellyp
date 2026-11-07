@@ -80,7 +80,11 @@ async function captureMatrix(page,label,inspect) {
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),label + ' ' + theme + ' ' + language + ' ' + device + ' no overflow');
     await page.evaluate(() => scrollTo(0,0));
     await page.screenshot({path:path.join(screenshots,'fidelity-' + label + '-' + language + '-' + theme + '-' + device + '.png'),fullPage:true});
-    await page.screenshot({path:path.join(screenshots,'fidelity-' + label + '-' + language + '-' + theme + '-' + device + '-viewport.png')});
+     await page.screenshot({path:path.join(screenshots,'fidelity-' + label + '-' + language + '-' + theme + '-' + device + '-viewport.png')});
+     const detail=ui.locator(label==='result'?'.jp-list-tools':'.jp-aside > .emby-button').last();
+     if(await detail.count()) {
+      await detail.scrollIntoViewIfNeeded();await page.screenshot({path:path.join(screenshots,'detail-'+label+'-'+language+'-'+theme+'-'+device+'-viewport.png')});
+     }
    }
   }
   await auditFidelity(page,label + '-' + theme);
@@ -99,9 +103,15 @@ async function navigationCraft(page,label) {
  const ui = page.locator('#JellyPConfigPage:not(.hide)'); await nativeReady(page);
  await page.mouse.move(0,0);
  check(await ui.locator('.jp-secondary,.jp-link').evaluateAll(nodes => nodes.every(node => node.classList.contains('emby-button') && !node.classList.contains('raised') && getComputedStyle(node).boxShadow === 'none')),label + ' secondary actions/navigation use enhanced native controls without raised hierarchy');
- check(await ui.locator('#JpNav nav a .material-icons[aria-hidden=true]').count() === 5 && await ui.locator('.jp-nav-separator').count() === 1 && await ui.locator('#JpNav nav a[aria-current=page]').count() === 1,label + ' five labelled destinations, real decorative Material icons, manual/management separator and one current page');
+  check(await ui.locator('#JpNav nav a .material-icons[aria-hidden=true]').count() === 5 && await ui.locator('.jp-nav-separator').count() === 1 && await ui.locator('#JpNav nav a[aria-current=page]').count() === 1,label + ' five labelled destinations, real decorative Material icons, manual/management separator and one current page');
+  check(await ui.locator('.jp-navigation').evaluate(node => {const neutral=getComputedStyle(node).color;return [...node.querySelectorAll('nav a:not([aria-current=page]),.jp-activity a')].every(link=>getComputedStyle(link).color===neutral && getComputedStyle(link.querySelector('.material-icons')).color===neutral) && getComputedStyle(node.querySelector('nav a[aria-current=page]')).color!==neutral;}),label + ' inactive destinations and icons use neutral host foreground; only current destination uses accent');
+  const inactive=ui.locator('#JpNav nav a:not([aria-current=page])').first();
+  if(await inactive.isVisible() && !await ui.locator('dialog[open]').count()) { await inactive.hover();check(await inactive.evaluate(node=>getComputedStyle(node).color===getComputedStyle(node.closest('.jp-navigation')).color && getComputedStyle(node.querySelector('.material-icons')).color===getComputedStyle(node).color && getComputedStyle(node).backgroundColor!=='rgba(0, 0, 0, 0)'),label+' inactive navigation hover stays neutral with distinct readable surface');await page.mouse.move(0,0); }
  const aside = ui.locator('.jp-aside');
- if (await aside.count()) check(await aside.evaluate(node => [...node.querySelectorAll(':scope > .emby-button,.jp-summary-actions > .emby-button,.jp-rule > .jp-link')].every(control => {const a=node.getBoundingClientRect(),r=control.getBoundingClientRect();return Math.abs((r.left+r.right-a.left-a.right)/2)<2 && getComputedStyle(control).textAlign==='center';})),label + ' aside primary and secondary CTAs share the panel centre, with controlled wrapping');
+  if (await aside.count()) check(await aside.evaluate(node => [...node.querySelectorAll(':scope > .emby-button,.jp-summary-actions > .emby-button,.jp-rule > .jp-link')].every(control => {const a=node.getBoundingClientRect(),r=control.getBoundingClientRect();return Math.abs((r.left+r.right-a.left-a.right)/2)<2 && getComputedStyle(control).textAlign==='center';})),label + ' aside primary and secondary CTAs share the panel centre, with controlled wrapping');
+  if (await aside.count()) check(await aside.evaluate(node => [...node.querySelectorAll('.emby-button,.jp-link')].filter(control=>control.getClientRects().length).every(control=>{const s=getComputedStyle(control);return s.display==='flex' && s.justifyContent==='center' && s.textAlign==='center' && [...control.querySelectorAll('span:not(.material-icons)')].every(span=>getComputedStyle(span).textAlign==='center');})),label + ' every aside CTA centres its actual native flex/text content, including nested action groups');
+  if (await ui.locator('.jp-auto-work').count()) check(await ui.locator('.jp-auto-work').evaluate(node => {const form=node.querySelector('form').getBoundingClientRect(),tasks=node.querySelector('.jp-tasks-panel').getBoundingClientRect(),aside=node.querySelector('aside').getBoundingClientRect();return Math.abs(form.width-tasks.width)<1 && Math.abs(form.left-tasks.left)<1 && (innerWidth>688?tasks.right<=aside.left:tasks.top>=aside.bottom);}),label + ' automation tasks/report belong to the main grid column; mobile follows the save aside');
+  if(await ui.locator('.jp-clear').count()) check(await ui.locator('.jp-clear').evaluate(node=>getComputedStyle(node).color===getComputedStyle(node.parentElement).color && getComputedStyle(node).opacity!=='0'),label+' clear selection uses recognizable neutral tertiary styling, not the global-selection accent');
  if (await ui.locator('.jp-pager').count()) check(await ui.locator('.jp-pager').evaluateAll(nodes => nodes.every(node => {const r=node.getBoundingClientRect();return [...node.querySelectorAll('button')].every(button => {const s=getComputedStyle(button);return !button.classList.contains('raised') && s.boxShadow==='none' && s.backgroundColor==='rgba(0, 0, 0, 0)' && s.filter==='none' && button.querySelector('.material-icons[aria-hidden=true]') && button.getBoundingClientRect().height>=44;}) && r.width>0;})),label + ' paginators are compact native navigation with icons/labels, readable disabled states and 44px targets');
  if (await ui.locator('.jp-local-nav').count()) check(await ui.locator('.jp-local-nav').evaluate(node => node.querySelectorAll('[aria-current=page]').length===1 && !node.querySelector('[role=tab]') && [...node.querySelectorAll('a')].every(a => !a.classList.contains('jp-danger-button') && getComputedStyle(a).backgroundColor==='rgba(0, 0, 0, 0)') && getComputedStyle(node.querySelector('[aria-current=page]')).borderBottomStyle==='solid'),label + ' restoration/removal destinations are real current-page links with underline, never destructive fills or fake tabs');
 }
@@ -142,10 +152,24 @@ async function realSticky(page,label,kind,device='desktop') {
  check(after.scrollTop-before.scrollTop>=210 && before.normal.top-after.normal.top>=210,label+' '+device+' actual '+setup.owner+' scroll owner advances while normal content moves');
  if(kind==='bar') check(Math.abs(before.target.bottom-after.target.bottom)<2 && after.target.bottom<=after.viewport+1 && after.target.top>after.headerBottom && after.target.height<after.viewport/3,label+' '+device+' selection summary/CTA stays visible at bounded list bottom, below host header');
  else if(device==='desktop') {
-  check(Math.abs(before.target.top-after.target.top)<2 && after.target.top>=after.headerBottom+12 && after.target.bottom<=after.viewport-10,label+' desktop contextual aside really sticks below host header, bounded to viewport');
-  check(Math.abs(before.nav.top-after.nav.top)<2 && after.nav.top>=after.headerBottom+12,label+' desktop plugin menu really sticks while form moves');
-  const cta=ui.locator('.jp-aside > button').last();await cta.scrollIntoViewIfNeeded();
-  check(await cta.evaluate(n=>{const r=n.getBoundingClientRect(),a=n.closest('aside').getBoundingClientRect();return r.top>=a.top && r.bottom<=Math.min(a.bottom,innerHeight);}),label+' tall aside content/actions remain reachable through native inner scrolling');
+   const tall=after.target.height>after.viewport-after.headerBottom-32;
+   check(tall ? before.target.top-after.target.top>=0 && after.target.top<before.headerBottom+16 : Math.abs(before.target.top-after.target.top)<2 && after.target.top>=after.headerBottom+12 && after.target.bottom<=after.viewport-10,label+' desktop contextual aside uses full intrinsic height and natural page movement when tall, top sticky when short');
+   check(Math.abs(before.nav.top-after.nav.top)<2 && after.nav.top>=after.headerBottom+12,label+' desktop plugin menu really sticks while form moves');
+   check(await ui.locator('.jp-aside,.jp-navigation').evaluateAll(nodes=>nodes.every(node=>{const s=getComputedStyle(node);return !/auto|scroll/.test(s.overflowY) && s.maxHeight==='none' && node.scrollHeight<=node.clientHeight+1;})),label+' no aside/menu nested scroll owner, clipping or maximum height');
+   const cta=ui.locator('.jp-aside > button').last();await cta.scrollIntoViewIfNeeded();
+   check(await cta.evaluate(n=>{const r=n.getBoundingClientRect(),a=n.closest('aside').getBoundingClientRect(),header=document.querySelector('header.MuiAppBar-root')?.getBoundingClientRect().bottom||0;return r.top>=header && r.bottom<=Math.min(a.bottom,innerHeight) && n.closest('aside').scrollTop===0;}),label+' tall aside actions are reached by PAGE scrolling, never inner scrolling');
+   if(tall) {
+    const bottom=await ui.locator('.jp-aside').evaluate(node=>{const region=node.parentElement,r=region.getBoundingClientRect(),owner=document.scrollingElement,top=parseFloat(getComputedStyle(node).top),natural=r.top+owner.scrollTop;owner.scrollTop=natural-top+8;return {canStick:region.getBoundingClientRect().height>node.getBoundingClientRect().height+8,top};});await frame();
+    if(bottom.canStick) check(await ui.locator('.jp-aside').evaluate(node=>Math.abs(node.getBoundingClientRect().bottom-(innerHeight-16))<2),label+' tall panel reaches and sticks to viewport bottom after natural page scroll');
+    await cta.scrollIntoViewIfNeeded();
+    const point=await cta.boundingBox();await page.mouse.move(point.x+point.width/2,point.y+point.height/2);
+    const scrolled=await page.evaluate(()=>scrollY);await page.mouse.wheel(0,-180);
+    await page.waitForFunction(y=>scrollY<y,scrolled);
+    check(await ui.locator('.jp-aside').evaluate(n=>n.scrollTop===0),label+' wheel over tall panel returns the PAGE without trapping scroll');
+    await page.setViewportSize({width:1600,height:640});await frame();await cta.scrollIntoViewIfNeeded();await frame();
+    check(await cta.evaluate(n=>{const a=n.closest('aside'),r=n.getBoundingClientRect(),s=getComputedStyle(a);return a.scrollTop===0 && s.maxHeight==='none' && Math.abs(parseFloat(s.top)-Math.min(parseFloat(getComputedStyle(document.querySelector('#JellyPConfigPage:not(.hide)')).getPropertyValue('--jp-sticky-top')),innerHeight-a.getBoundingClientRect().height-16))<2 && r.top>=48 && r.bottom<=innerHeight;}),label+' viewport resize recomputes intrinsic negative sticky offset and keeps CTA page-accessible');
+    await page.setViewportSize({width:1600,height:900});await frame();
+   }
   await page.screenshot({path:path.join(screenshots,'sticky-'+label+'-'+device+'-actions.png')});
  } else check(before.target.top-after.target.top>=210,label+' mobile form aside stays in normal flow, never floats over fields');
  if(kind==='bar') {
@@ -318,7 +342,14 @@ async function main() {
   fs.writeFileSync(path.join(screenshots,'axe-automation.json'),JSON.stringify(results.violations,null,2));
   check(results.violations.length === 0,'axe native automation WCAG A/AA');
  }
-  if (args.includes('--journey')) { await journey(page,settings); await copyScenarios(page); }
+   if (args.includes('--journey')) {
+    await journey(page,settings); await copyScenarios(page);
+    for (const area of ['simulate','automation','settings']) {
+     await page.goto(base+'/web/#/configurationpage?name=jellyp&jp='+area);await ui.locator('.jp-aside').waitFor();await nativeReady(page);
+     await captureMatrix(page,'aside-'+area,async(theme,language,device)=>{await navigationCraft(page,area+' aside matrix '+theme+' '+language+' '+device);});
+    }
+    await page.goto(base+'/web/#/configurationpage?name=jellyp&jp=automation');await ui.locator('#SaveAutomation').waitFor();await nativeReady(page);
+   }
  await ui.locator('[data-jp-id=Language]').selectOption('pt');
  await page.waitForFunction(() => document.querySelector('#JellyPConfigPage:not(.hide) #JpTitle')?.textContent === 'Automação');
  await page.screenshot({path:path.join(screenshots,'03-native-automation-pt-dark-desktop.png'),fullPage:true});
@@ -472,13 +503,18 @@ async function journey(page,baseline) {
  check(await image.evaluate(node => { const row = node.closest('[data-image-key]'), key = row.dataset.imageKey, url = new URL(node.src); return url.pathname.includes('/Items/' + key.split(':')[0] + '/Images/' + node.dataset.slotType + '/' + Number(key.split(':')[2])); }),'decoded thumbnail requests exact server ItemId/type/index slot');
  const thumb = ui.locator('.jp-preview img[data-slot-type=Thumb]');
  if (await thumb.count()) { await thumb.first().scrollIntoViewIfNeeded(); await until(async () => thumb.first().evaluate(node => node.naturalWidth > 0),'local Thumb decoded'); check(await thumb.first().evaluate(node => new URL(node.src).pathname.includes('/Images/Thumb/0')),'real local Thumb never falls back to Primary'); }
- await checked(field('SelectPage'),true);
- check(await ui.locator('[data-plan-key]:checked').count() === 10,'native page checkbox selects only visible proposals');
- await ui.locator('[data-action=selectAll]').click();
+  await checked(field('SelectPage'),true);
+  check(await ui.locator('[data-plan-key]:checked').count() === 10,'native page checkbox selects only visible proposals');
+  check((await ui.locator('[data-selection-count=plan]').textContent())==='10 selected in total · 10 of 10 on this page' && (await field('SelectPage').locator('..').innerText()).includes('(10)') && (await ui.locator('[data-action=selectAll]').innerText()).includes('(14)'),'simulation explicit page/global labels and real total/page subtotals agree');
+  await ui.locator('[data-action=selectAll]').click();
  await until(async () => (await ui.locator('#JpSelectedCount').textContent()).startsWith('14 '),'select all proposals');
- check((await api('JellyP/Plan/' + initial.PlanId + '/Keys?kind=selectable')).Keys.length === 14,'all-results selection scope remains server-owned and cross-page');
- await ui.locator('[data-action=clearSelection]').click();
- check(await ui.locator('[data-plan-key]:checked').count() === 0 && !(await field('SelectPage').isChecked()),'clear selection clears page checkbox and exact cross-page subset');
+  check((await api('JellyP/Plan/' + initial.PlanId + '/Keys?kind=selectable')).Keys.length === 14,'all-results selection scope remains server-owned and cross-page');
+  await ui.locator('[data-list=images][data-offset="10"]').click();await until(async()=>await ui.locator('#JpRangeimages').textContent()==='11–14 of 14','global selection second page');
+  check(await ui.locator('[data-plan-key]:checked').count()===4 && await field('SelectPage').isChecked() && (await ui.locator('[data-selection-count=plan]').textContent())==='14 selected in total · 4 of 4 on this page','global selection marks every real second-page key and reports 14 total versus 4 here');
+  await ui.locator('[data-action=clearSelection]').click();
+  check(await ui.locator('[data-plan-key]:checked').count() === 0 && !(await field('SelectPage').isChecked()),'clear selection clears page checkbox and exact cross-page subset');
+  check(await ui.locator('[data-action=clearSelection]').isDisabled() && (await ui.locator('[data-selection-count=plan]').textContent()).startsWith('0 selected in total · 0 of 4'),'cleared global selection has zero total/page subtotal and disabled clear');
+  await ui.locator('[data-list=images][data-offset="0"]').click();await until(async()=>await ui.locator('#JpRangeimages').textContent()==='1–10 of 14','return first page');
  const allKeys = await api('JellyP/Plan/' + initial.PlanId + '/Keys?kind=selectable');
  const first = ui.locator('[data-plan-key]').first(), firstKey = await first.getAttribute('data-plan-key');
  await checked(first,true);
@@ -490,7 +526,8 @@ async function journey(page,baseline) {
  await ui.locator('[data-list=images][data-offset="10"]').click();
  await until(async () => await ui.locator('#JpRangeimages').textContent() === '11–14 of 14','server page 2');
  const second = ui.locator('[data-plan-key]').first(), secondKey = await second.getAttribute('data-plan-key'); await checked(second,true);
- await until(async () => (await ui.locator('#JpSelectedBill').textContent()).includes('Only selected images · 2'),'crosspage bill');
+  await until(async () => (await ui.locator('#JpSelectedBill').textContent()).includes('Only selected images · 2'),'crosspage bill');
+  check((await ui.locator('[data-selection-count=plan]').textContent())==='2 selected in total · 1 of 4 on this page' && await field('SelectPage').evaluate(n=>n.indeterminate) && await ui.locator('[data-action=clearSelection]').isEnabled(),'cross-page subset has distinct global/page counters, mixed checkbox and enabled clear');
  const review = await api('JellyP/Plan/' + initial.PlanId + '/Review','POST',{Keys:[firstKey,secondKey],Offset:0,Limit:10});
  check(review.TotalSelected === 2 && review.Billing.BackupBytesBefore === 0 && review.Billing.BackupBytesAfter > 0 && review.Billing.DeltaBytes < 0,'server cross-page subset billing counts active + new retained originals correctly');
  await page.screenshot({path:path.join(screenshots,'10-native-analysis-subset-crosspage.png'),fullPage:true});
@@ -581,8 +618,30 @@ async function journey(page,baseline) {
   assert.equal(detail.Operation.Failed,0); assert.equal(detail.Operation.Invalidated,0);
   return detail;
  }
- await confirmBackup('Restore');
- check(fileHash(regenRecord.Source.Path) === firstRecord.SourceHash,'native restoration writes exact original bytes, not a browser WebP representation');
+  const singleRestored = await confirmBackup('Restore');
+  check(fileHash(regenRecord.Source.Path) === firstRecord.SourceHash,'native restoration writes exact original bytes, not a browser WebP representation');
+  await ui.locator('#JpExecutionBody').waitFor();await nativeReady(page);
+  async function assertReceipt(detail,label) {
+   const id=detail.Operation.OperationId;
+   await until(async()=>await ui.locator('#JpOperationTitle').getAttribute('data-operation-id')===id,label+' requested receipt');await nativeReady(page);
+   const expected=detail.Items.slice(0,10).map(row=>({key:row.Key,status:row.Status}));
+   check(JSON.stringify(await ui.locator('[data-result-key]').evaluateAll(nodes=>nodes.map(n=>({key:n.dataset.resultKey,status:n.dataset.resultStatus}))))===JSON.stringify(expected),label+' actual rendered identities and per-item statuses match the selected persisted receipt, not latest results');
+   check((await ui.locator('#JpOperationTitle').innerText()).startsWith(detail.Operation.Kind==='Apply'?'Application':'Restoration') && (await ui.locator('#JpExecutionBody').innerText()).includes(id),label+' visible kind/date/operation context identifies requested receipt');
+   check(await ui.locator('#JpExecutionBody').textContent().then(text=>detail.Items.slice(0,10).every(row=>text.includes(row.SourceHash || '—'))),label+' rendered stored hashes come from requested receipt');
+  }
+  for(const detail of [applied.detail,singleRestored]) {
+   await navigate('history');await nativeReady(page);
+   const id=detail.Operation.OperationId,receiptLink=ui.locator('a[href*="operation='+id+'"]');
+   const requested=page.waitForResponse(r=>new URL(r.url()).pathname==='/JellyP/Executions/'+id);
+   await receiptLink.click();const response=await requested;
+   check((await response.json()).Operation.OperationId===id,'history link requests its own real persisted operation '+detail.Operation.Kind);
+   await assertReceipt(detail,'history '+detail.Operation.Kind);
+   await page.reload();await ui.locator('#JpExecutionBody').waitFor();await assertReceipt(detail,'reloaded history '+detail.Operation.Kind);
+   const polled=page.waitForResponse(r=>new URL(r.url()).pathname==='/JellyP/Executions/'+id);
+   await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await polled;await assertReceipt(detail,'refreshed history '+detail.Operation.Kind);
+   await page.screenshot({path:path.join(screenshots,'receipt-selected-'+detail.Operation.Kind.toLowerCase()+'.png'),fullPage:true});
+  }
+  await page.goBack();await ui.locator('#ReviewBackups').waitFor();await page.goForward();await ui.locator('#JpExecutionBody').waitFor();await assertReceipt(singleRestored,'browser Forward restoration');
  // Populate >10 active originals using actual conversion, then exercise large
  // review paging, independent retire selection, restore subset and maintenance.
  await ui.locator('#JpExecutionBody').waitFor();
@@ -596,11 +655,25 @@ async function journey(page,baseline) {
  await ui.locator('[data-list=review][data-offset="10"]').click();
  await until(async () => await ui.locator('[data-image-key]').count() === volumeKeys.length - 10,'review page 2 loaded');
  check(await ui.locator('[data-image-key]').count() === volumeKeys.length - 10,'review pagination exposes remaining authorized identities');
- await apply(volumeKeys);
+  const volumeApplied = await apply(volumeKeys);
+  await ui.locator('[data-list=operation][data-offset="10"]').click();await nativeReady(page);
+  const tail=await api('JellyP/Executions/'+volumeApplied.receipt.OperationId+'?offset=10&limit=10');
+  check(JSON.stringify(await ui.locator('[data-result-key]').evaluateAll(nodes=>nodes.map(n=>n.dataset.resultKey)))===JSON.stringify(tail.Items.map(row=>row.Key)),'persisted operation results page two shows that operation’s exact remaining identities');
+  await page.reload();await ui.locator('#JpExecutionBody').waitFor();await nativeReady(page);
+  check(JSON.stringify(await ui.locator('[data-result-key]').evaluateAll(nodes=>nodes.map(n=>n.dataset.resultKey)))===JSON.stringify(tail.Items.map(row=>row.Key)),'reload preserves selected operation and its results-page offset');
  await navigate('history'); await ui.locator('[data-backup]').first().waitFor();
   check(await ui.locator('[data-backup]').count() === 10,'history is paginated by image even one large operation');
   await navigationCraft(page,'restoration history'); await realSticky(page,'restoration-history','bar'); await realSticky(page,'restoration-history','bar','mobile');
- await ui.locator('[data-action=selectAllBackups]').click(); await ui.locator('#ReviewBackups').click(); await ui.locator('#JpDialog[open]').waitFor();
+  const eligibleTotal=(await api('JellyP/Backups?filter=restorable&limit=1')).Total;
+  await checked(field('SelectBackupPage'),true);
+  check((await ui.locator('[data-selection-count=backup]').textContent())==='10 selected in total · 10 of 10 on this page','restoration shares explicit native page checkbox and total/page counters');
+  await ui.locator('[data-action=selectAllBackups]').click();
+  await until(async()=>(await ui.locator('[data-selection-count=backup]').textContent()).startsWith(eligibleTotal+' selected in total'),'global eligible backup selection');
+  check((await ui.locator('[data-selection-count=backup]').textContent())===eligibleTotal+' selected in total · 10 of 10 on this page' && (await ui.locator('[data-action=selectAllBackups]').innerText()).includes('('+eligibleTotal+')'),'restoration global count comes from all real eligible originals');
+  await ui.locator('[data-list=backups][data-offset="10"]').click();await nativeReady(page);
+  check(await ui.locator('[data-backup]:checked').count()===eligibleTotal-10 && await field('SelectBackupPage').isChecked(),'restoration global selection includes checked identities on second page');
+  await ui.locator('[data-list=backups][data-offset="0"]').click();await nativeReady(page);
+  await ui.locator('#ReviewBackups').click(); await ui.locator('#JpDialog[open]').waitFor();
   check(await ui.locator('.jp-dialog-row').count() === 10,'large restoration review mounts ten exact originals');
   await navigationCraft(page,'restoration dialog');
   check(await ui.locator('.jp-selection-bar').evaluate(node=>getComputedStyle(node).visibility==='hidden'),'list sticky selection bar is suppressed while native modal owns focus');
@@ -612,7 +685,8 @@ async function journey(page,baseline) {
  const restoreFirst = await ui.locator('[data-backup]').first().getAttribute('data-backup'); await checked(ui.locator('[data-backup]').first(),true);
  await ui.locator('[data-list=backups][data-offset="10"]').click();
  await until(async () => (await ui.locator('#JpRangebackups').textContent()).startsWith('11–'),'backup page 2 loaded');
- const restoreSecond = await ui.locator('[data-backup]').first().getAttribute('data-backup'); await checked(ui.locator('[data-backup]').first(),true);
+  const restoreSecond = await ui.locator('[data-backup]').first().getAttribute('data-backup'); await checked(ui.locator('[data-backup]').first(),true);
+  check((await ui.locator('[data-selection-count=backup]').textContent()).startsWith('2 selected in total · 1 of ') && await field('SelectBackupPage').evaluate(n=>n.indeterminate),'restoration cross-page subset and native mixed state agree with global/page counters');
  await ui.locator('#ReviewBackups').click(); await ui.locator('#JpDialog[open]').waitFor();
  await page.screenshot({path:path.join(screenshots,'13-native-batch-restoration-review.png'),fullPage:true});
  const restoredSubset = await confirmBackup('Restore');
@@ -626,7 +700,18 @@ async function journey(page,baseline) {
   // The separate destination preserves the current offset. Exercise stickiness
   // on its full first page, not the two-row tail where the bar correctly releases.
   if (await ui.locator('[data-list=backups][data-offset="0"]:enabled').count()) { await ui.locator('[data-list=backups][data-offset="0"]').click(); await until(async()=>await ui.locator('[data-backup]').count()===10,'retirement full first page'); }
-  await navigationCraft(page,'permanent removal navigation'); await realSticky(page,'retirement','bar'); await realSticky(page,'retirement','bar','mobile');
+   await navigationCraft(page,'permanent removal navigation'); await realSticky(page,'retirement','bar'); await realSticky(page,'retirement','bar','mobile');
+   const retirementTotal=(await api('JellyP/Backups?filter=retirable&limit=1')).Total;
+   await checked(field('SelectBackupPage'),true);
+   check((await ui.locator('[data-selection-count=backup]').textContent())==='10 selected in total · 10 of 10 on this page','retirement uses the same explicit page selection and subtotal as simulation/restoration');
+   await ui.locator('[data-action=selectAllBackups]').click();await until(async()=>(await ui.locator('[data-selection-count=backup]').textContent()).startsWith(retirementTotal+' selected in total'),'global retirement selection');
+   await ui.locator('[data-list=backups][data-offset="10"]').click();await nativeReady(page);
+   check(await field('SelectBackupPage').isChecked() && await ui.locator('[data-backup]:checked').count()===retirementTotal-10 && (await ui.locator('[data-selection-count=backup]').textContent()).includes('· '+(retirementTotal-10)+' of '+(retirementTotal-10)),'retirement global selection/count includes every real second-page eligible ID');
+   await ui.locator('[data-action=clearBackups]').click();
+   check(await ui.locator('[data-action=clearBackups]').isDisabled() && !(await field('SelectBackupPage').isChecked()),'retirement clear removes cross-page selection and disables only the empty clear action');
+   await checked(ui.locator('[data-backup]').first(),true);await ui.locator('[data-list=backups][data-offset="0"]').click();await nativeReady(page);await checked(ui.locator('[data-backup]').first(),true);
+   check((await ui.locator('[data-selection-count=backup]').textContent())==='2 selected in total · 1 of 10 on this page' && await field('SelectBackupPage').evaluate(n=>n.indeterminate),'retirement cross-page subset reports 2 globally, 1 here and native mixed state');
+   await ui.locator('[data-action=clearBackups]').click();
  for (const theme of ['dark','light']) {
   await setHostTheme(page,theme,retireTarget);
   await ui.locator('[data-action=selectAllBackups]').click(); await nativeReady(page);

@@ -575,3 +575,166 @@ Conferência read-only após as duas suítes finais: `Enabled=false`, `DryRun=tr
 `PreserveOriginals=true`, zero operações ativas/pendentes, zero recuperação
 pendente, zero backups ativos e zero disparos nas duas tarefas JellyP. O HTML
 servido continua idêntico ao fonte; somente a fixture marcada foi reiniciada.
+
+## Seleção, asides e recibos específicos — feedback posterior a `6623bec`
+
+Esta rodada substitui a decisão anterior de rolagem interna dos asides. O
+protótipo aprovado é referência somente de leitura; backend, contratos e shell
+do Jellyfin permanecem intactos. Não houve commit/push, SSH, systemctl, produção,
+configuração persistente do SO, agentes adicionais ou alteração de auto-review.
+
+### Diagnóstico e implementação
+
+- **Aside alto:** a regressão vinha do `max-height` com `overflow:auto` acrescentado
+  na rodada anterior, não de um segundo scroll owner imposto pelo host. Mantém-se
+  o reparo restrito ao wrapper do plugin (`overflow:clip visible`). Menu e asides
+  agora têm altura intrínseca completa e `top = min(header + 16px, viewport −
+  altura do painel − 16px)`. Painéis curtos aderem abaixo do header; altos rolam
+  com a página até a borda inferior, aderindo enquanto houver espaço na própria
+  região. Ao voltar, o scroll continua pertencendo à página. `ResizeObserver`
+  mede conteúdo real/cabeçalho e acompanha mudanças de idioma, largura e altura;
+  antigos painéis são desobservados, e os listeners são desligados ao ocultar ou
+  destruir a view. Não há handler de scroll, clone fixed ou alteração de body.
+  Mobile continua em fluxo normal.
+- **Seleção global:** não foi encontrado um motor que selecionasse somente a
+  página. `Plan/{id}/Keys?kind=selectable` já retornava o conjunto global do
+  snapshot; faltavam rótulos/subtotais inequívocos. Simulação e manutenção agora
+  usam o mesmo componente: checkbox **Selecionar todos desta página (N)**,
+  ação **Selecionar todos os itens (N)**, limpar discreto, contagem global e
+  subtotal selecionado/elegível da página. A explicação distingue propostas do
+  plano e originais elegíveis. O total elegível de manutenção vem da página com
+  filtro explícito; ao exibir também protegidos, uma consulta `limit=1` com filtro
+  de elegibilidade evita usar esse `Total` mais amplo. A ação global continua
+  consultando as chaves reais; caps 1000/200,
+  zero inicial, seleção entre páginas, revisão exata e fingerprint de retenção
+  permanecem. Limpar vazio fica disabled; mixed/checked refletem só a página.
+- **CTAs:** centralizar a caixa e `text-align` não centralizava os filhos do
+  `inline-flex` nativo. Todos os botões/links dos asides recebem `display:flex`,
+  `justify-content:center` e centralização dos spans de texto, inclusive ações
+  dentro de wrappers. Parágrafos e labels de checkbox não foram centralizados.
+- **Menu:** `.jp-link` aplicava ciano a todos os destinos. Menu e último recibo
+  agora herdam foreground neutro do host; somente a área atual usa acento,
+  indicador e superfície. Ícones herdam o estado; hover/foco e separador continuam.
+- **Automação:** a seção de tarefas era irmã externa de `.jp-work`, por isso
+  ocupava as duas colunas. Agora é uma área real do mesmo grid, abaixo do form e
+  somente na coluna principal; o aside ocupa sua própria coluna. No celular a
+  ordem é form → salvar → tarefas. Nomes, estado e agendamento são explícitos;
+  chaves/GUIDs e triggers crus ficam em detalhes técnicos. Orientação de
+  agendamento no Jellyfin e último relatório têm seções distintas. Nenhum
+  agendamento foi criado, nem alcance ou origem de relatório inventados.
+- **Histórico:** havia um defeito real no frontend. `readRoute()` lia o recibo
+  correto, mas a hidratação posterior de um plano já consumido sobrescrevia
+  `operationId` com a execução desse plano (e a operação ativa também podia
+  substituir o destino explícito). O URL agora prevalece após a hidratação;
+  trocar recibo limpa detalhe/offset antigos. Respostas atrasadas de outra
+  identidade/página/view são descartadas. O contexto visível inclui tipo,
+  data/ID, resultados daquele recibo e retorno ao Histórico. Paginar sinaliza
+  `aria-busy`; reload conserva o offset do mesmo recibo. Não se usa `LastRun` nem
+  uma cópia do último relatório para reconstruir operações antigas.
+
+### Fixture e iterações — não confundir com aprovações finais
+
+A primeira jornada recusou os nove originais ativos já presentes na fixture.
+Foram identificados oito PNGs pelos hashes de `native-png/` e o poster da
+biblioteca descartável `JellyP fixture`, com diretório de metadata dentro da raiz
+verificada. Os nove foram restaurados pela API real (`Changed=9`, `Failed=0`).
+Não se presumiu que o nono hash fosse um dos PNGs: ele pertencia ao poster da
+biblioteca. Nas iterações, verificações novas também identificaram leituras do
+harness antes da conclusão de paginação/seleção assíncrona. As esperas passaram
+a usar `aria-busy`, identidade/intervalo e contador reais; nenhum DTO/API foi
+mockado e nenhum critério de identidade foi relaxado. Originais sintéticos de
+rodadas interrompidas foram conferidos por hash e restaurados antes de repetir.
+Uma primeira rodada instalada chegou ao fim da jornada e foi reprovada pela
+auditoria adicional da tela inicial: os números pequenos das três seções tinham
+contraste 4,41:1 no Dark. Sua opacidade passou de 0,65 para 0,8; a regra axe não
+foi excluída. Essa tentativa está separada em `installed-attempt/` e não conta
+como aprovação final. A inspeção também corrigiu a precedência CSS do foreground
+neutro de Limpar seleção; há uma verificação computed específica desse estado.
+A verificação nova de hover também tentou acessar o menu por trás de um diálogo
+nativo aberto. O host corretamente interceptou o ponteiro; o harness agora não
+tenta interagir com esse fundo enquanto o modal possui o foco. Não usa `force`,
+remoção de backdrop ou bypass de acessibilidade. Essa tentativa está separada em
+`installed-modal-harness/`; não é uma falha de navegação do produto nem aprovação.
+
+### Evidência final
+
+- Build Release final: **0 erros, 0 avisos**; **181 testes .NET**, **9 testes de
+  release**, sintaxe dos dois smokes/JS embarcado e `git diff --check` aprovados.
+- UI completa: **743 verificações aprovadas**, sendo **742 ligadas ao host** e
+  **uma guarda unitária** do renderer de preview já identificada separadamente.
+  Inclui **23 auditorias axe** A/AA sem violações nas regiões auditadas.
+- Planning completo: **20 verificações reais aprovadas**. Preserva índices/hashes
+  de Backdrop, subset exato, restauração e expiração de 52 originais com o
+  fingerprint autorizado. Acrescenta ausência de nested scroll e acesso ao Apply
+  centralizado pela página após percorrer a retenção até `51–52 of 52`.
+- **Sem `JELLYP_UI_SOURCE` e sem respostas de API mockadas** nas rodadas finais.
+  O HTML da DLL foi comparado byte a byte com o fonte antes da jornada e novamente
+  após as duas suítes. Nenhum erro JS; um aborto local registrado, o cancelamento
+  intencional de `Plan/Analyze`. A tentativa externa do Cast sender oficial foi
+  bloqueada, como nas rodadas anteriores.
+- SHA-256 do build e da DLL instalada, iguais:
+  `f3e1e972947246c95ee467ed666f9e03a2856e1ae547d6795e9136a582d7001d`.
+
+Comandos finais reproduzíveis, na raiz do repositório:
+
+```sh
+JELLYP_PLAYWRIGHT_MODULE=/tmp/opencode/jellyp-native/browser/node_modules/playwright \
+JELLYP_AXE_MODULE=/tmp/opencode/jellyp-native/browser/node_modules/@axe-core/playwright \
+node scripts/smoke-native-ui.cjs --root /tmp/opencode/jellyp-native \
+  --screenshots /tmp/opencode/jellyp-native/ui-evidence/selection-aside-refinement/final --journey
+JELLYP_PLAYWRIGHT_MODULE=/tmp/opencode/jellyp-native/browser/node_modules/playwright \
+node scripts/smoke-native-planning.cjs --root /tmp/opencode/jellyp-native \
+  --screenshots /tmp/opencode/jellyp-native/ui-evidence/selection-aside-refinement/final/planning
+```
+
+Logs na raiz descartável: `refinement-final-ui.log`,
+`refinement-final-planning.log`, `refinement-build.log`,
+`refinement-dotnet-tests.log`, `refinement-release-tests.log`.
+Resumos: `final/native-summary.json`, `final/planning/planning-summary.json`.
+
+### Regressões e inspeção renderizada
+
+- Simulação: página 1 seleciona 10; global seleciona as 14 chaves reais; página 2
+  mostra 14 no total e 4/4 locais. Limpar zera ambas as páginas; subset entre
+  páginas mostra 2 no total e 1/4 locais, com mixed nativo e conta exata após a
+  lista. Restauração e remoção repetem página → global → limpar → subset entre
+  páginas sobre originais elegíveis reais. Nenhuma autorização foi inferida da
+  página visível. O servidor continua recebendo os IDs/chaves exatos revisados.
+- Histórico: duas operações novas persistidas, Apply com **duas imagens Changed**
+  versus Restore com **uma imagem Restored**, foram abertas pelos próprios links
+  dos recibos. O teste compara ID da API, chaves/status efetivamente renderizados
+  e hashes armazenados; detecta tanto trocar IDs quanto exibir o mesmo resultado
+  recente sob URLs diferentes. Repete após reload, atualização real por
+  visibilitychange e Back/Forward. Uma aplicação longa também conserva sua
+  segunda página de resultados após reload.
+- Aside alto: em 1600×900, o painel de revisão conserva **1063,09 px** de altura;
+  rolar HTML de 218 para 438 desloca seu topo de 55,59 para −164,41, sem scroll
+  interno, enquanto o menu permanece em 64 px e o header termina em 48 px. Os
+  testes alcançam a aderência inferior, voltam usando wheel sobre o painel e
+  redimensionam para 640 px de altura; Apply continua acessível pela página.
+- Foram inspecionados os screenshots finais reais de toolbar mobile Light,
+  revisão/Apply desktop Dark e mobile Light, Simular/Automação/Configurações com
+  CTAs centralizados, menu neutro/ativo, tarefas na coluna principal, os dois
+  recibos distintos e retenção com consentimentos/Apply visíveis. Matrizes
+  `fidelity-*` e `detail-*-viewport.png` cobrem **en/pt × Dark/Light ×
+  desktop/mobile**; também há tablet 768×1024. Exemplos:
+  `detail-result-pt-light-mobile-viewport.png`,
+  `detail-review-pt-dark-desktop-viewport.png`,
+  `fidelity-aside-automation-pt-light-desktop.png`,
+  `detail-aside-settings-en-light-mobile-viewport.png`,
+  `receipt-selected-apply.png`, `receipt-selected-restore.png` e
+  `planning/native-retention-aside-page-scroll.png`. Os pares `sticky-*` e JSONs
+  distinguem movimento da página, aderência e fluxo mobile. Referências P2 seguem
+  separadas e identificadas, nunca contadas como host.
+
+Limites: Chromium emulado, não aparelhos físicos, Safari/Firefox, leitor de tela
+ou certificação WCAG. Reflow por resize/conteúdo/idioma foi exercitado; zoom pelo
+comando do navegador não foi forçado separadamente. Não houve stress nos caps
+1000/200 nem cenário novo de protegidos/incertos criado artificialmente. Os
+demais limites anteriores permanecem; não se declara aceite de produção.
+
+Conferência read-only final: `Enabled=false`, `DryRun=true`,
+`PreserveOriginals=true`, **zero backups ativos**, **zero operação ativa**,
+**zero recuperação pendente**; ambas as tarefas Idle e sem disparos. Socket
+somente `127.0.0.1:18096`. A fixture continua executando a DLL validada; HEAD
+continua `6623bec`, com alterações somente em UI, dois smokes e este documento.

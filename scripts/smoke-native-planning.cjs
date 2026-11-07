@@ -162,8 +162,13 @@ async function main() {
     await page.waitForFunction(() => [...document.querySelectorAll('#JellyPConfigPage:not(.hide) .jp-pager button')].every(node => node.classList.contains('emby-button')));
     check(await ui.locator('#JpRangeretention').locator('..').evaluate(nav => [...nav.querySelectorAll('button')].every(node => { const style = getComputedStyle(node); return node.getAttribute('is') === 'emby-button' && !node.classList.contains('raised') && style.backgroundColor === 'rgba(0, 0, 0, 0)' && style.boxShadow === 'none' && style.filter === 'none' && node.getBoundingClientRect().height >= 44 && node.querySelector('.material-icons[aria-hidden=true]'); }) && nav.querySelector('[data-offset="60"]').disabled), device + ' real retention pager shares compact native icon/label controls and explicit final-page disabled state');
    }
-   await page.setViewportSize({ width: 1440, height: 1000 });
-   await page.screenshot({ path: path.join(shots, 'native-retention-page6.png'), fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.waitForFunction(() => [...document.querySelectorAll('#JellyPConfigPage:not(.hide) .jp-aside')].every(node => Math.abs(parseFloat(node.style.getPropertyValue('--jp-panel-height')) - node.getBoundingClientRect().height) < 1));
+    check(await ui.locator('.jp-aside,.jp-navigation').evaluateAll(nodes => nodes.every(node => { const s=getComputedStyle(node);return !/auto|scroll/.test(s.overflowY) && s.maxHeight==='none' && node.scrollHeight<=node.clientHeight+1; })), 'retention review keeps full-height aside/menu without nested scrolling or clipped consent');
+    await ui.locator('#Apply').scrollIntoViewIfNeeded();
+    check(await ui.locator('#Apply').evaluate(node => {const r=node.getBoundingClientRect(),a=node.closest('aside');return r.top>=48 && r.bottom<=innerHeight && a.scrollTop===0 && getComputedStyle(node).justifyContent==='center';}), 'retention consent and centred Apply remain reachable through the page after retention pagination');
+    await page.screenshot({ path: path.join(shots, 'native-retention-aside-page-scroll.png') });
+    await page.screenshot({ path: path.join(shots, 'native-retention-page6.png'), fullPage: true });
   await field('ReviewAck').locator('..').click(); await field('RetentionAck').locator('..').click();
   check(await ui.locator('#Apply').isEnabled(), 'paged retention no longer blocks explicitly authorized native application');
   const sent = page.waitForResponse(response => response.url().includes('/Apply') && response.request().method() === 'POST');

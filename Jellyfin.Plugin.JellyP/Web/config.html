@@ -16,7 +16,7 @@
 #JellyPConfigPage .jp-brand { font-size:2em;font-weight:600;letter-spacing:-.04em;margin:0 0 .3em; }
 #JellyPConfigPage .jp-eyebrow { font-size:.7em;letter-spacing:.12em;text-transform:uppercase;margin:0 0 .6em; }
 #JellyPConfigPage .jp-version { font-size:.4em;letter-spacing:normal;font-weight:400; }
-#JellyPConfigPage .jp-navigation { min-width:0;position:sticky;top:var(--jp-sticky-top);max-height:calc(100dvh - var(--jp-sticky-top) - 16px);overflow:auto;scrollbar-width:thin; }
+#JellyPConfigPage .jp-navigation { min-width:0;position:sticky;top:min(var(--jp-sticky-top),calc(100dvh - var(--jp-panel-height,0px) - 16px)); }
 #JellyPConfigPage .jp-navigation nav { display:grid;margin:1.5em 0;gap:.25em; }
 #JellyPConfigPage .jp-navigation nav a { justify-content:start;text-align:start;margin:0;padding:.9em .8em;white-space:normal;border-inline-start:3px solid transparent; }
 #JellyPConfigPage .jp-navigation nav a[aria-current=page] { border-color:var(--jp-accent);font-weight:700;background:rgba(128,128,128,.12); }
@@ -25,6 +25,10 @@
 #JellyPConfigPage .jp-nav-separator { border-top:1px solid rgba(128,128,128,.3);margin:.8em 0; }
 #JellyPConfigPage .jp-activity a { display:flex;justify-content:center;text-align:center;gap:.4em;padding:.7em .2em;line-height:1.5;white-space:normal; }
 #JellyPConfigPage .jp-activity .material-icons { align-self:center; }
+#JellyPConfigPage .jp-navigation :is(nav a,.jp-activity a) { color:inherit; }
+#JellyPConfigPage .jp-navigation nav a[aria-current=page] { color:var(--jp-accent); }
+#JellyPConfigPage .jp-navigation :is(nav a,.jp-activity a):hover { color:inherit;background:rgba(128,128,128,.16); }
+#JellyPConfigPage .jp-navigation nav a[aria-current=page]:hover { color:var(--jp-accent); }
 #JellyPConfigPage .jp-mobile-nav { display:none; }
 #JellyPConfigPage .jp-language { margin-top:2em; }
 #JellyPConfigPage .jp-main { min-width:0; }
@@ -35,9 +39,13 @@
 #JellyPConfigPage .jp-heading p { margin:0; }
 #JellyPConfigPage .jp-work { display:grid;grid-template-columns:minmax(0,1fr) 20em;gap:1.5em;align-items:start; }
 #JellyPConfigPage .jp-panel { padding:1.6em;margin:0 0 1.5em;border-radius:.25em;min-width:0; }
-#JellyPConfigPage .jp-aside { position:sticky;top:var(--jp-sticky-top);max-height:calc(100dvh - var(--jp-sticky-top) - 16px);overflow:auto;scrollbar-width:thin;box-sizing:border-box;line-height:1.55;scroll-padding-block:1em; }
+#JellyPConfigPage .jp-aside { position:sticky;top:min(var(--jp-sticky-top),calc(100dvh - var(--jp-panel-height,0px) - 16px));box-sizing:border-box;line-height:1.55; }
+#JellyPConfigPage .jp-auto-work { grid-template-areas:"form aside" "tasks aside";row-gap:0; }
+#JellyPConfigPage .jp-auto-work > form { grid-area:form; }
+#JellyPConfigPage .jp-auto-work > aside { grid-area:aside; }
+#JellyPConfigPage .jp-auto-work > .jp-tasks-panel { grid-area:tasks; }
 #JellyPConfigPage .jp-section + .jp-section { border-top:1px solid rgba(128,128,128,.3);padding-top:1.5em;margin-top:1.5em; }
-#JellyPConfigPage .jp-section-number { font-size:.75em;margin-inline-end:.8em;font-variant-numeric:tabular-nums;opacity:.65; }
+#JellyPConfigPage .jp-section-number { font-size:.75em;margin-inline-end:.8em;font-variant-numeric:tabular-nums;opacity:.8; }
 #JellyPConfigPage .jp-columns { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 1.5em; }
 #JellyPConfigPage .inputContainer,#JellyPConfigPage .selectContainer { margin-bottom:1.5em; }
 #JellyPConfigPage .checkboxContainer { margin-bottom:1em; }
@@ -50,12 +58,14 @@
 #JellyPConfigPage .button-submit.emby-button:disabled { opacity:.45;cursor:not-allowed; }
 #JellyPConfigPage .jp-wide { width:100%;margin-inline:0;white-space:normal; }
 #JellyPConfigPage .jp-link,#JellyPConfigPage .jp-secondary.emby-button { background:transparent;box-shadow:none;color:var(--jp-accent);min-height:44px;box-sizing:border-box;white-space:normal;line-height:1.45;text-transform:none; }
-#JellyPConfigPage :is(.jp-link,.jp-secondary.emby-button):hover:not(:disabled):not([aria-disabled=true]) { background:color-mix(in srgb,var(--jp-accent) 9%,transparent);color:var(--jp-accent); }
+#JellyPConfigPage :is(.jp-link,.jp-secondary.emby-button):hover:not(:disabled):not([aria-disabled=true]) { background:color-mix(in srgb,var(--jp-accent) 9%,transparent); }
 #JellyPConfigPage :is(.jp-link,.jp-secondary.emby-button):active:not(:disabled) { background:color-mix(in srgb,var(--jp-accent) 15%,transparent); }
 #JellyPConfigPage .jp-secondary.emby-button:disabled { opacity:.5;cursor:not-allowed; }
 #JellyPConfigPage .jp-aside .jp-actions { display:grid;justify-items:center; }
 #JellyPConfigPage .jp-aside > .emby-button { width:100%;margin-inline:0;white-space:normal;text-align:center; }
 #JellyPConfigPage .jp-aside :is(.jp-summary-actions .emby-button,.jp-rule > .jp-link) { display:flex;width:100%;justify-content:center;text-align:center;margin-inline:0;padding:.7em; }
+#JellyPConfigPage .jp-aside :is(.emby-button,.jp-link) { display:flex;align-items:center;justify-content:center;text-align:center;gap:.4em; }
+#JellyPConfigPage .jp-aside :is(.emby-button,.jp-link) > span:not(.material-icons) { text-align:center; }
 #JellyPConfigPage .jp-notice { --jp-tone:var(--jp-info);border-inline-start:3px solid var(--jp-tone);background:color-mix(in srgb,var(--jp-tone) var(--jp-tint),transparent);padding:1.1em 1.4em;margin:1em 0 1.5em;line-height:1.65;overflow-wrap:anywhere; }
 #JellyPConfigPage .jp-notice h2 { color:var(--jp-tone);margin-bottom:.6em; }
 #JellyPConfigPage .jp-notice p:last-child { margin-bottom:0; }
@@ -135,10 +145,13 @@
 #JellyPConfigPage .jp-list-tools .checkboxContainer { margin:0; }
 /* Jellyfin 12.1 enhances checked/unchecked only. Keep its generated outline and
    add the native input's mixed state, rather than building another checkbox. */
-#JellyPConfigPage [data-select-page]:indeterminate + span + .checkboxOutline { border-color:var(--jp-accent); }
-#JellyPConfigPage [data-select-page]:indeterminate + span + .checkboxOutline > .checkboxIcon { display:none !important; }
-#JellyPConfigPage [data-select-page]:indeterminate + span + .checkboxOutline::after { content:"";width:65%;height:3px;background:var(--jp-accent); }
+#JellyPConfigPage :is([data-select-page],[data-select-backup-page]):indeterminate + span + .checkboxOutline { border-color:var(--jp-accent); }
+#JellyPConfigPage :is([data-select-page],[data-select-backup-page]):indeterminate + span + .checkboxOutline > .checkboxIcon { display:none !important; }
+#JellyPConfigPage :is([data-select-page],[data-select-backup-page]):indeterminate + span + .checkboxOutline::after { content:"";width:65%;height:3px;background:var(--jp-accent); }
 #JellyPConfigPage .jp-list-tools .jp-actions { margin:0;gap:.5em 1em; }
+#JellyPConfigPage .jp-list-tools .jp-clear.emby-button:not(.jp-danger-button) { color:inherit;opacity:.75; }
+#JellyPConfigPage .jp-list-tools .jp-clear.emby-button:disabled { opacity:.4; }
+#JellyPConfigPage .jp-selection-count { flex-basis:100%;font-size:.85em;font-variant-numeric:tabular-nums;margin:.4em 0; }
 #JellyPConfigPage .jp-list-tools .emby-button:not(.jp-danger-button) { box-shadow:none;background:transparent;color:var(--jp-accent);font-size:.85em;padding:.6em .2em;min-height:44px; }
 #JellyPConfigPage .jp-list-tools .emby-button:hover:not(:disabled) { text-decoration:underline;background:color-mix(in srgb,var(--jp-accent) 9%,transparent); }
 #JellyPConfigPage .jp-toolbar { border-block:1px solid rgba(128,128,128,.35);padding:1em 0;margin:1em 0; }
@@ -251,19 +264,30 @@ const tr = (en,pt) => language === 'pt' ? pt : en;
 const cat = key => names[key] ? tr(...names[key]) : key;
 let visible = false, initialized = false, pollTimer, searchTimer, searchSequence = 0, renderSequence = 0, billingSequence = 0;
 let analyzeController, mutating = false, dialogContext, dialogFocus;
-let stickyObserver;
+let stickyObserver, stickyPanels = [];
 function measureStickyHeader() {
  const headers = [...document.querySelectorAll('.skinHeader,header.MuiAppBar-root')].filter(node => node.getClientRects().length);
  const bottom = Math.max(0,...headers.map(node => node.getBoundingClientRect().bottom));
  page.style.setProperty('--jp-sticky-top',Math.ceil(bottom + 16) + 'px');
+ for (const node of page.querySelectorAll('.jp-navigation,.jp-aside')) node.style.setProperty('--jp-panel-height',node.getBoundingClientRect().height + 'px');
 }
 function startStickyLayout() {
  stopStickyLayout(); measureStickyHeader();
  stickyObserver = new ResizeObserver(measureStickyHeader);
  for (const node of document.querySelectorAll('.skinHeader,header.MuiAppBar-root')) stickyObserver.observe(node);
+ observeStickyPanels();
  window.addEventListener('resize',measureStickyHeader);
 }
-function stopStickyLayout() { stickyObserver?.disconnect(); stickyObserver = null; window.removeEventListener('resize',measureStickyHeader); }
+function stopStickyLayout() { stickyObserver?.disconnect(); stickyObserver = null; stickyPanels = []; window.removeEventListener('resize',measureStickyHeader); }
+function observeStickyPanels() {
+ // Full, intrinsic height: tall panels scroll with the PAGE until their bottom
+ // reaches the viewport. No clipped content, nested wheel owner or fixed clone.
+ if (!stickyObserver) return;
+ for (const node of stickyPanels) stickyObserver.unobserve(node);
+ stickyPanels = [...page.querySelectorAll('.jp-navigation,.jp-aside')];
+ for (const node of stickyPanels) stickyObserver.observe(node);
+ measureStickyHeader();
+}
 const itemNames = new Map(), inspections = new Map();
 let S = {settings:null,draft:null,auto:null,cfg:null,autoDirty:false,cfgDirty:false,plan:null,planId:null,planDraft:null,stale:false,selection:[],review:null,reviewKeys:[],operationId:null,operation:null,activeId:null,planPage:null,backups:null,operations:null,tasks:null,nativeTasks:null,status:null,pages:{images:0,review:0,retention:0,backups:0,operations:0,operation:0},restore:[],retire:[],backupFilter:'restorable',area:'simulate',stage:'draft',sub:'',returnTo:'',signature:null};
 
@@ -344,7 +368,11 @@ function readRoute() {
  const params = new URLSearchParams(location.hash.split('?')[1] || '');
  S.area = areas.some(a => a[0] === params.get('jp')) ? params.get('jp') : 'simulate';
  S.stage = params.get('stage') === 'result' ? 'result' : 'draft'; S.sub = params.get('sub') || ''; S.returnTo = params.get('return') || '';
- if (params.get('operation') && /^[a-f\d-]{32,36}$/i.test(params.get('operation'))) S.operationId = params.get('operation');
+  if (params.get('operation') && /^[a-f\d-]{32,36}$/i.test(params.get('operation'))) {
+   const id = id32(params.get('operation'));
+   if (id32(S.operationId || '') !== id) { S.operation = null; S.pages.operation = 0; }
+   S.operationId = id;
+  }
 }
 function persist() {
  if (!initialized) return;
@@ -450,6 +478,21 @@ function pager(key,total,offset) {
  if (total <= pageSize) return '';
   return '<nav class="jp-pager" aria-label="' + tr('Pagination','Paginação') + ' · ' + key + '">' + button(tr('Previous','Anterior'),'page','data-list="' + key + '" data-offset="' + Math.max(0,offset - pageSize) + '"' + (!offset ? ' disabled' : ''),false,'','chevron_left') + '<span id="JpRange' + key + '" tabindex="-1">' + (total ? offset + 1 : 0) + '–' + Math.min(offset + pageSize,total) + tr(' of ',' de ') + total + '</span>' + button(tr('Next','Próxima'),'page','data-list="' + key + '" data-offset="' + (offset + pageSize) + '"' + (offset + pageSize >= total ? ' disabled' : ''),false,'','chevron_right') + '</nav>';
 }
+function selectionTools(kind,pageCount,total,disabled) {
+ const plan = kind === 'plan', id = plan ? 'SelectPage' : 'SelectBackupPage';
+ return '<div class="jp-list-tools" role="group" aria-label="' + tr('Image selection','Seleção de imagens') + '">'
+  + check(id,tr('Select all on this page','Selecionar todos desta página') + ' (' + pageCount + ')',false,(plan ? 'data-select-page' : 'data-select-backup-page') + (disabled || !pageCount ? ' disabled' : ''))
+  + '<div class="jp-actions">' + button(tr('Select all items','Selecionar todos os itens') + ' (' + total + ')',plan ? 'selectAll' : 'selectAllBackups',disabled || !total ? 'disabled' : '')
+  + button(tr('Clear selection','Limpar seleção'),plan ? 'clearSelection' : 'clearBackups','',false,'jp-clear') + '</div>'
+  + '<p class="jp-selection-count" data-selection-count="' + kind + '" role="status" aria-live="polite"></p><p class="fieldDescription">'
+  + (plan ? tr('Proposed images in this simulation, across every page. Maximum 1,000.','Imagens propostas nesta simulação, em todas as páginas. Máximo de 1.000.') : tr('Eligible originals across every page; protected originals are excluded. Maximum 200 per operation. Larger sets are refused, never truncated.','Originais elegíveis em todas as páginas; protegidos ficam de fora. Máximo de 200 por operação. Conjuntos maiores são recusados, nunca truncados.')) + '</p></div>';
+}
+function selectionCount(kind,selected,keys) {
+ const count = keys.filter(key => selected.includes(key)).length, control = $(kind === 'plan' ? 'SelectPage' : 'SelectBackupPage');
+ if (control) { control.checked = !!keys.length && count === keys.length; control.indeterminate = count > 0 && count < keys.length; control.setAttribute('aria-checked',control.indeterminate ? 'mixed' : String(control.checked)); }
+ const summary = page.querySelector('[data-selection-count="' + kind + '"]');
+ if (summary) summary.textContent = selected.length + tr(' selected in total · ',' selecionados no total · ') + count + tr(' of ',' de ') + keys.length + tr(' on this page',' nesta página');
+}
 function planRow(row,selectable) {
  const proposed = ['Convert','Regenerate'].includes(row.Action), policy = policyFor(row.Category);
  const action = row.Action === 'Convert' ? tr('↓ Convert','↓ Converter') : row.Action === 'Regenerate' ? tr('↻ Regenerate','↻ Gerar novamente') : tr('— Keep','— Manter');
@@ -472,7 +515,7 @@ function resultView() {
   + (S.stale || plan.Status !== 'Ready' ? notice(tr('Read-only report. Settings changed, the plan expired, or its authorization was consumed. Make a new simulation to apply.','Relatório somente leitura. Ajustes mudaram, o plano expirou ou sua autorização foi consumida. Faça nova simulação para aplicar.'),'jp-warning') : '')
    + '<section class="paperList jp-panel jp-snapshot"><div><strong>' + esc(scopeDescription(S.planDraft)) + '</strong><p class="fieldDescription">' + date(plan.CreatedUtc) + ' · ' + tr('Frozen settings · nothing changed','Ajustes congelados · nada foi alterado') + '</p><details><summary>' + tr('Settings used in this simulation','Ajustes usados nesta simulação') + '</summary><p class="fieldDescription">' + esc(effective(S.planDraft || S.draft)) + '</p></details></div>' + link(tr('Edit selection','Editar seleção'),'simulate') + '</section>'
   + '<section class="paperList jp-panel"><h2>' + tr('Choose what to apply','Escolha o que aplicar') + '</h2><div class="jp-counts"><span><strong>' + plan.TotalImages + '</strong>' + tr('images found','imagens encontradas') + '</span><span><strong>' + plan.Proposed + '</strong>' + tr('proposals','propostas') + '</span><span><strong>' + plan.Kept + '</strong>' + tr('kept','mantidas') + '</span></div>'
-   + '<div class="jp-list-tools" role="group" aria-label="' + tr('Image selection','Seleção de imagens') + '">' + check('SelectPage',tr('Proposals on this page','Propostas desta página'),false,'data-select-page' + (!canSelect() ? ' disabled' : '')) + '<div class="jp-actions">' + button(tr('Select all ','Selecionar todas · ') + plan.Proposed + tr(' proposals',' propostas'),'selectAll',!canSelect() ? 'disabled' : '') + button(tr('Clear selection','Limpar seleção'),'clearSelection') + '</div><p class="fieldDescription">' + tr('Page checkbox affects only this page. “All” includes every page. Maximum 1,000 images.','O checkbox afeta só esta página. “Todas” inclui todas as páginas. Máximo de 1.000 imagens.') + '</p></div>'
+    + selectionTools('plan',S.planPage?.Items.filter(row => ['Convert','Regenerate'].includes(row.Action)).length || 0,plan.Proposed,!canSelect())
   + (S.planPage?.Items.length ? pager('images',S.planPage.Total,S.pages.images) + S.planPage.Items.map(row => planRow(row,true)).join('') : notice(tr('No registered images in this scope. JellyP does not download missing artwork.','Nenhuma imagem cadastrada neste alcance. O JellyP não baixa imagens ausentes.')))
    + '<div id="JpSelectedBill">' + bill(zeroBilling(),tr('No changes selected','Sem alterações selecionadas')) + '</div><p class="fieldDescription">' + tr('Secondary comparison: all ','Comparação secundária: todas as ') + plan.Proposed + tr(' proposals reduce active image bytes by ',' propostas reduzem os bytes das imagens ativas em ') + bytes(plan.EstimatedSavingsBytes) + tr(', BEFORE accounting for stored originals. Not your selection or free disk space.',', ANTES de contar os originais guardados. Não é sua seleção nem espaço livre.') + '</p><div class="paperList jp-selection-bar jp-selection"><div><strong id="JpSelectedCount">' + S.selection.length + tr(' selected across all pages',' selecionadas em todas as páginas') + '</strong><p class="fieldDescription">' + tr('Only these identities can proceed.','Somente estas identidades podem seguir.') + '</p></div>' + button(tr('Review selection','Revisar seleção'),'review','id="Review"' + (!canSelect() || !S.selection.length ? ' disabled' : ''),true) + '</div></section>';
 }
@@ -497,7 +540,7 @@ function reviewView() {
   + button((review.TotalSelected === 1 ? tr('Apply to ','Aplicar à ') : tr('Apply to ','Aplicar às ')) + review.TotalSelected + (review.TotalSelected === 1 ? tr(' image',' imagem') : tr(' images',' imagens')),'apply','id="Apply" disabled',S.plan.PreserveOriginals,S.plan.PreserveOriginals ? 'jp-wide' : 'jp-wide jp-danger-button')
   + '<p class="fieldDescription">' + tr('Starts a task on the server. Follow its progress here; navigating does not cancel it.','Inicia uma tarefa no servidor. Acompanhe o andamento aqui; navegar não a cancela.') + '</p></aside></div>';
 }
-function operationView() { return heading(tr('Execution','Execução'),tr('Persisted on the server. Navigating or reloading does not cancel this operation.','Persistida no servidor. Navegar ou recarregar não cancela esta operação.')) + '<section class="paperList jp-panel" id="JpExecutionBody">' + executionBody() + '</section><section id="JpRestoreEntry" class="paperList jp-panel restoreEntry"' + (['Queued','Running'].includes(S.operation?.Operation.State) ? ' hidden' : '') + '>' + restoreEntry() + '</section>'; }
+function operationView() { return heading(tr('Execution','Execução'),tr('Persisted on the server. Navigating or reloading does not cancel this operation.','Persistida no servidor. Navegar ou recarregar não cancela esta operação.')) + '<div class="jp-back">' + link(tr('← Back to History','← Voltar ao Histórico'),'history') + '</div><section class="paperList jp-panel" id="JpExecutionBody">' + executionBody() + '</section><section id="JpRestoreEntry" class="paperList jp-panel restoreEntry"' + (['Queued','Running'].includes(S.operation?.Operation.State) ? ' hidden' : '') + '>' + restoreEntry() + '</section>'; }
 function restoreEntry() {
  const op = S.operation?.Operation;
  if (!op || ['Queued','Running'].includes(op.State)) return '';
@@ -510,7 +553,7 @@ function executionBody() {
  const detail = S.operation;
  if (!detail) return notice(tr('Loading persisted receipt…','Carregando recibo persistido…'));
  const op = detail.Operation, running = ['Queued','Running'].includes(op.State);
- return '<h2 id="JpOperationTitle" tabindex="-1">' + esc(reason(op.Kind)) + ' · ' + esc(reason(op.State)) + '</h2><p role="status" class="jp-notice ' + (running ? '' : op.State === 'Completed' ? 'jp-success' : op.State === 'Failed' ? 'jp-danger' : 'jp-warning') + '">' + esc(reason(op.Phase)) + (op.CancelRequested ? tr(' · Stop requested',' · Parada solicitada') : '') + '</p>'
+  return '<h2 id="JpOperationTitle" tabindex="-1" data-operation-id="' + esc(op.OperationId) + '">' + esc(reason(op.Kind)) + ' · ' + esc(reason(op.State)) + '</h2><p class="fieldDescription">' + date(op.CreatedUtc) + ' · ' + tr('Operation ','Operação ') + '<span class="jp-code">' + esc(op.OperationId) + '</span></p><p role="status" class="jp-notice ' + (running ? '' : op.State === 'Completed' ? 'jp-success' : op.State === 'Failed' ? 'jp-danger' : 'jp-warning') + '">' + esc(reason(op.Phase)) + (op.CancelRequested ? tr(' · Stop requested',' · Parada solicitada') : '') + '</p>'
   + (running ? '<progress aria-label="' + tr('Processed images','Imagens processadas') + '" max="' + Math.max(1,op.TotalItems) + '" value="' + op.Processed + '"></progress>' : '')
   + '<div class="jp-counts"><span><strong>' + op.Processed + ' / ' + op.TotalItems + '</strong>' + tr('processed images','imagens processadas') + '</span><span><strong>' + op.Changed + '</strong>' + tr('changed','alteradas') + '</span><span><strong>' + op.Failed + '</strong>' + tr('failed','falhas') + '</span><span><strong>' + op.Invalidated + '</strong>' + tr('invalidated','invalidadas') + '</span><span><strong>' + op.NotStarted + '</strong>' + tr('not started','não iniciadas') + '</span></div>'
   + (running ? button(tr('Stop after current transaction','Parar após a transação atual'),'cancelOperation','id="CancelOperation"' + (op.CancelRequested ? ' disabled' : '')) + '<p class="fieldDescription">' + tr('Cancellation does not undo committed changes. Waiting for metadata can also be cancelled.','Cancelar não desfaz alterações confirmadas. A espera por metadata também pode ser cancelada.') + '</p>' : bill(op.Billing,tr('Completed changes only','Somente alterações concluídas'),true) + button(tr('New simulation','Nova simulação'),'newSimulation','',true))
@@ -518,26 +561,26 @@ function executionBody() {
    ;
 }
 function executionRow(row) {
- return '<article class="jp-row"><span aria-hidden="true">—</span>' + slotPreview(row) + '<div><h3>' + esc(itemTitle(row)) + '</h3><p class="fieldDescription">' + esc(cat(row.Category)) + ' · ' + tr('position ','posição ') + row.Index + '<br>' + tr('Preview: current image','Prévia: imagem atual') + '</p><details><summary>' + tr('Stored evidence','Evidência armazenada') + '</summary><p class="fieldDescription">' + formatName(row.OriginalMimeType) + ' · ' + dims(row.OriginalWidth,row.OriginalHeight) + ' · ' + bytes(row.OriginalBytes) + '<br>' + tr('Output: ','Saída: ') + dims(row.OutputWidth,row.OutputHeight) + ' · ' + bytes(row.OutputBytes) + '</p><p class="jp-code">' + esc(row.TypeName) + ' · ' + esc(row.OriginalMimeType) + '<br>SHA-256 original: ' + esc(row.SourceHash || '—') + '<br>SHA-256 ' + tr('output','saída') + ': ' + esc(row.OutputHash || '—') + '<br>' + esc(row.Key) + '</p></details></div><div class="jp-outcome"><strong>' + esc(reason(row.Status)) + '</strong><p>' + esc(reason(row.Reason)) + '</p></div></article>';
+  return '<article class="jp-row" data-result-key="' + esc(row.Key) + '" data-result-status="' + esc(row.Status) + '"><span aria-hidden="true">—</span>' + slotPreview(row) + '<div><h3>' + esc(itemTitle(row)) + '</h3><p class="fieldDescription">' + esc(cat(row.Category)) + ' · ' + tr('position ','posição ') + row.Index + '<br>' + tr('Preview: current image','Prévia: imagem atual') + '</p><details><summary>' + tr('Stored evidence','Evidência armazenada') + '</summary><p class="fieldDescription">' + formatName(row.OriginalMimeType) + ' · ' + dims(row.OriginalWidth,row.OriginalHeight) + ' · ' + bytes(row.OriginalBytes) + '<br>' + tr('Output: ','Saída: ') + dims(row.OutputWidth,row.OutputHeight) + ' · ' + bytes(row.OutputBytes) + '</p><p class="jp-code">' + esc(row.TypeName) + ' · ' + esc(row.OriginalMimeType) + '<br>SHA-256 original: ' + esc(row.SourceHash || '—') + '<br>SHA-256 ' + tr('output','saída') + ': ' + esc(row.OutputHash || '—') + '<br>' + esc(row.Key) + '</p></details></div><div class="jp-outcome"><strong>' + esc(reason(row.Status)) + '</strong><p>' + esc(reason(row.Reason)) + '</p></div></article>';
 }
 function savedText(owner) { return S[owner + 'Dirty'] ? tr('Unsaved draft changes','Alterações no rascunho não salvas') : tr('Matches saved settings','Corresponde aos ajustes salvos'); }
 function automationView() {
  const value = S.auto;
  return heading(tr('Automation','Automação'),tr('Independent saved settings for Jellyfin scheduled tasks. Saving does not run a task.','Ajustes salvos independentes para tarefas agendadas do Jellyfin. Salvar não executa uma tarefa.'))
-  + '<div class="jp-work"><form id="JpAutoForm" class="paperList jp-panel"><section class="jp-section"><h2>' + tr('What future tasks may do','O que as próximas tarefas podem fazer') + '</h2>' + check('autoEnabled',tr('Allow scheduled tasks to change artwork','Permitir que tarefas agendadas alterem imagens'),value.Enabled,'data-owner="auto" data-field="Enabled"') + '<p class="fieldDescription">' + tr('Allows image changes in Apply mode. When unchecked, scheduled analysis can still read images and save a report in Analyze mode. Jellyfin task schedules are unchanged.','Permite alterar imagens no modo Aplicar. Desmarcado, a análise agendada ainda pode ler imagens e salvar relatório no modo Analisar. Os horários das tarefas do Jellyfin não mudam.') + '</p>'
+   + '<div class="jp-work jp-auto-work"><form id="JpAutoForm" class="paperList jp-panel"><section class="jp-section"><h2>' + tr('What future tasks may do','O que as próximas tarefas podem fazer') + '</h2>' + check('autoEnabled',tr('Allow scheduled tasks to change artwork','Permitir que tarefas agendadas alterem imagens'),value.Enabled,'data-owner="auto" data-field="Enabled"') + '<p class="fieldDescription">' + tr('Allows image changes in Apply mode. When unchecked, scheduled analysis can still read images and save a report in Analyze mode. Jellyfin task schedules are unchanged.','Permite alterar imagens no modo Aplicar. Desmarcado, a análise agendada ainda pode ler imagens e salvar relatório no modo Analisar. Os horários das tarefas do Jellyfin não mudam.') + '</p>'
   + select('autoDryRun',tr('Scheduled processing mode','Modo do processamento agendado'),String(value.DryRun),[['true',tr('Only analyze and generate a report','Apenas analisar e gerar relatório')],['false',tr('Apply conversions','Aplicar conversões')]],'data-owner="auto" data-field="DryRun"') + notice(tr('Analysis is a diagnostic before enabling automatic changes. It reads bytes, uses CPU and writes a report/state, but changes no images and stores no originals. It is NOT an approval queue. Switching to Apply does not apply an old report: the next task re-evaluates artwork.','A análise é diagnóstico antes de habilitar alterações automáticas. Lê bytes, usa CPU e grava relatório/estado, mas não altera imagens nem guarda originais. NÃO é fila de aprovação. Mudar para Aplicar não aplica um relatório antigo: a próxima tarefa reavalia as imagens.')) + '</section>'
   + '<section class="jp-section"><h2>' + tr('Scope','Alcance') + '</h2>' + scopeEditor('auto',value) + '</section><section class="jp-section"><h2>' + tr('Images and quality','Imagens e qualidade') + '</h2><p class="fieldDescription">' + tr('Automation has its own quality and image settings. Saving Global defaults does not overwrite them. Global storage protections and retention still apply.','A automação tem qualidade e ajustes de imagem próprios. Salvar Padrões globais não os sobrescreve. As proteções globais de armazenamento e retenção continuam valendo.') + '</p>'
   + policiesEditor('auto',value) + '<div class="jp-rule">' + generalEditor('auto',value,10000) + '</div>' + check('autoSyncUnchanged',tr('Native synchronization also regenerates unchanged policies','Sincronização nativa também regenera políticas inalteradas'),value.SyncUnchangedPolicies,'data-owner="auto" data-field="SyncUnchangedPolicies"') + '</section><section class="jp-section"><h2>' + tr('Originals','Originais') + '</h2>' + storageEditor('auto',value) + '<div id="autoPermanentField"' + (value.Enabled && !value.DryRun && !value.PreserveOriginals ? '' : ' hidden') + '>' + check('AutoPermanentAck',tr('I authorize permanent original removal for applying automation','Autorizo remoção permanente de originais pela automação de aplicação'),false) + '</div></section></form>'
-  + '<aside class="paperList jp-panel jp-aside"><h2>' + tr('Save automation','Salvar automação') + '</h2><p id="JpAutoDirty" role="status">' + savedText('auto') + '</p><p class="fieldDescription">' + tr('Saved mode: ','Modo salvo: ') + (!S.settings.Automation.DryRun ? (S.settings.Automation.Enabled ? tr('apply','aplicar') : tr('apply mode blocked; scheduled tasks do not change artwork','modo aplicar bloqueado; tarefas agendadas não alteram imagens')) : tr('analysis only','somente análise')) + '</p>' + button(tr('Save automation','Salvar automação'),'saveAuto','id="SaveAutomation"',true) + '<p class="fieldDescription">' + tr('Does not change manual drafts, Global defaults or task schedules. Idle is not disabled; no triggers means no automatic schedule.','Não altera rascunhos manuais, Padrões globais ou horários das tarefas. Ociosa não é desabilitada; sem disparos não há horário automático.') + '</p>' + rules('automation') + '</aside></div>'
-  + '<section class="paperList jp-panel"><h2>' + tr('Native tasks and last report','Tarefas nativas e último relatório') + '</h2><div id="JpTasks">' + tasksView() + '</div></section>';
+   + '<aside class="paperList jp-panel jp-aside"><h2>' + tr('Save automation','Salvar automação') + '</h2><p id="JpAutoDirty" role="status">' + savedText('auto') + '</p><p class="fieldDescription">' + tr('Saved mode: ','Modo salvo: ') + (!S.settings.Automation.DryRun ? (S.settings.Automation.Enabled ? tr('apply','aplicar') : tr('apply mode blocked; scheduled tasks do not change artwork','modo aplicar bloqueado; tarefas agendadas não alteram imagens')) : tr('analysis only','somente análise')) + '</p>' + button(tr('Save automation','Salvar automação'),'saveAuto','id="SaveAutomation"',true) + '<p class="fieldDescription">' + tr('Does not change manual drafts, Global defaults or task schedules. Idle is not disabled; no triggers means no automatic schedule.','Não altera rascunhos manuais, Padrões globais ou horários das tarefas. Ociosa não é desabilitada; sem disparos não há horário automático.') + '</p>' + rules('automation') + '</aside>'
+   + '<section class="paperList jp-panel jp-tasks-panel"><h2>' + tr('Native tasks and last report','Tarefas nativas e último relatório') + '</h2><div id="JpTasks">' + tasksView() + '</div></section></div>';
 }
 function tasksView() {
  if (!S.tasks) return notice(tr('Task status unavailable. Settings remain editable.','Estado das tarefas indisponível. Os ajustes continuam editáveis.'),'jp-warning');
  const report = S.tasks.LastRun;
  return S.tasks.Tasks.map(task => {
   const native = S.nativeTasks?.find(t => t.Key === task.Key);
-  return '<section class="jp-rule"><h3>' + esc(task.Key === 'JellyPOptimizeArtwork' ? tr('Optimize new images','Otimizar novas imagens') : tr('Update conversions from originals','Atualizar conversões a partir dos originais')) + '</h3><p>' + esc(reason(task.State)) + ' · ' + (native?.Triggers ? native.Triggers.length + tr(' configured triggers',' disparos configurados') : tr('Triggers unavailable','Disparos indisponíveis')) + '</p>' + (native?.Triggers?.length ? '<details><summary>' + tr('Configured trigger details','Detalhes dos disparos configurados') + '</summary><pre class="jp-code">' + esc(JSON.stringify(native.Triggers,null,2)) + '</pre></details>' : '') + '<p class="fieldDescription">' + esc(task.Key) + ' · ' + esc(task.Id) + '</p></section>';
-  }).join('') + '<p class="fieldDescription">' + tr('Configure triggers in Jellyfin Dashboard → Scheduled Tasks → JellyP. No schedule is created here.','Configure os disparos em Painel do Jellyfin → Tarefas Agendadas → JellyP. Nenhum agendamento é criado aqui.') + '</p>' + (report?.FinishedUtc || report?.StartedUtc ? '<details><summary>' + tr('Consult last available report','Consultar último relatório disponível') + '</summary><p>' + esc(reason(report.Phase)) + ' · ' + date(report.FinishedUtc || report.StartedUtc) + '</p><p class="fieldDescription">' + (report.DryRun ? tr('Analysis only','Somente análise') : tr('Applying','Aplicação')) + ' · ' + report.Examined + tr(' examined · ',' avaliadas · ') + report.WouldConvert + tr(' would convert · ',' seriam convertidas · ') + report.Converted + tr(' converted · ',' convertidas · ') + report.Failed + tr(' failed',' falhas') + '</p><p class="fieldDescription">' + tr('Only the last report and up to 20 samples are retained. Its origin was not recorded; this is not a complete scheduled-analysis history.','Somente o último relatório e até 20 amostras são mantidos. A origem não foi registrada; não é um histórico completo de análises agendadas.') + '</p>' + (report.Samples || []).map(row => '<p class="fieldDescription">' + esc(itemTitle(row)) + ' · ' + esc(cat(row.Type)) + ' · ' + bytes(row.OriginalBytes) + ' → ' + bytes(row.OutputBytes) + ' · ' + esc(reason(row.Reason)) + '</p>').join('') + '</details>' : notice(tr('No report available yet.','Nenhum relatório disponível ainda.')));
+   return '<section class="jp-rule"><h3>' + esc(task.Key === 'JellyPOptimizeArtwork' ? tr('Optimize new images','Otimizar novas imagens') : tr('Update conversions from originals','Atualizar conversões a partir dos originais')) + '</h3><dl class="fieldDescription"><div><dt>' + tr('State','Estado') + '</dt><dd>' + esc(reason(task.State)) + '</dd></div><div><dt>' + tr('Schedule','Agendamento') + '</dt><dd>' + (native?.Triggers ? native.Triggers.length ? native.Triggers.length + tr(' configured triggers',' disparos configurados') : tr('No configured triggers','Nenhum disparo configurado') : tr('Triggers unavailable','Disparos indisponíveis')) + '</dd></div></dl><details><summary>' + tr('Technical task details','Detalhes técnicos da tarefa') + '</summary><p class="jp-code">' + esc(task.Key) + '<br>' + esc(task.Id) + '</p>' + (native?.Triggers?.length ? '<pre class="jp-code">' + esc(JSON.stringify(native.Triggers,null,2)) + '</pre>' : '') + '</details></section>';
+   }).join('') + '<section class="jp-rule"><h3>' + tr('Scheduling in Jellyfin','Agendamento no Jellyfin') + '</h3><p class="fieldDescription">' + tr('Configure triggers in Jellyfin Dashboard → Scheduled Tasks → JellyP. No schedule is created here.','Configure os disparos em Painel do Jellyfin → Tarefas Agendadas → JellyP. Nenhum agendamento é criado aqui.') + '</p></section><section class="jp-rule"><h3>' + tr('Last available report','Último relatório disponível') + '</h3>' + (report?.FinishedUtc || report?.StartedUtc ? '<details><summary>' + tr('Consult last available report','Consultar último relatório disponível') + '</summary><p>' + esc(reason(report.Phase)) + ' · ' + date(report.FinishedUtc || report.StartedUtc) + '</p><p class="fieldDescription">' + (report.DryRun ? tr('Analysis only','Somente análise') : tr('Applying','Aplicação')) + ' · ' + report.Examined + tr(' examined · ',' avaliadas · ') + report.WouldConvert + tr(' would convert · ',' seriam convertidas · ') + report.Converted + tr(' converted · ',' convertidas · ') + report.Failed + tr(' failed',' falhas') + '</p><p class="fieldDescription">' + tr('Only the last report and up to 20 samples are retained. Its origin was not recorded; this is not a complete scheduled-analysis history.','Somente o último relatório e até 20 amostras são mantidos. A origem não foi registrada; não é um histórico completo de análises agendadas.') + '</p>' + (report.Samples || []).map(row => '<p class="fieldDescription">' + esc(itemTitle(row)) + ' · ' + esc(cat(row.Type)) + ' · ' + bytes(row.OriginalBytes) + ' → ' + bytes(row.OutputBytes) + ' · ' + esc(reason(row.Reason)) + '</p>').join('') + '</details>' : notice(tr('No report available yet.','Nenhum relatório disponível ainda.'))) + '</section>';
 }
 function settingsView() {
  const limits = S.cfg.Globals;
@@ -573,15 +616,15 @@ function historyView() {
   + (!retire ? recoveryView() : notice(tr('Permanent deletion ends restoration and original-based regeneration for these exact images.','Excluir permanentemente encerra restauração e regeneração a partir do original destas imagens exatas.'),'jp-danger'))
   + '<section class="paperList jp-panel"><h2>' + (retire ? tr('Originals eligible for removal','Originais elegíveis para remoção') : tr('Operations · images with stored originals','Operações · imagens com originais guardados')) + '</h2>'
   + (!retire ? select('BackupFilter',tr('Show originals','Exibir originais'),S.backupFilter,[['restorable',tr('Only restorable','Somente restauráveis')],['all',tr('All active originals, including protected','Todos os originais ativos, incluindo protegidos')]]) : '')
-  + '<div class="jp-list-tools"><div class="jp-actions">' + button(tr('Select eligible on this page','Selecionar elegíveis desta página'),'selectBackupPage',hasActive() ? 'disabled' : '') + button(retire ? tr('Select ALL eligible originals in the plugin','Selecionar TODOS os originais elegíveis do plugin') : tr('Select ALL restorable originals in the plugin','Selecionar TODOS os restauráveis do plugin'),'selectAllBackups',hasActive() ? 'disabled' : '') + button(tr('Clear selection','Limpar seleção'),'clearBackups') + '</div><p class="fieldDescription">' + tr('Maximum 200 originals per maintenance operation. “All” refuses larger sets; it never silently truncates. Select a smaller exact subset.','Máximo de 200 originais por operação de manutenção. “Todos” recusa conjuntos maiores; nunca trunca silenciosamente. Selecione um subconjunto exato menor.') + '</p></div>'
+   + selectionTools('backup',backups?.Items.filter(row => retire ? row.Retirable : row.Restorable).length || 0,S.backupEligibleTotal || 0,hasActive() || mutating)
   + (backups?.Items.length ? pager('backups',backups.Total,S.pages.backups) + backups.Items.map(row => backupRow(row,retire)).join('') : notice(tr('No originals match this filter. Completed operations remain in the receipts below.','Nenhum original corresponde ao filtro. Operações concluídas continuam nos recibos abaixo.')))
   + '<p class="fieldDescription">' + tr('Stored format and SHA-256 are evidence of the file. A browser WebP response is a Jellyfin representation, not proof of the original source format.','Formato armazenado e SHA-256 são evidência do arquivo. Uma resposta WebP ao navegador é representação do Jellyfin, não prova do formato original de origem.') + '</p>'
   + '<div class="paperList jp-selection-bar jp-selection"><p id="JpBackupCount">' + selected.length + tr(' selected across all pages',' selecionados em todas as páginas') + '</p>' + button(retire ? tr('Review permanent removal…','Revisar remoção permanente…') : tr('Review restoration…','Revisar restauração…'),'reviewBackups','id="ReviewBackups"' + (!selected.length || hasActive() ? ' disabled' : ''),!retire,retire ? 'jp-danger-button' : '') + '</div></section>' + (!retire ? operationsView() : '');
 }
 async function loadHistory() {
- const filter = S.sub === 'retire' ? 'retirable' : S.backupFilter;
- const [backups,operations,status] = await Promise.all([api('JellyP/Backups?filter=' + filter + '&offset=' + S.pages.backups + '&limit=' + pageSize),api('JellyP/Executions?offset=' + S.pages.operations + '&limit=' + pageSize),api('JellyP/Status')]);
- S.backups = backups; S.operations = operations; S.status = status;
+ const eligibleFilter = S.sub === 'retire' ? 'retirable' : 'restorable', filter = S.sub === 'retire' ? 'retirable' : S.backupFilter;
+ const [backups,operations,status,eligible] = await Promise.all([api('JellyP/Backups?filter=' + filter + '&offset=' + S.pages.backups + '&limit=' + pageSize),api('JellyP/Executions?offset=' + S.pages.operations + '&limit=' + pageSize),api('JellyP/Status'),filter === eligibleFilter ? Promise.resolve(null) : api('JellyP/Backups?filter=' + eligibleFilter + '&offset=0&limit=1')]);
+ S.backups = backups; S.operations = operations; S.status = status; S.backupEligibleTotal = eligible?.Total ?? backups.Total;
  if (backups.Total && S.pages.backups >= backups.Total) { S.pages.backups = Math.floor((backups.Total - 1) / pageSize) * pageSize; return loadHistory(); }
  await resolveNames(backups.Items.map(row => row.ItemId));
  await inspect(backups.Items.map(row => row.ItemId));
@@ -623,12 +666,18 @@ async function search(owner) {
 async function loadPlanPage() { S.planPage = await api('JellyP/Plan/' + S.planId + '/Images?offset=' + S.pages.images + '&limit=' + pageSize); }
 async function loadReview() { S.review = await api('JellyP/Plan/' + S.planId + '/Review','POST',{Keys:S.selection,Offset:S.pages.review,Limit:pageSize,RetentionOffset:S.pages.retention || 0,RetentionLimit:pageSize}); S.reviewKeys = [...S.selection]; }
 async function loadOperation() {
- const detail = await api('JellyP/Executions/' + S.operationId + '?offset=' + S.pages.operation + '&limit=' + pageSize), previousState = S.operation?.Operation.State;
-  S.operation = detail;
-  S.restorableTotal = ['Queued','Running'].includes(detail.Operation.State) ? null : await api('JellyP/Backups?filter=restorable&offset=0&limit=1').then(result => result.Total).catch(() => null);
- await inspect(detail.Items.map(row => row.ItemId));
+  const id = S.operationId, offset = S.pages.operation;
+  const detail = await api('JellyP/Executions/' + id + '?offset=' + offset + '&limit=' + pageSize), previousState = S.operation?.Operation.State;
+  if (!visible || S.operationId !== id || S.pages.operation !== offset) return;
+   S.operation = detail;
+  const total = ['Queued','Running'].includes(detail.Operation.State) ? null : await api('JellyP/Backups?filter=restorable&offset=0&limit=1').then(result => result.Total).catch(() => null);
+  if (!visible || S.operationId !== id || S.pages.operation !== offset) return;
+  S.restorableTotal = total;
+  await inspect(detail.Items.map(row => row.ItemId));
+  if (!visible || S.operationId !== id || S.pages.operation !== offset) return;
  if (['Queued','Running'].includes(detail.Operation.State)) S.activeId = detail.Operation.OperationId;
- else if (S.activeId === detail.Operation.OperationId) S.activeId = null;
+  else if (S.activeId === detail.Operation.OperationId) S.activeId = null;
+  activity();
  if (previousState && previousState !== detail.Operation.State) announce(reason(detail.Operation.State));
 }
 async function render(move = true) {
@@ -659,7 +708,8 @@ async function render(move = true) {
  if (S.area === 'settings' && S.sub === 'storage') $('JpStorageTitle')?.focus(); else if (move) $('JpTitle')?.focus();
  if (S.area === 'simulate' && S.stage === 'draft') inspect(S.draft.ItemIds);
  if (S.area === 'automation') inspect(S.auto.ItemIds);
- $('JpMain').removeAttribute('aria-busy');
+  $('JpMain').removeAttribute('aria-busy');
+  observeStickyPanels();
  persist();
 }
 async function updateBill() {
@@ -684,7 +734,8 @@ async function refreshState() {
  if (!visible) return;
  S.tasks = tasks; S.activeId = tasks.ActiveOperationId;
  if (S.activeId && !S.operationId) S.operationId = S.activeId;
- if (S.operationId) await loadOperation();
+  if (S.operationId) await loadOperation();
+  if (!visible) return;
  activity();
  // Update read-only results only. Do not re-render editors or replace a focused
  // cancel control while a native task is making progress.
@@ -744,8 +795,9 @@ function applyEnabled() {
 }
 function updatePlanSelection() {
  const keys = S.planPage?.Items.filter(row => ['Convert','Regenerate'].includes(row.Action)).map(row => row.Key) || [];
- const count = keys.filter(key => S.selection.includes(key)).length, control = $('SelectPage');
- if (control) { control.checked = !!keys.length && count === keys.length; control.indeterminate = count > 0 && count < keys.length; control.disabled = !canSelect() || !keys.length; control.setAttribute('aria-checked',control.indeterminate ? 'mixed' : String(control.checked)); }
+ const control = $('SelectPage');
+ if (control) control.disabled = !canSelect() || !keys.length;
+ selectionCount('plan',S.selection,keys);
  for (const node of page.querySelectorAll('[data-image-key]')) node.dataset.selected = String(!!node.querySelector('[data-plan-key]') && S.selection.includes(node.dataset.imageKey));
  const next = page.querySelector('[data-action="stage"][data-stage="2"]');
  if (next) next.disabled = !canSelect() || !S.selection.length;
@@ -786,7 +838,10 @@ async function saveSettings() {
  S.settings = result; S.cfg = {Defaults:copy(result.Defaults),Globals:copy(result.Globals)}; S.cfgDirty = false; S.signature = signature(result); invalidate(); persist(); await render(false); message(tr('Global defaults saved. Reanalyze before applying. Automation quality and scope were not saved; global storage protections still apply to automation.','Padrões globais salvos. Simule novamente antes de aplicar. Qualidade e alcance da automação não foram salvos; proteções globais de armazenamento continuam valendo para automação.'));
 }
 function updateBackupSelection() {
- const selected = S.sub === 'retire' ? S.retire : S.restore;
+  const selected = S.sub === 'retire' ? S.retire : S.restore;
+  const keys = S.backups?.Items.filter(row => S.sub === 'retire' ? row.Retirable : row.Restorable).map(row => row.RecordId) || [];
+  selectionCount('backup',selected,keys);
+  if ($('SelectBackupPage')) $('SelectBackupPage').disabled = hasActive() || mutating || !keys.length;
  for (const node of page.querySelectorAll('[data-backup]')) node.checked = selected.includes(node.dataset.backup);
  if ($('JpBackupCount')) $('JpBackupCount').textContent = selected.length + tr(' selected across all pages',' selecionados em todas as páginas');
  if ($('ReviewBackups')) $('ReviewBackups').disabled = !selected.length || hasActive() || mutating;
@@ -841,7 +896,14 @@ page.addEventListener('change',event => {
   for (const input of page.querySelectorAll('[data-plan-key]')) input.checked = keys.includes(input.dataset.planKey);
   persist(); updateBill();
  }
- else if (localId === 'Language') { language = node.value; localStorage.setItem('jellyp-language',language); render(false).catch(showError); }
+  else if (node.hasAttribute('data-select-backup-page')) {
+   if (hasActive() || mutating) return;
+   const key = S.sub === 'retire' ? 'retire' : 'restore', pageKeys = S.backups.Items.filter(row => S.sub === 'retire' ? row.Retirable : row.Restorable).map(row => row.RecordId);
+   const keys = node.checked ? [...new Set([...S[key],...pageKeys])] : S[key].filter(id => !pageKeys.includes(id));
+   if (keys.length > 200) { updateBackupSelection(); message(tr('Maximum 200 originals. Nothing was truncated.','Máximo de 200 originais. Nada foi truncado.'),true); return; }
+   S[key] = keys; persist(); updateBackupSelection();
+  }
+  else if (localId === 'Language') { language = node.value; localStorage.setItem('jellyp-language',language); render(false).catch(showError); }
  else if (localId === 'JpArea') go(node.value);
  else if (node.dataset.searchFilter) search(node.dataset.searchFilter);
  else if (node.dataset.field && (node.tagName === 'SELECT' || node.type === 'checkbox')) editValue(node);
@@ -904,7 +966,8 @@ async function handleAction(node) {
  else if (action === 'newSimulation') { S.plan = null; S.planId = null; S.planDraft = null; S.selection = []; S.review = null; S.stale = false; persist(); go('simulate'); }
  else if (action === 'saveAuto') await mutation(saveAuto);
  else if (action === 'saveSettings') await mutation(saveSettings);
- else if (action === 'selectAllBackups') {
+  else if (action === 'selectAllBackups') {
+   if (hasActive() || mutating) return;
   const response = await api('JellyP/Backups/Keys?filter=' + (S.sub === 'retire' ? 'retirable' : 'restorable'));
   if (response.Keys.length > 200) throw new Error(tr('More than 200 originals. Select a smaller subset; nothing was truncated or selected.','Mais de 200 originais. Selecione um subconjunto menor; nada foi truncado ou selecionado.'));
   S[S.sub === 'retire' ? 'retire' : 'restore'] = response.Keys; persist(); updateBackupSelection();
@@ -924,12 +987,13 @@ async function handleAction(node) {
   await mutation(async () => { await api('JellyP/Rollback/' + node.dataset.id,'POST'); invalidate(); await render(false); message(tr('Individual recovery request completed. Review current evidence.','Solicitação de recuperação individual concluída. Confira a evidência atual.')); });
  } else if (action === 'page') {
   const list = node.dataset.list, offset = Number(node.dataset.offset);
-  if (list === 'dialog') { dialogContext.offset = offset; renderBackupDialog(); $('JpRangedialog')?.focus(); return; }
+   if (list === 'dialog') { dialogContext.offset = offset; renderBackupDialog(); $('JpRangedialog')?.focus(); return; }
+   $('JpMain').setAttribute('aria-busy','true');
   S.pages[list] = offset;
-  if (list === 'review' || list === 'retention') { await loadReview(); $('JpMain').innerHTML = reviewView(); }
+   if (list === 'review' || list === 'retention') { await loadReview(); $('JpMain').innerHTML = reviewView(); observeStickyPanels(); }
   else if (list === 'operation') { await loadOperation(); $('JpExecutionBody').innerHTML = executionBody(); }
   else await render(false);
-  $('JpRange' + list)?.focus(); persist();
+   $('JpRange' + list)?.focus(); persist(); $('JpMain').removeAttribute('aria-busy');
  }
 }
 page.addEventListener('viewshow',async () => {
@@ -951,8 +1015,13 @@ page.addEventListener('viewshow',async () => {
   if (!S.autoDirty) S.auto = copy(settings.Automation);
   if (!S.cfgDirty) S.cfg = {Defaults:copy(settings.Defaults),Globals:copy(settings.Globals)};
   if (!S.planId) { S.plan = null; S.review = null; }
-  if (S.planId) { try { S.plan = await api('JellyP/Plan/' + S.planId); if (S.plan.OperationId) { S.operationId = S.plan.OperationId; S.selection = []; S.review = null; } } catch (error) { S.stale = true; S.plan = null; showError(error); } }
-  if (S.activeId) S.operationId = S.activeId;
+   const explicitOperation = new URLSearchParams(location.hash.split('?')[1] || '').get('operation');
+   if (S.planId) { try { S.plan = await api('JellyP/Plan/' + S.planId); if (S.plan.OperationId) { if (!explicitOperation) S.operationId = S.plan.OperationId; S.selection = []; S.review = null; } } catch (error) { S.stale = true; S.plan = null; showError(error); } }
+   if (S.activeId && !explicitOperation) S.operationId = S.activeId;
+   // Explicit receipt URLs win over restored session state, a consumed plan's
+   // receipt and unrelated active work. Do this AFTER every fallback above.
+   readRoute();
+   if (S.operation && id32(S.operation.Operation.OperationId) !== id32(S.operationId || '')) S.operation = null;
   const plugin = plugins.find(row => id32(row.Id) === id32(pluginId)); $('JpVersion').textContent = plugin ? 'v' + plugin.Version : '';
   await resolveNames([...S.draft.ItemIds,...S.auto.ItemIds]); await render(); schedulePoll();
  } catch (error) { showError(error); if (!initialized) $('JpMain').innerHTML = heading(tr('JellyP unavailable','JellyP indisponível'),tr('Check administrator authentication and plugin loading, then reload. No settings were saved.','Confira a autenticação de administrador e o carregamento do plugin; depois recarregue. Nenhum ajuste foi salvo.')); }
