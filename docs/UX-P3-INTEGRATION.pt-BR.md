@@ -1040,6 +1040,18 @@ aplicação, restauração em lote ou aposentadoria em lote: use
 
 ### 11.1 Evidência local disponível
 
+**Fidelidade P2 (07/11/2026):** a correção visual posterior ao commit `e4207bf`
+preserva estes contratos. A revisão nativa novamente coloca conta, consequências,
+consentimentos e Apply no aside **Antes de autorizar**, com identidades e lista
+completa paginada de expiração na coluna principal. Resumo da expiração e sua
+autorização separada ficam junto de Apply; o cliente continua enviando o mesmo
+fingerprint, nunca limita a autorização à página visível nem inclui expiração no
+saldo da seleção. Previews são do slot atual confirmado como local, via helper
+oficial; não são candidatos WebP nem prova dos bytes originais. A microcopy usa
+**Padrões globais / Global defaults**; `ManualDefaults` e `ScopeMode=legacy`
+continuam com os mesmos nomes/contratos no wire, sem migração automática na UI.
+Detalhes, capturas e testes: [validação nativa](UX-P3-NATIVE-VALIDATION.pt-BR.md).
+
 O mantenedor preparou um Jellyfin 12.1 descartável em `127.0.0.1:18096`
 (server amd64 + web, hashes verificados, wizard/admin sintéticos, biblioteca
 com filme/MP4 sintético). O plugin 0.3.0.1 carregou e a página nativa existente
@@ -1065,10 +1077,13 @@ Nenhuma evidência local autoriza produção, SSH, publicação ou release.
 - `dotnet test JellyP.slnx -c Release --no-build --no-restore` — **181
   aprovados, 0 falhas** nesta árvore; a suíte antiga permanece nela.
 - `python3 -m unittest discover -s tests/release` — **9 testes, OK**.
-- A evidência nativa já registrada pelo pai é **79 checks de UI + 7 axe** e
-  **16 checks de planejamento nativo** contra a DLL instalada real. Este
-  escritor **não reexecutou** esses testes nativos e não declara uma nova
-  execução nativa.
+- A conferência original registrou **79 checks nativos de UI, incluindo 7 axe**,
+  e **16 checks de planejamento nativo** contra a DLL instalada real. A correção
+  posterior de fidelidade, preservando o backend, reexecutou o smoke ampliado:
+  **248 verificações (15 axe; uma guarda unitária do renderer identificada
+  separadamente)** e **16 checks de planejamento**, sem substituição de HTML/API
+  nas rodadas finais. Hash da DLL, capturas comparativas, logs e limitações estão
+  na [validação nativa atualizada](UX-P3-NATIVE-VALIDATION.pt-BR.md).
 - Testes novos cobrem: projeção legada sem escrita, isolamento
   defaults/automação, análise mista conversão/regeneração/WebP externo,
   SSIM real, limite de batch explícito, subset exato e idempotência, replay

@@ -39,17 +39,212 @@ async function until(callback,label = 'state',timeout = 30000) {
 async function nativeReady(page) {
  await page.waitForFunction(() => {
   const root = document.querySelector('#JellyPConfigPage:not(.hide)');
-  return root && [...root.querySelectorAll('[is="emby-button"],[is="emby-linkbutton"]')].every(node => node.classList.contains('emby-button'));
+   return root && root.querySelector('#JpMain')?.getAttribute('aria-busy') !== 'true' && [...root.querySelectorAll('[is="emby-button"],[is="emby-linkbutton"]')].every(node => node.classList.contains('emby-button'));
  });
- await page.locator('#JellyPConfigPage:not(.hide)').evaluate(async root => {
+  await page.locator('#JellyPConfigPage:not(.hide)').evaluate(async root => {
   const animations = root.getAnimations({subtree:true}).filter(animation => Number.isFinite(animation.effect.getTiming().iterations));
   await Promise.all(animations.map(animation => animation.finished.catch(() => {})));
+  });
+  // Actual 12.1 host save notifications are .toast, not .toastVisible. Wait for
+  // their real disappearance instead of capturing a host toast over our CTA.
+  await page.waitForFunction(() => ![...document.querySelectorAll('.toastContainer .toast')].some(node => node.getClientRects().length && getComputedStyle(node).opacity !== '0'));
+}
+async function setHostTheme(page,theme,target) {
+ await page.goto(base + '/web/#/mypreferencesdisplay?userId=' + auth.userId);
+ await page.locator('#mui-component-select-dashboardTheme').click();
+ await page.locator('[role=option][data-value="' + theme + '"]').click();
+ await page.locator('button[type=submit]:visible').click();
+ await page.waitForLoadState('networkidle');
+ await page.goto(target);
+ await page.locator('#JellyPConfigPage:not(.hide) #JpTitle').waitFor();
+ await nativeReady(page);
+ await page.waitForFunction(() => !document.querySelector('.toastVisible'));
+}
+async function auditFidelity(page,label) {
+ if (!process.env.JELLYP_AXE_MODULE) return;
+ const AxeBuilder = require(process.env.JELLYP_AXE_MODULE).default;
+ const result = await new AxeBuilder({page}).include('#JellyPConfigPage:not(.hide)').withTags(['wcag2a','wcag2aa','wcag21aa','wcag22aa']).analyze();
+ fs.writeFileSync(path.join(screenshots,'axe-fidelity-' + label + '.json'),JSON.stringify(result.violations,null,2));
+ check(result.violations.length === 0,'axe fidelity ' + label + ' WCAG A/AA');
+}
+async function captureMatrix(page,label,inspect) {
+ const target = page.url(), ui = page.locator('#JellyPConfigPage:not(.hide)');
+ for (const theme of ['dark','light']) {
+  await setHostTheme(page,theme,target);
+  for (const language of ['en','pt']) {
+   await ui.locator('[data-jp-id=Language]').selectOption(language); await nativeReady(page);
+   for (const [device,viewport] of [['desktop',{width:1600,height:1100}],['mobile',{width:390,height:844}]]) {
+    await page.setViewportSize(viewport); await nativeReady(page);
+    await inspect(theme,language,device);
+    if (await ui.locator('aside [data-consent]').count()) check(await ui.locator('aside [data-consent]').evaluateAll(inputs => inputs.every(input => { const label=input.closest('label'),text=label.querySelector('.checkboxLabel'),a=label.getBoundingClientRect(),b=text.getBoundingClientRect();return a.height >= 44 && b.bottom <= a.bottom + 1 && b.top >= a.top - 1; })),label + ' ' + theme + ' ' + language + ' ' + device + ' wrapped native consent labels fit their own 44px-minimum boxes');
+    check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),label + ' ' + theme + ' ' + language + ' ' + device + ' no overflow');
+    await page.evaluate(() => scrollTo(0,0));
+    await page.screenshot({path:path.join(screenshots,'fidelity-' + label + '-' + language + '-' + theme + '-' + device + '.png'),fullPage:true});
+    await page.screenshot({path:path.join(screenshots,'fidelity-' + label + '-' + language + '-' + theme + '-' + device + '-viewport.png')});
+   }
+  }
+  await auditFidelity(page,label + '-' + theme);
+ }
+ await page.setViewportSize({width:1600,height:1100});
+ await setHostTheme(page,'dark',target);
+ await ui.locator('[data-jp-id=Language]').selectOption('en'); await nativeReady(page);
+}
+async function redButton(locator,label) {
+ const style = await locator.evaluate(node => { const s = getComputedStyle(node), rgb = value => value.match(/[\d.]+/g).slice(0,3).map(Number); return {bg:rgb(s.backgroundColor),fg:rgb(s.color),height:node.getBoundingClientRect().height}; });
+ function luminance(rgb) { return rgb.map(v => v / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((n,v,i) => n + v * [.2126,.7152,.0722][i],0); }
+ const contrast = (luminance(style.fg) + .05) / (luminance(style.bg) + .05);
+ check(style.bg[0] > style.bg[1] * 2 && style.bg[0] > style.bg[2] * 2 && style.fg.every(v => v === 255) && contrast >= 4.5 && style.height >= 44,label + ' solid red, white contrast ≥4.5 and 44px touch target');
+}
+async function navigationCraft(page,label) {
+ const ui = page.locator('#JellyPConfigPage:not(.hide)'); await nativeReady(page);
+ await page.mouse.move(0,0);
+ check(await ui.locator('.jp-secondary,.jp-link').evaluateAll(nodes => nodes.every(node => node.classList.contains('emby-button') && !node.classList.contains('raised') && getComputedStyle(node).boxShadow === 'none')),label + ' secondary actions/navigation use enhanced native controls without raised hierarchy');
+ check(await ui.locator('#JpNav nav a .material-icons[aria-hidden=true]').count() === 5 && await ui.locator('.jp-nav-separator').count() === 1 && await ui.locator('#JpNav nav a[aria-current=page]').count() === 1,label + ' five labelled destinations, real decorative Material icons, manual/management separator and one current page');
+ const aside = ui.locator('.jp-aside');
+ if (await aside.count()) check(await aside.evaluate(node => [...node.querySelectorAll(':scope > .emby-button,.jp-summary-actions > .emby-button,.jp-rule > .jp-link')].every(control => {const a=node.getBoundingClientRect(),r=control.getBoundingClientRect();return Math.abs((r.left+r.right-a.left-a.right)/2)<2 && getComputedStyle(control).textAlign==='center';})),label + ' aside primary and secondary CTAs share the panel centre, with controlled wrapping');
+ if (await ui.locator('.jp-pager').count()) check(await ui.locator('.jp-pager').evaluateAll(nodes => nodes.every(node => {const r=node.getBoundingClientRect();return [...node.querySelectorAll('button')].every(button => {const s=getComputedStyle(button);return !button.classList.contains('raised') && s.boxShadow==='none' && s.backgroundColor==='rgba(0, 0, 0, 0)' && s.filter==='none' && button.querySelector('.material-icons[aria-hidden=true]') && button.getBoundingClientRect().height>=44;}) && r.width>0;})),label + ' paginators are compact native navigation with icons/labels, readable disabled states and 44px targets');
+ if (await ui.locator('.jp-local-nav').count()) check(await ui.locator('.jp-local-nav').evaluate(node => node.querySelectorAll('[aria-current=page]').length===1 && !node.querySelector('[role=tab]') && [...node.querySelectorAll('a')].every(a => !a.classList.contains('jp-danger-button') && getComputedStyle(a).backgroundColor==='rgba(0, 0, 0, 0)') && getComputedStyle(node.querySelector('[aria-current=page]')).borderBottomStyle==='solid'),label + ' restoration/removal destinations are real current-page links with underline, never destructive fills or fake tabs');
+}
+async function realSticky(page,label,kind,device='desktop') {
+ const ui = page.locator('#JellyPConfigPage:not(.hide)');
+ await page.setViewportSize(device==='mobile'?{width:390,height:844}:{width:1600,height:900}); await nativeReady(page);
+ const selector = kind==='bar'?'.jp-selection-bar':'.jp-aside';
+ // Expand a genuine form disclosure to provide a useful scrolling interval even
+ // when the initial empty manual scope is shorter than the contextual panel.
+ const disclosure=ui.locator('.jp-work > form > section details:not([open]) > summary').first();
+ const opened=kind==='aside' && device==='desktop' && await disclosure.count()>0;
+ if(opened) await disclosure.click();
+ const setup = await ui.locator(selector).evaluate((target,kind) => {
+  const normal = kind==='bar'?target.parentElement.querySelector('.jp-row'):document.querySelector('#JellyPConfigPage:not(.hide) .jp-work > :first-child');
+  const candidates=[];for(let node=normal.parentElement;node;node=node.parentElement) if(node.scrollHeight>node.clientHeight+10 && /auto|scroll/.test(getComputedStyle(node).overflowY)) candidates.push(node);
+  candidates.push(document.scrollingElement);
+  const owner=candidates.find(node=>{const before=node.scrollTop;node.scrollTop=before+1;const moved=node.scrollTop!==before;node.scrollTop=before;return moved;});
+  if(!owner) throw Error('No active scroll owner');
+  owner.dataset.jpSmokeScrollOwner='true';normal.dataset.jpSmokeNormal='true';owner.scrollTop=0;
+  const region=kind==='bar'?target.parentElement:target.parentElement;
+  const natural=region.getBoundingClientRect().top + owner.scrollTop;
+  const stickyTop=parseFloat(getComputedStyle(document.querySelector('#JellyPConfigPage:not(.hide)')).getPropertyValue('--jp-sticky-top'));
+  const start=Math.min(Math.max(180,kind==='bar'?natural+100:natural-stickyTop+8),owner.scrollHeight-owner.clientHeight-228);
+  owner.scrollTop=start;
+  return {owner:owner.tagName,ownerClass:owner.className,start,kind};
+ },kind);
+ const frame = () => page.evaluate(() => new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ await frame();
+ const snapshot = () => ui.locator(selector).evaluate(target => {
+  const owner=document.querySelector('[data-jp-smoke-scroll-owner]'),normal=document.querySelector('[data-jp-smoke-normal]'),nav=document.querySelector('#JellyPConfigPage:not(.hide) .jp-navigation');
+  const rect=n=>n?.getBoundingClientRect().toJSON();
+  return {scrollTop:owner.scrollTop,target:rect(target),normal:rect(normal),nav:rect(nav),headerBottom:Math.max(0,...[...document.querySelectorAll('.skinHeader,header.MuiAppBar-root')].map(n=>n.getBoundingClientRect().bottom)),viewport:innerHeight,innerScroll:target.scrollHeight>target.clientHeight+1};
  });
+ const before=await snapshot();await page.screenshot({path:path.join(screenshots,'sticky-'+label+'-'+device+'-before.png')});
+ await page.evaluate(()=>{document.querySelector('[data-jp-smoke-scroll-owner]').scrollTop+=220;});await frame();
+ const after=await snapshot();await page.screenshot({path:path.join(screenshots,'sticky-'+label+'-'+device+'-after.png')});
+ fs.writeFileSync(path.join(screenshots,'sticky-'+label+'-'+device+'.json'),JSON.stringify({setup,before,after},null,2));
+ check(after.scrollTop-before.scrollTop>=210 && before.normal.top-after.normal.top>=210,label+' '+device+' actual '+setup.owner+' scroll owner advances while normal content moves');
+ if(kind==='bar') check(Math.abs(before.target.bottom-after.target.bottom)<2 && after.target.bottom<=after.viewport+1 && after.target.top>after.headerBottom && after.target.height<after.viewport/3,label+' '+device+' selection summary/CTA stays visible at bounded list bottom, below host header');
+ else if(device==='desktop') {
+  check(Math.abs(before.target.top-after.target.top)<2 && after.target.top>=after.headerBottom+12 && after.target.bottom<=after.viewport-10,label+' desktop contextual aside really sticks below host header, bounded to viewport');
+  check(Math.abs(before.nav.top-after.nav.top)<2 && after.nav.top>=after.headerBottom+12,label+' desktop plugin menu really sticks while form moves');
+  const cta=ui.locator('.jp-aside > button').last();await cta.scrollIntoViewIfNeeded();
+  check(await cta.evaluate(n=>{const r=n.getBoundingClientRect(),a=n.closest('aside').getBoundingClientRect();return r.top>=a.top && r.bottom<=Math.min(a.bottom,innerHeight);}),label+' tall aside content/actions remain reachable through native inner scrolling');
+  await page.screenshot({path:path.join(screenshots,'sticky-'+label+'-'+device+'-actions.png')});
+ } else check(before.target.top-after.target.top>=210,label+' mobile form aside stays in normal flow, never floats over fields');
+ if(kind==='bar') {
+  const last=ui.locator('.jp-selection-bar').locator('..').locator('.jp-row input').last();
+  // Change focus first: focusing the already-focused desktop input after a
+  // viewport change does not ask the browser to scroll it again.
+  await ui.locator('#JpTitle').focus();await last.focus();await frame();
+  check(await last.evaluate(node=>{const r=node.parentElement.querySelector('.checkboxOutline').getBoundingClientRect(),bar=node.closest('.jp-panel').querySelector('.jp-selection-bar').getBoundingClientRect(),header=document.querySelector('header.MuiAppBar-root')?.getBoundingClientRect().bottom||0;return node===document.activeElement && r.top>=header && r.bottom<bar.top;}),label+' '+device+' focused native last-row checkbox outline remains above selection bar and below header');
+  check(await ui.locator('.jp-selection-bar').evaluate(node=>{const r=node.getBoundingClientRect(),p=node.parentElement.getBoundingClientRect();return r.top>=p.top && r.bottom<=p.bottom;}),label+' '+device+' sticky bar stays within its own list region');
+ }
+ await page.evaluate(()=>{const owner=document.querySelector('[data-jp-smoke-scroll-owner]');owner.scrollTop=0;owner.removeAttribute('data-jp-smoke-scroll-owner');document.querySelector('[data-jp-smoke-normal]').removeAttribute('data-jp-smoke-normal');});await frame();
+ if(opened) await ui.locator('.jp-work > form > section details[open] > summary').first().click();
+ await page.setViewportSize({width:1600,height:1100});
+}
+function previewGuards() {
+ const html = fs.readFileSync(path.join(__dirname,'../Jellyfin.Plugin.JellyP/Web/config.html'),'utf8');
+ const body = html.slice(html.indexOf('function preview(row)'),html.indexOf('function inspectedPreview(id)'));
+ let calls = 0;
+ const render = new Function('ApiClient','tr','cat','itemTitle','esc','categories',body + '; return preview;')({getImageUrl:() => { calls++; return '/local-image'; }},en => en,x => x,() => 'Synthetic <title>',x => String(x).replaceAll('<','&lt;'),['Primary','Thumb']);
+ for (const State of ['Remote','Missing','Excluded',undefined]) assert.ok(!render({ItemId:'a'.repeat(32),TypeName:'Thumb',Category:'Thumb',Index:2,State}).includes('<img'));
+ check(calls === 0,'preview renderer guards issue no URL for Remote/Missing/Excluded/unconfirmed slots (unit, not mocked API)');
+}
+async function prototypeReferences(browser) {
+ const context = await browser.newContext({viewport:{width:1600,height:1100},reducedMotion:'reduce'});
+ const page = await context.newPage();
+ await page.route('**/*',route => new URL(route.request().url()).protocol === 'file:' ? route.continue() : route.abort());
+ await page.goto('file://' + path.resolve(__dirname,'../docs/ux-prototype/jellyp-p2.html'));
+ async function shot(label) {
+  for (const [device,viewport] of [['desktop',{width:1600,height:1100}],['mobile',{width:390,height:844}]]) { await page.setViewportSize(viewport); await page.screenshot({path:path.join(screenshots,'p2-reference-' + label + '-pt-dark-' + device + '.png'),fullPage:true}); }
+  await page.setViewportSize({width:1600,height:1100});
+ }
+ await shot('draft');
+ await page.locator('[data-act=analyse]').click(); await page.locator('.analysis-summary').waitFor(); await shot('result');
+ await page.locator('[data-row]').first().check(); await page.locator('[data-act=review]').click(); await page.locator('.summary-panel .ack').waitFor(); await shot('review');
+ for (const [area,label] of [['automacao','automation'],['historico','history'],['configuracoes','settings']]) { await page.goto('file://' + path.resolve(__dirname,'../docs/ux-prototype/jellyp-p2.html') + '#/p2/paginas/' + area); await page.locator('.area-head').waitFor(); await shot(label); }
+ await context.close();
+}
+async function copyScenarios(page) {
+ const baseline = await api('JellyP/Settings'), ui = page.locator('#JellyPConfigPage:not(.hide)');
+ const fixture = (await api('Items?Recursive=true&IncludeItemTypes=Movie')).Items.find(item => item.Name === 'JellyP Canary (2026)');
+ const target = base + '/web/#/configurationpage?name=jellyp&jp=automation';
+ try {
+  await page.goto(base + '/web/#/configurationpage?name=jellyp&jp=simulate'); await ui.locator('[data-jp-id=draftQuality]').waitFor();
+  for (const language of ['en','pt']) {
+   await ui.locator('[data-jp-id=Language]').selectOption(language); await nativeReady(page);
+   await ui.locator('[data-jp-id=draftQuality]').fill('77');
+   const before = await page.evaluate(() => JSON.parse(sessionStorage.getItem('jellyp-native-v1')).draft);
+   const settingsBefore = JSON.stringify(await api('JellyP/Settings'));
+   let confirmation = '';
+   page.once('dialog',async dialog => { confirmation = dialog.message(); await dialog.accept(); });
+   await ui.locator('[data-action=copyDefaults]').click();
+   await until(async () => (await ui.locator('#JpMessage').textContent()).includes(language === 'en' ? 'copied' : 'copiados'),'copy global defaults');
+   const after = await page.evaluate(() => JSON.parse(sessionStorage.getItem('jellyp-native-v1')).draft);
+   check(confirmation.includes(language === 'en' ? 'Global defaults' : 'Padrões globais') && after.Quality === baseline.Defaults.Quality,'explicit global-default copy ' + language + ' names its source and copies actual saved quality');
+   check(after.Scope === before.Scope && JSON.stringify(after.ItemIds) === JSON.stringify(before.ItemIds) && JSON.stringify(after.LibraryIds) === JSON.stringify(before.LibraryIds) && after.PreserveOriginals === before.PreserveOriginals && after.Policies.every((policy,index) => policy.Enabled === before.Policies[index].Enabled),'global-default copy ' + language + ' preserves scope, exact item/library IDs, enabled types and original preservation');
+    check(JSON.stringify(await api('JellyP/Settings')) === settingsBefore,'global-default copy ' + language + ' saves neither defaults/globals nor automation');
+    await navigationCraft(page,'manual aside with both CTAs '+language);
+  }
+  for (const items of [[fixture.Id],[]]) {
+   const automation = {...baseline.Automation,Enabled:false,DryRun:true,PreserveOriginals:true,ScopeMode:'legacy',ItemIds:items,LibraryIds:[]};
+   await api('JellyP/Settings/Automation','PUT',{Automation:automation,AuthorizePermanentRemoval:false});
+   const before = JSON.stringify(await api('JellyP/Settings'));
+   await page.goto(target); await page.reload(); await ui.locator('#SaveAutomation').waitFor();
+   for (const language of ['en','pt']) {
+    await ui.locator('[data-jp-id=Language]').selectOption(language); await nativeReady(page);
+    const text = await ui.locator('#JpMain').innerText();
+    check(!/legacy|legad|project|proje[çc]|compatibility|compatibilidade|muta[çt]/i.test(text),'automation ' + language + ' contains human copy, no implementation jargon');
+    if (items.length) {
+     check(await ui.locator('[data-jp-id=autoScope] option[value=legacy]').textContent() === (language === 'en' ? 'Specific items' : 'Itens específicos') && await ui.locator('[data-jp-id=autoScope] option[value=items]').count() === 0,'saved item scope ' + language + ' has one understandable option, underlying value preserved');
+     check((await ui.locator('#autoSelected').textContent()).includes('JellyP Canary (2026)'),'saved item scope resolves real saved name without migration');
+    } else {
+     check(await ui.locator('[data-jp-id=autoScope] option[value=legacy]').textContent() === (language === 'en' ? 'Choose where to automate' : 'Escolha onde automatizar'),'empty old scope ' + language + ' asks explicit choice without selecting all');
+     await ui.locator('#SaveAutomation').click();
+     check((await ui.locator('#JpMessage').textContent()).includes(language === 'en' ? 'Choose libraries' : 'Escolha bibliotecas'),'ambiguous empty automation scope ' + language + ' save blocked');
+    }
+   }
+   check(JSON.stringify(await api('JellyP/Settings')) === before,'reading saved scope and blocked save never migrate or broaden server configuration');
+  }
+  await api('JellyP/Settings/Defaults','PUT',{Defaults:null,Globals:baseline.Globals});
+  const before = JSON.stringify(await api('JellyP/Settings'));
+  await page.goto(base + '/web/#/configurationpage?name=jellyp&jp=settings'); await page.reload(); await ui.locator('#SaveSettings').waitFor();
+  for (const language of ['en','pt']) {
+   await ui.locator('[data-jp-id=Language]').selectOption(language); await nativeReady(page);
+   const text = await ui.locator('#JpMain').innerText();
+   check(text.includes(language === 'en' ? 'Global defaults' : 'Padrões globais') && !/manual defaults|padrões manuais|legacy|legad|project|proje[çc]|CompletedUtc/i.test(text),'settings ' + language + ' global defaults and completion-age copy, no internal terms');
+   check(text.includes(language === 'en' ? 'including automation' : 'inclusive automação') && text.includes(language === 'en' ? 'do not overwrite' : 'não os sobrescrevem'),'settings ' + language + ' distinguishes quality defaults from global storage effects on automation');
+  }
+  check(JSON.stringify(await api('JellyP/Settings')) === before,'opening defaults warning does not save the existing settings');
+ } finally {
+  await api('JellyP/Settings/Defaults','PUT',{Defaults:baseline.DefaultsSource === 'legacy' ? null : baseline.Defaults,Globals:baseline.Globals});
+  await api('JellyP/Settings/Automation','PUT',{Automation:baseline.Automation,AuthorizePermanentRemoval:false});
+  await page.goto(target); await page.reload(); await ui.locator('#SaveAutomation').waitFor(); await ui.locator('[data-jp-id=Language]').selectOption('en');
+ }
 }
 async function main() {
  const info = await api('System/Info');
  check(fs.realpathSync(info.ProgramDataPath) === path.join(root,'data'),'marker + real ProgramDataPath verified before any mutation');
  check(info.Version === '12.1.0','official Jellyfin 12.1 host');
+ previewGuards();
  const settings = await api('JellyP/Settings');
  check(!!settings.Automation && !!settings.Defaults && !!settings.Globals,'runtime DTO PascalCase, not documentation camelCase');
  if (!process.env.JELLYP_UI_SOURCE) {
@@ -61,6 +256,7 @@ async function main() {
  check(unauth.status === 401,'real unauthenticated API returns 401');
  const browser = await chromium.launch({headless:true});
  activeBrowser = browser;
+ if (args.includes('--journey')) await prototypeReferences(browser);
  const context = await browser.newContext({viewport:{width:1600,height:1100},reducedMotion:'reduce'});
  // Block outbound traffic only. Every localhost response comes from the host.
  await context.route('**/*',route => { const url = new URL(route.request().url()); if (url.origin === base || ['data:','blob:'].includes(url.protocol)) return route.continue(); outside.push(url.origin); return route.abort(); });
@@ -79,9 +275,10 @@ async function main() {
  await page.locator('#txtManualPassword').fill(fs.readFileSync(path.join(root,'test-password'),'utf8'));
  await page.locator('button[type=submit]').click();
  await page.waitForURL(url => !url.hash.includes('/login'));
- await page.goto(base + '/web/#/configurationpage?name=jellyp');
- const ui = page.locator('#JellyPConfigPage:not(.hide)');
- await ui.locator('[data-jp-id=draftQuality]').waitFor();
+  await page.goto(base + '/web/#/configurationpage?name=jellyp');
+  const ui = page.locator('#JellyPConfigPage:not(.hide)');
+  await ui.locator('[data-jp-id=draftQuality]').waitFor();
+  await setHostTheme(page,'dark',page.url());
  await ui.locator('[data-jp-id=Language]').selectOption('en');
  await page.waitForFunction(() => document.querySelector('#JellyPConfigPage:not(.hide) #JpTitle')?.textContent === 'Simulate');
  check(await ui.locator('[data-jp-id=draftQuality]').evaluate(node => node.classList.contains('emby-input')),'real native emby-input enhancement');
@@ -90,6 +287,9 @@ async function main() {
  check(await ui.locator('.selectArrowContainer').count() >= 3,'host select arrows loaded');
  check(await ui.locator('[data-jp-id=draftQuality]').evaluate(node => document.querySelectorAll('label[for="' + node.id + '"]').length === 1),'one native label per input');
  check(await ui.locator('[data-type]').count() === 11,'all eleven backend image categories represented');
+  check(await ui.locator('.jp-steps [aria-current=step] .jp-step-number').textContent() === '1' && await ui.locator('.jp-steps [data-stage="1"]').isDisabled() && await ui.locator('.jp-steps [data-stage="2"]').isDisabled(),'numbered current step and distinct disabled future stages');
+  await navigationCraft(page,'manual draft');
+  await realSticky(page,'manual-draft','aside'); await realSticky(page,'manual-draft','aside','mobile');
  await page.screenshot({path:path.join(screenshots,'01-native-selection-en-dark-desktop.png'),fullPage:true});
  await ui.locator('[data-type=Primary] [data-action=disclose]').focus();
  await page.keyboard.press('Enter');
@@ -97,11 +297,19 @@ async function main() {
  await ui.locator('[data-type=Primary] [data-action=disclose]').click();
  await ui.locator('#JpNav nav a').filter({hasText:'Automation'}).click();
  await ui.locator('#SaveAutomation').waitFor();
- check(page.url().includes('configurationpage?name=jellyp') && page.url().includes('jp=automation'),'internal navigation uses genuine host configurationpage router');
+  check(page.url().includes('configurationpage?name=jellyp') && page.url().includes('jp=automation'),'internal navigation uses genuine host configurationpage router');
+  await navigationCraft(page,'automation'); await realSticky(page,'automation','aside'); await realSticky(page,'automation','aside','mobile');
+  const settingsLink=ui.getByRole('link',{name:'Change in Settings',exact:true});
+  await settingsLink.hover();
+  check(await settingsLink.evaluate(node=>getComputedStyle(node).backgroundColor!=='rgba(0, 0, 0, 0)' && !node.classList.contains('raised') && node.getAttribute('is')==='emby-linkbutton'),'secondary settings detour is a genuine native link with restrained hover feedback');
+  await settingsLink.focus();await page.keyboard.press('Tab');await page.keyboard.press('Shift+Tab');
+  check(await settingsLink.evaluate(node=>node===document.activeElement && node.matches(':focus-visible') && parseFloat(getComputedStyle(node).outlineWidth)>=2),'secondary navigation has a visible keyboard focus ring');
+  await page.mouse.move(0,0);
  await ui.locator('[data-jp-id=autoQuality]').fill('84');
  await ui.locator('#JpNav nav a').filter({hasText:'Settings',exact:true}).click();
  await ui.locator('#SaveSettings').waitFor();
- await page.goBack(); await ui.locator('[data-jp-id=autoQuality]').waitFor();
+  await navigationCraft(page,'settings'); await realSticky(page,'settings','aside');
+  await page.goBack(); await ui.locator('[data-jp-id=autoQuality]').waitFor();
  check(await ui.locator('[data-jp-id=autoQuality]').inputValue() === '84','browser Back preserves unsaved automation draft');
  await page.screenshot({path:path.join(screenshots,'02-native-automation-en-dark-desktop.png'),fullPage:true});
  if (process.env.JELLYP_AXE_MODULE) {
@@ -110,7 +318,7 @@ async function main() {
   fs.writeFileSync(path.join(screenshots,'axe-automation.json'),JSON.stringify(results.violations,null,2));
   check(results.violations.length === 0,'axe native automation WCAG A/AA');
  }
- if (args.includes('--journey')) await journey(page,settings);
+  if (args.includes('--journey')) { await journey(page,settings); await copyScenarios(page); }
  await ui.locator('[data-jp-id=Language]').selectOption('pt');
  await page.waitForFunction(() => document.querySelector('#JellyPConfigPage:not(.hide) #JpTitle')?.textContent === 'Automação');
  await page.screenshot({path:path.join(screenshots,'03-native-automation-pt-dark-desktop.png'),fullPage:true});
@@ -148,19 +356,21 @@ async function main() {
  for (const area of ['simulate','settings','history']) {
   await ui.locator('#JpNav nav a[href*="jp=' + area + '"]').click();
   await until(async () => (await ui.locator('#JpNav nav a[aria-current=page]').getAttribute('href')).includes('jp=' + area) && await ui.locator('#JpTitle').isVisible(),'light ' + area);
-  await audit(area + '-pt-light-desktop');
+   await audit(area + '-pt-light-desktop');
+   await navigationCraft(page,area+' light desktop');
   await nativeReady(page);
   await page.screenshot({path:path.join(screenshots,'07-native-' + area + '-pt-light-desktop.png'),fullPage:true});
  }
  await hostTheme('dark');
  await page.setViewportSize({width:768,height:1024});
  await page.screenshot({path:path.join(screenshots,'08-native-automation-pt-dark-tablet.png'),fullPage:true});
- check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),'tablet no horizontal overflow');
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),'tablet no horizontal overflow');
+  await navigationCraft(page,'automation tablet');
  check(errors.length === 0,'zero browser page errors');
  check(outside.every(origin => origin === 'https://www.gstatic.com'),'all outbound attempts blocked; only official host Cast sender attempted gstatic, no JellyP external dependency');
   fs.writeFileSync(path.join(screenshots,'native-summary.json'),JSON.stringify({checks,errors,outside,failedLocalRequests},null,2));
  await browser.close();
- console.log(checks.length + ' real native checks passed');
+  console.log(checks.length + ' checks passed (real native host + separately labelled renderer guard unit)');
 }
 function png(seed) {
  let state = seed + 1;
@@ -251,9 +461,30 @@ async function journey(page,baseline) {
  check(await ui.locator('[data-plan-key]:checked').count() === 0,'analysis starts with zero selected images');
  check((await ui.locator('#JpSelectedBill').textContent()).includes('No changes selected'),'zero selection bill is zero, not all proposals');
  check(await ui.locator('#JpSelectedBill').evaluate(node => node.compareDocumentPosition(node.parentElement.querySelector('[data-image-key]')) & Node.DOCUMENT_POSITION_PRECEDING),'calculator follows image list in DOM');
+  await captureMatrix(page,'result',async (theme,language) => {
+   await navigationCraft(page,'results '+theme+' '+language);
+  const result = await ui.locator('.jp-success').first().evaluate(node => ({border:getComputedStyle(node).borderLeftColor,bg:getComputedStyle(node).backgroundColor,title:getComputedStyle(node.querySelector('h2')).color}));
+  check(result.border === result.title && result.bg !== 'rgba(0, 0, 0, 0)',theme + ' ' + language + ' success banner has semantic title, border and surface');
+  check(await ui.locator('.jp-steps [aria-current=step] .jp-step-number').evaluate(node => getComputedStyle(node).borderRadius === '50%' && getComputedStyle(node).backgroundColor !== 'rgba(0, 0, 0, 0)'),theme + ' ' + language + ' current stage has filled numbered circle');
+ });
+  const image = ui.locator('[data-image-key] .jp-preview img').first(); await image.scrollIntoViewIfNeeded(); await until(async () => image.evaluate(node => node.naturalWidth > 0),'real preview decoded');
+  await navigationCraft(page,'simulation results'); await realSticky(page,'simulation-results','bar'); await realSticky(page,'simulation-results','bar','mobile');
+ check(await image.evaluate(node => { const row = node.closest('[data-image-key]'), key = row.dataset.imageKey, url = new URL(node.src); return url.pathname.includes('/Items/' + key.split(':')[0] + '/Images/' + node.dataset.slotType + '/' + Number(key.split(':')[2])); }),'decoded thumbnail requests exact server ItemId/type/index slot');
+ const thumb = ui.locator('.jp-preview img[data-slot-type=Thumb]');
+ if (await thumb.count()) { await thumb.first().scrollIntoViewIfNeeded(); await until(async () => thumb.first().evaluate(node => node.naturalWidth > 0),'local Thumb decoded'); check(await thumb.first().evaluate(node => new URL(node.src).pathname.includes('/Images/Thumb/0')),'real local Thumb never falls back to Primary'); }
+ await checked(field('SelectPage'),true);
+ check(await ui.locator('[data-plan-key]:checked').count() === 10,'native page checkbox selects only visible proposals');
+ await ui.locator('[data-action=selectAll]').click();
+ await until(async () => (await ui.locator('#JpSelectedCount').textContent()).startsWith('14 '),'select all proposals');
+ check((await api('JellyP/Plan/' + initial.PlanId + '/Keys?kind=selectable')).Keys.length === 14,'all-results selection scope remains server-owned and cross-page');
+ await ui.locator('[data-action=clearSelection]').click();
+ check(await ui.locator('[data-plan-key]:checked').count() === 0 && !(await field('SelectPage').isChecked()),'clear selection clears page checkbox and exact cross-page subset');
  const allKeys = await api('JellyP/Plan/' + initial.PlanId + '/Keys?kind=selectable');
  const first = ui.locator('[data-plan-key]').first(), firstKey = await first.getAttribute('data-plan-key');
  await checked(first,true);
+ check(await field('SelectPage').evaluate(node => node.indeterminate && node.getAttribute('aria-checked') === 'mixed'),'native page checkbox exposes partial selection as indeterminate');
+ check(await field('SelectPage').evaluate(node => { const outline=node.parentElement.querySelector('.checkboxOutline');return !!outline && getComputedStyle(outline,'::after').content === '""' && getComputedStyle(outline,'::after').backgroundColor !== 'rgba(0, 0, 0, 0)'; }),'indeterminate state is visibly drawn on the real host-generated checkbox outline');
+ check(await first.evaluate(node => node.closest('[data-image-key]').dataset.selected === 'true'),'selected row receives scoped active accent without rebuilding checkbox');
  await until(async () => (await ui.locator('#JpSelectedBill').textContent()).includes('Only selected images · 1'),'bill 1');
  check(await first.evaluate(node => node === document.activeElement || node.parentElement.contains(document.activeElement)),'selection bill updates preserve focused checkbox node');
  await ui.locator('[data-list=images][data-offset="10"]').click();
@@ -263,11 +494,21 @@ async function journey(page,baseline) {
  const review = await api('JellyP/Plan/' + initial.PlanId + '/Review','POST',{Keys:[firstKey,secondKey],Offset:0,Limit:10});
  check(review.TotalSelected === 2 && review.Billing.BackupBytesBefore === 0 && review.Billing.BackupBytesAfter > 0 && review.Billing.DeltaBytes < 0,'server cross-page subset billing counts active + new retained originals correctly');
  await page.screenshot({path:path.join(screenshots,'10-native-analysis-subset-crosspage.png'),fullPage:true});
- await ui.locator('[data-action=stage][data-stage="0"]').click(); await field('draftQuality').waitFor();
- await ui.locator('[data-action=stage][data-stage="1"]').click(); await ui.locator('#JpSelectedCount').waitFor();
+  await ui.locator('.jp-steps [data-stage="0"]').focus(); await page.keyboard.press('Enter'); await field('draftQuality').waitFor();
+  await ui.locator('.jp-steps [data-stage="1"]').focus(); await page.keyboard.press('Space'); await ui.locator('#JpSelectedCount').waitFor();
  check((await ui.locator('#JpSelectedCount').textContent()).startsWith('2 '),'earlier real stage buttons preserve selection until an edit');
  await ui.locator('#Review').click(); await ui.locator('#Apply').waitFor();
- check(await ui.locator('#Apply').isDisabled(),'application locked until explicit review acknowledgement');
+  check(await ui.locator('#Apply').isDisabled(),'application locked until explicit review acknowledgement');
+  await navigationCraft(page,'apply review'); await realSticky(page,'apply-review','aside'); await realSticky(page,'apply-review','aside','mobile');
+ check(await ui.locator('#Apply').evaluate(node => node.closest('aside')?.contains(document.querySelector('#JellyPConfigPage:not(.hide) [data-jp-id=ReviewAck]'))) && await ui.locator('.jp-review aside .jp-bill').count() === 1,'Apply, acknowledgement and selection ledger belong to right-hand review aside');
+  await captureMatrix(page,'review',async (theme,language,device) => {
+   await navigationCraft(page,'review '+theme+' '+language+' '+device);
+  check(await ui.locator('#Apply').evaluate(node => !!node.closest('aside')),theme + ' ' + language + ' ' + device + ' authorization stays in aside');
+  const boxes = await ui.locator('.jp-review').evaluate(node => [...node.children].map(child => { const r=child.getBoundingClientRect();return {x:r.x,y:r.y,bottom:r.bottom}; }));
+  check(device === 'desktop' ? boxes[1].x > boxes[0].x : boxes[1].y >= boxes[0].bottom - 1,theme + ' ' + language + ' ' + device + ' P2 left identities/right authorization, stacked on mobile');
+  const balance = ui.locator('.jp-review aside .jp-balance[data-sign=extra]');
+  check(await balance.evaluate(node => getComputedStyle(node).color === getComputedStyle(node.querySelector('strong')).color && node.textContent.includes('+')),theme + ' ' + language + ' signed amber ledger amount and text');
+ });
  await ui.locator('a[href*="sub=storage"]').click(); await ui.locator('#SaveSettings').waitFor();
  check(await ui.locator('#JpStorageTitle').evaluate(node => node === document.activeElement),'global protection detour focuses storage heading');
  await ui.locator('a[href*="return"]').count();
@@ -303,6 +544,12 @@ async function journey(page,baseline) {
  assert.ok(firstRecord);
  await page.reload(); await ui.locator('#JpExecutionBody').waitFor();
  check((await ui.locator('#JpExecutionBody').textContent()).includes('Completed'),'reload recovers real completed persisted receipt');
+ await until(async () => ui.locator('#JpExecutionBody .jp-preview img').first().evaluate(node => node.naturalWidth > 0),'current artwork preview in completed receipt');
+  check(await ui.locator('#JpExecutionBody .jp-preview img').count() === 2,'completed receipt retains real current-slot visual identities');
+  await captureMatrix(page,'completion',async (theme,language,device) => {
+   check(await ui.locator('.restoreEntry').evaluate(node=>{const body=node.parentElement.querySelector('#JpExecutionBody'),r=node.getBoundingClientRect(),b=body.getBoundingClientRect();return !body.contains(node) && node.classList.contains('paperList') && r.top-b.bottom>=16 && node.querySelector('h2') && node.querySelectorAll('a[is="emby-linkbutton"]').length===1 && !body.querySelector('a[href*="jp=history"]');}),theme+' '+language+' '+device+' unique real restoration CTA in its own paper card, separated below completion/results');
+   await navigationCraft(page,'completion '+theme+' '+language+' '+device);
+  });
  await page.screenshot({path:path.join(screenshots,'12-native-completion-reloaded.png'),fullPage:true});
  await ui.locator('[data-action=newSimulation]').click(); await field('draftQuality').waitFor(); await field('draftQuality').fill('80');
  const regenPlan = await analyze();
@@ -316,10 +563,16 @@ async function journey(page,baseline) {
  records = (await api('JellyP/Status')).RecentRecords;
  const regenRecord = records.find(row => row.ExecutionId === regenerated.receipt.OperationId);
  check(regenRecord.SourceHash === firstRecord.SourceHash && regenRecord.OutputHash !== firstRecord.OutputHash && fileHash(regenRecord.OutputPath) === regenRecord.OutputHash,'regeneration preserves original hash and writes verified different-quality bytes');
- await navigate('history'); await ui.locator('#ReviewBackups').waitFor();
+  await navigate('history'); await ui.locator('#ReviewBackups').waitFor();
+  await ui.locator('.jp-local-nav a[href*="sub=retire"]').focus();await page.keyboard.press('Enter');await ui.locator('.jp-local-nav a[href*="sub=retire"][aria-current=page]').waitFor();
+  await page.goBack();await ui.locator('.jp-local-nav a:not([href*="sub=retire"])[aria-current=page]').waitFor();
+  check((await ui.locator('#JpTitle').innerText())==='History and restoration','local maintenance navigation supports Enter and browser Back with current-page semantics');
+ check(await ui.locator('[data-backup-id] .jp-preview img').count() > 0,'history uses inspected current local slots, not guessed original URLs');
+ check(!await ui.locator('[data-action=reviewOneBackup]').first().evaluate(node => node.classList.contains('jp-danger-button')),'restoration remains a normal native action, not destructive red');
  const backup = (await api('JellyP/Backups?filter=restorable&limit=200')).Items.find(row => row.Key === firstKey);
  await ui.locator('[data-backup-id="' + backup.RecordId + '"] [data-action=reviewOneBackup]').click();
- await ui.locator('#JpDialog[open]').waitFor(); check((await ui.locator('#JpDialog').textContent()).includes(backup.SourceHash),'native restoration review displays actual stored checksum evidence');
+  await ui.locator('#JpDialog[open]').waitFor(); check((await ui.locator('#JpDialog').textContent()).includes(backup.SourceHash),'native restoration review displays actual stored checksum evidence');
+  check(!(await ui.locator('.jp-dialog-row > .fieldDescription').first().innerText()).includes('image/') && await ui.locator('.jp-dialog-row details .jp-code').count() > 0,'maintenance review shows readable format; raw MIME, IDs and checksum remain available in disclosure');
  async function confirmBackup(kind) {
   await checked(field('BackupAck'),true);
   const response = page.waitForResponse(r => r.url().endsWith('/JellyP/Backups/' + kind) && r.request().method() === 'POST');
@@ -345,9 +598,12 @@ async function journey(page,baseline) {
  check(await ui.locator('[data-image-key]').count() === volumeKeys.length - 10,'review pagination exposes remaining authorized identities');
  await apply(volumeKeys);
  await navigate('history'); await ui.locator('[data-backup]').first().waitFor();
- check(await ui.locator('[data-backup]').count() === 10,'history is paginated by image even one large operation');
+  check(await ui.locator('[data-backup]').count() === 10,'history is paginated by image even one large operation');
+  await navigationCraft(page,'restoration history'); await realSticky(page,'restoration-history','bar'); await realSticky(page,'restoration-history','bar','mobile');
  await ui.locator('[data-action=selectAllBackups]').click(); await ui.locator('#ReviewBackups').click(); await ui.locator('#JpDialog[open]').waitFor();
- check(await ui.locator('.jp-dialog-row').count() === 10,'large restoration review mounts ten exact originals');
+  check(await ui.locator('.jp-dialog-row').count() === 10,'large restoration review mounts ten exact originals');
+  await navigationCraft(page,'restoration dialog');
+  check(await ui.locator('.jp-selection-bar').evaluate(node=>getComputedStyle(node).visibility==='hidden'),'list sticky selection bar is suppressed while native modal owns focus');
  await ui.locator('[data-list=dialog][data-offset="10"]').click();
  check(await ui.locator('.jp-dialog-row').count() >= 4,'all remaining restoration identities are reviewable without truncation');
  await page.keyboard.press('Escape');
@@ -366,17 +622,45 @@ async function journey(page,baseline) {
  check(await ui.locator('[data-backup]:checked').count() === 0,'permanent removal has its own empty selection and subpage');
  const retireRow = (await api('JellyP/Backups?filter=retirable&limit=200')).Items[0];
  assert.ok(retireRow && fixtureIds.has(retireRow.ItemId) && sourceHashes.has(retireRow.SourceHash),'Refuse retirement except exact generated PNG originals');
+  const retireTarget = page.url();
+  // The separate destination preserves the current offset. Exercise stickiness
+  // on its full first page, not the two-row tail where the bar correctly releases.
+  if (await ui.locator('[data-list=backups][data-offset="0"]:enabled').count()) { await ui.locator('[data-list=backups][data-offset="0"]').click(); await until(async()=>await ui.locator('[data-backup]').count()===10,'retirement full first page'); }
+  await navigationCraft(page,'permanent removal navigation'); await realSticky(page,'retirement','bar'); await realSticky(page,'retirement','bar','mobile');
+ for (const theme of ['dark','light']) {
+  await setHostTheme(page,theme,retireTarget);
+  await ui.locator('[data-action=selectAllBackups]').click(); await nativeReady(page);
+  await redButton(ui.locator('#ReviewBackups'),theme + ' enabled removal review');
+  await redButton(ui.locator('[data-action=reviewOneBackup]').first(),theme + ' individual removal');
+  await ui.locator('#ReviewBackups').click(); await ui.locator('#JpDialog[open]').waitFor();
+  await checked(field('BackupAck'),true); await nativeReady(page);
+  await redButton(ui.locator('#ConfirmBackup'),theme + ' enabled permanent confirmation');
+  await page.screenshot({path:path.join(screenshots,'fidelity-removal-en-' + theme + '-desktop.png'),fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  await ui.locator('#ConfirmBackup').scrollIntoViewIfNeeded();
+  check(await ui.locator('#ConfirmBackup').evaluate(node => {const r=node.getBoundingClientRect();return r.top >= 0 && r.bottom <= innerHeight;}),theme + ' mobile permanent confirmation reachable, not covered');
+  await page.screenshot({path:path.join(screenshots,'fidelity-removal-en-' + theme + '-mobile.png'),fullPage:true});
+  await auditFidelity(page,'removal-' + theme);
+  await page.keyboard.press('Escape'); await page.setViewportSize({width:1600,height:1100});
+  await ui.locator('[data-action=clearBackups]').click();
+ }
+ await setHostTheme(page,'dark',retireTarget);
  // The prior history page may be at offset 10; choose the explicit matching page.
  if (!await ui.locator('[data-backup="' + retireRow.RecordId + '"]').count()) await ui.locator('[data-list=backups][data-offset="0"]').click();
  await checked(ui.locator('[data-backup="' + retireRow.RecordId + '"]'),true); await ui.locator('#ReviewBackups').click(); await ui.locator('#JpDialog[open]').waitFor();
  check(await ui.locator('#ConfirmBackup').isDisabled(),'permanent removal requires its own explicit acknowledgement');
  await page.screenshot({path:path.join(screenshots,'14-native-permanent-retirement-review.png'),fullPage:true});
  const retired = await confirmBackup('RetireSelected');
- check(retired.Items.length === 1 && retired.Items[0].RecordId === retireRow.RecordId && retired.Items[0].Status === 'Retired','only one generated original permanently retired; active WebP remains');
+  check(retired.Items.length === 1 && retired.Items[0].RecordId === retireRow.RecordId && retired.Items[0].Status === 'Retired','only one generated original permanently retired; active WebP remains');
+  await ui.locator('#JpExecutionBody').waitFor(); await nativeReady(page);
+  check(!(await ui.locator('.restoreEntry').innerText()).includes('Want to undo'),'retirement conclusion never offers to undo the irreversible deletion');
  await navigate('history'); await ui.locator('#ReviewBackups').waitFor();
  await ui.locator('[data-action=selectAllBackups]').click(); await ui.locator('#ReviewBackups').click(); await ui.locator('#JpDialog[open]').waitFor();
  await confirmBackup('Restore');
- check((await api('JellyP/Backups')).Total === 0,'all remaining generated originals restored; no active backups left');
+  check((await api('JellyP/Backups')).Total === 0,'all remaining generated originals restored; no active backups left');
+  await until(async()=>await ui.locator('.restoreEntry').count()>0 && (await ui.locator('.restoreEntry').innerText()).includes('No restorable originals available'),'restoration conclusion reflects real empty availability');
+  check(await ui.locator('.restoreEntry a').count()===0 && await ui.locator('#JpExecutionBody a[href*="jp=history"]').count()===0,'restoration conclusion with no originals offers neither an unavailable restore CTA nor a duplicate in the results card');
+  await page.screenshot({path:path.join(screenshots,'completion-restored-no-originals-desktop.png'),fullPage:true});
  check(JSON.stringify((await api('JellyP/Settings')).Automation) === autoBefore,'manual analyze/apply/regenerate/restore/retire never saves automation');
  const nativeAfter = (await api('ScheduledTasks')).filter(t => t.Key.startsWith('JellyP')).map(t => ({Id:t.Id,Key:t.Key,Triggers:t.Triggers}));
  check(JSON.stringify(nativeAfter) === JSON.stringify(nativeBefore),'native task keys, IDs and trigger snapshots unchanged');
@@ -404,6 +688,19 @@ async function journey(page,baseline) {
   await until(async () => (await ui.locator('#JpMessage').textContent()).includes('cancelled'),'HTTP analysis abort');
   check(await page.evaluate(id => JSON.parse(sessionStorage.getItem('jellyp-native-v1')).planId === id,previousPlanId),'HTTP analysis cancellation preserves the prior report and never fabricates a new result');
  } else throw Error('Analysis finished before cancel control could be exercised; no cancellation claim');
+ await field('draftPreserveOriginals').selectOption('false');
+ const removalPlan = await analyze();
+ const removalKey = (await api('JellyP/Plan/' + removalPlan.PlanId + '/Keys?kind=selectable')).Keys[0];
+ await checked(ui.locator('[data-plan-key="' + removalKey + '"]'),true); await ui.locator('#Review').click(); await ui.locator('#Apply').waitFor();
+ await captureMatrix(page,'review-remove',async (theme,language,device) => {
+  check(await field('PermanentAck').evaluate(node => !!node.closest('aside')) && await field('ReviewAck').evaluate(node => !!node.closest('aside')),theme + ' ' + language + ' ' + device + ' separate permanence and review consents stay next to Apply');
+  await checked(field('ReviewAck'),true); await checked(field('PermanentAck'),true);
+  check(await ui.locator('#Apply').isEnabled(),theme + ' ' + language + ' ' + device + ' explicit acknowledgements enable removal application');
+  await redButton(ui.locator('#Apply'),theme + ' ' + language + ' ' + device + ' removal Apply');
+  check(await ui.locator('.jp-review aside .jp-balance[data-sign=released]').evaluate(node => node.textContent.includes('−') && getComputedStyle(node).color === getComputedStyle(node.querySelector('strong')).color),theme + ' ' + language + ' green released ledger uses signed amount and wording');
+ });
+ // Review only: no Apply with removal of conversion originals is submitted.
+ await ui.locator('[data-action=stage][data-stage="0"]').click(); await field('draftQuality').waitFor(); await field('draftPreserveOriginals').selectOption('true');
  const stalePlan = await analyze();
  const staleKey = (await api('JellyP/Plan/' + stalePlan.PlanId + '/Keys?kind=selectable')).Keys[0];
  await checked(ui.locator('[data-plan-key="' + staleKey + '"]'),true); await ui.locator('#Review').click(); await ui.locator('#Apply').waitFor();

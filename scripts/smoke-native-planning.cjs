@@ -155,8 +155,15 @@ async function main() {
    await ui.locator('[data-list=retention][data-offset="' + offset + '"]').click();
    await page.waitForFunction(expected => document.querySelector('#JellyPConfigPage:not(.hide) #JpRangeretention')?.textContent.includes(expected), (offset + 1) + '–' + Math.min(offset + 10, 52) + ' of 52');
   }
-  check((await ui.locator('#JpRangeretention').innerText()).includes('51–52 of 52'), 'installed native UI can inspect retention identities beyond the old 50-row sample');
-  await page.screenshot({ path: path.join(shots, 'native-retention-page6.png'), fullPage: true });
+   check((await ui.locator('#JpRangeretention').innerText()).includes('51–52 of 52'), 'installed native UI can inspect retention identities beyond the old 50-row sample');
+   await page.mouse.move(0, 0);
+   for (const [device, viewport] of [['desktop', { width: 1440, height: 1000 }], ['mobile', { width: 390, height: 844 }]]) {
+    await page.setViewportSize(viewport);
+    await page.waitForFunction(() => [...document.querySelectorAll('#JellyPConfigPage:not(.hide) .jp-pager button')].every(node => node.classList.contains('emby-button')));
+    check(await ui.locator('#JpRangeretention').locator('..').evaluate(nav => [...nav.querySelectorAll('button')].every(node => { const style = getComputedStyle(node); return node.getAttribute('is') === 'emby-button' && !node.classList.contains('raised') && style.backgroundColor === 'rgba(0, 0, 0, 0)' && style.boxShadow === 'none' && style.filter === 'none' && node.getBoundingClientRect().height >= 44 && node.querySelector('.material-icons[aria-hidden=true]'); }) && nav.querySelector('[data-offset="60"]').disabled), device + ' real retention pager shares compact native icon/label controls and explicit final-page disabled state');
+   }
+   await page.setViewportSize({ width: 1440, height: 1000 });
+   await page.screenshot({ path: path.join(shots, 'native-retention-page6.png'), fullPage: true });
   await field('ReviewAck').locator('..').click(); await field('RetentionAck').locator('..').click();
   check(await ui.locator('#Apply').isEnabled(), 'paged retention no longer blocks explicitly authorized native application');
   const sent = page.waitForResponse(response => response.url().includes('/Apply') && response.request().method() === 'POST');

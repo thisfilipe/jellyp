@@ -2,17 +2,29 @@
 <html><head><meta charset="utf-8"><title>JellyP</title></head><body>
 <div id="JellyPConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-linkbutton,emby-select,emby-checkbox">
 <style>
-/* Layout only: host-provided controls, theme, fonts and paperList surfaces. */
+/* P2 hierarchy on real host controls. Surfaces, fonts and fields inherit the host;
+   semantic accents are scoped here, never a replacement Jellyfin theme. */
+#JellyPConfigPage { --jp-accent:#005777;--jp-success:#1b6337;--jp-warn:#754b00;--jp-error:#a52f29;--jp-info:#005777;--jp-tint:8%;--jp-sticky-top:64px; }
+/* jellyfin-web enhances this plugin-owned wrapper with overflow:hidden. It is
+   not the scrolling owner, but intercepts sticky containment. Clip only x,
+   without creating a scroll container; never change the host shell or body. */
+#JellyPConfigPage > [data-role=content] { overflow:clip visible; }
+#JellyPConfigPage[data-jp-dark=true] { --jp-accent:#62d0f5;--jp-success:#95d6b0;--jp-warn:#f1c477;--jp-error:#ffaaa4;--jp-info:#62d0f5;--jp-tint:10%; }
 #JellyPConfigPage .content-primary { max-width:96em; }
 #JellyPConfigPage [hidden] { display:none !important; }
 #JellyPConfigPage .jp-layout { display:grid;grid-template-columns:12em minmax(0,1fr);gap:2.5em;align-items:start; }
 #JellyPConfigPage .jp-brand { font-size:2em;font-weight:600;letter-spacing:-.04em;margin:0 0 .3em; }
 #JellyPConfigPage .jp-eyebrow { font-size:.7em;letter-spacing:.12em;text-transform:uppercase;margin:0 0 .6em; }
 #JellyPConfigPage .jp-version { font-size:.4em;letter-spacing:normal;font-weight:400; }
-#JellyPConfigPage .jp-navigation { min-width:0; }
+#JellyPConfigPage .jp-navigation { min-width:0;position:sticky;top:var(--jp-sticky-top);max-height:calc(100dvh - var(--jp-sticky-top) - 16px);overflow:auto;scrollbar-width:thin; }
 #JellyPConfigPage .jp-navigation nav { display:grid;margin:1.5em 0;gap:.25em; }
 #JellyPConfigPage .jp-navigation nav a { justify-content:start;text-align:start;margin:0;padding:.9em .8em;white-space:normal;border-inline-start:3px solid transparent; }
-#JellyPConfigPage .jp-navigation nav a[aria-current=page] { border-color:currentColor;font-weight:700;background:rgba(128,128,128,.12); }
+#JellyPConfigPage .jp-navigation nav a[aria-current=page] { border-color:var(--jp-accent);font-weight:700;background:rgba(128,128,128,.12); }
+#JellyPConfigPage .jp-navigation nav a { display:flex;align-items:center;gap:.7em; }
+#JellyPConfigPage .jp-navigation .material-icons { font-size:1.2em;flex-shrink:0; }
+#JellyPConfigPage .jp-nav-separator { border-top:1px solid rgba(128,128,128,.3);margin:.8em 0; }
+#JellyPConfigPage .jp-activity a { display:flex;justify-content:center;text-align:center;gap:.4em;padding:.7em .2em;line-height:1.5;white-space:normal; }
+#JellyPConfigPage .jp-activity .material-icons { align-self:center; }
 #JellyPConfigPage .jp-mobile-nav { display:none; }
 #JellyPConfigPage .jp-language { margin-top:2em; }
 #JellyPConfigPage .jp-main { min-width:0; }
@@ -21,23 +33,40 @@
 #JellyPConfigPage .jp-main h3 { font-size:1em;margin:0 0 .7em; }
 #JellyPConfigPage .jp-heading { margin-bottom:1.7em;line-height:1.6; }
 #JellyPConfigPage .jp-heading p { margin:0; }
-#JellyPConfigPage .jp-work { display:grid;grid-template-columns:minmax(0,1fr) 17em;gap:1.5em;align-items:start; }
+#JellyPConfigPage .jp-work { display:grid;grid-template-columns:minmax(0,1fr) 20em;gap:1.5em;align-items:start; }
 #JellyPConfigPage .jp-panel { padding:1.6em;margin:0 0 1.5em;border-radius:.25em;min-width:0; }
-#JellyPConfigPage .jp-aside { position:sticky;top:6em;line-height:1.55; }
+#JellyPConfigPage .jp-aside { position:sticky;top:var(--jp-sticky-top);max-height:calc(100dvh - var(--jp-sticky-top) - 16px);overflow:auto;scrollbar-width:thin;box-sizing:border-box;line-height:1.55;scroll-padding-block:1em; }
 #JellyPConfigPage .jp-section + .jp-section { border-top:1px solid rgba(128,128,128,.3);padding-top:1.5em;margin-top:1.5em; }
 #JellyPConfigPage .jp-section-number { font-size:.75em;margin-inline-end:.8em;font-variant-numeric:tabular-nums;opacity:.65; }
 #JellyPConfigPage .jp-columns { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 1.5em; }
 #JellyPConfigPage .inputContainer,#JellyPConfigPage .selectContainer { margin-bottom:1.5em; }
 #JellyPConfigPage .checkboxContainer { margin-bottom:1em; }
+#JellyPConfigPage .emby-checkbox-label { height:auto;min-height:44px;align-items:flex-start;padding-block:.2em;line-height:1.5; }
 #JellyPConfigPage .fieldDescription { line-height:1.6; }
 #JellyPConfigPage .jp-actions { display:flex;align-items:center;gap:.5em;flex-wrap:wrap;margin:1em 0; }
 #JellyPConfigPage .jp-actions .emby-button { margin:0;white-space:normal; }
+#JellyPConfigPage .button-submit.emby-button { background:#007da8;color:#fff; }
+#JellyPConfigPage .button-submit.emby-button:hover:not(:disabled) { background:#006b91;color:#fff; }
+#JellyPConfigPage .button-submit.emby-button:disabled { opacity:.45;cursor:not-allowed; }
 #JellyPConfigPage .jp-wide { width:100%;margin-inline:0;white-space:normal; }
-#JellyPConfigPage .jp-aside .jp-actions { display:grid;justify-items:start; }
-#JellyPConfigPage .jp-notice { border-inline-start:3px solid currentColor;padding:.9em 1.2em;margin:1em 0;line-height:1.65;overflow-wrap:anywhere; }
-#JellyPConfigPage .jp-warning { border-color:#be7d16; }
-#JellyPConfigPage .jp-danger { border-color:#b34135; }
-#JellyPConfigPage .jp-danger-button { border:2px solid #b34135; }
+#JellyPConfigPage .jp-link,#JellyPConfigPage .jp-secondary.emby-button { background:transparent;box-shadow:none;color:var(--jp-accent);min-height:44px;box-sizing:border-box;white-space:normal;line-height:1.45;text-transform:none; }
+#JellyPConfigPage :is(.jp-link,.jp-secondary.emby-button):hover:not(:disabled):not([aria-disabled=true]) { background:color-mix(in srgb,var(--jp-accent) 9%,transparent);color:var(--jp-accent); }
+#JellyPConfigPage :is(.jp-link,.jp-secondary.emby-button):active:not(:disabled) { background:color-mix(in srgb,var(--jp-accent) 15%,transparent); }
+#JellyPConfigPage .jp-secondary.emby-button:disabled { opacity:.5;cursor:not-allowed; }
+#JellyPConfigPage .jp-aside .jp-actions { display:grid;justify-items:center; }
+#JellyPConfigPage .jp-aside > .emby-button { width:100%;margin-inline:0;white-space:normal;text-align:center; }
+#JellyPConfigPage .jp-aside :is(.jp-summary-actions .emby-button,.jp-rule > .jp-link) { display:flex;width:100%;justify-content:center;text-align:center;margin-inline:0;padding:.7em; }
+#JellyPConfigPage .jp-notice { --jp-tone:var(--jp-info);border-inline-start:3px solid var(--jp-tone);background:color-mix(in srgb,var(--jp-tone) var(--jp-tint),transparent);padding:1.1em 1.4em;margin:1em 0 1.5em;line-height:1.65;overflow-wrap:anywhere; }
+#JellyPConfigPage .jp-notice h2 { color:var(--jp-tone);margin-bottom:.6em; }
+#JellyPConfigPage .jp-notice p:last-child { margin-bottom:0; }
+#JellyPConfigPage .jp-success { --jp-tone:var(--jp-success); }
+#JellyPConfigPage .jp-warning { --jp-tone:var(--jp-warn); }
+#JellyPConfigPage .jp-danger { --jp-tone:var(--jp-error); }
+#JellyPConfigPage .jp-danger-button.emby-button { background:#a52f29;color:#fff;border:2px solid transparent;min-height:44px;box-sizing:border-box; }
+#JellyPConfigPage .jp-danger-button.emby-button:hover:not(:disabled) { background:#88251f;color:#fff; }
+#JellyPConfigPage .jp-danger-button.emby-button:active:not(:disabled) { background:#73201b; }
+#JellyPConfigPage .jp-danger-button.emby-button:focus-visible { outline-color:var(--jp-error) !important; }
+#JellyPConfigPage .jp-danger-button.emby-button:disabled { opacity:.5;cursor:not-allowed; }
 #JellyPConfigPage .jp-type { padding:1em 0;border-top:1px solid rgba(128,128,128,.25); }
 #JellyPConfigPage .jp-type-head { display:grid;grid-template-columns:minmax(0,1fr) 14em;gap:1em;align-items:center; }
 #JellyPConfigPage .jp-type-head .checkboxContainer { margin-bottom:0; }
@@ -47,20 +76,41 @@
 #JellyPConfigPage details > summary { cursor:pointer;padding:.9em 0;line-height:1.5; }
 #JellyPConfigPage details > .jp-details { padding:1em 0; }
 #JellyPConfigPage .jp-steps { list-style:none;padding:0;display:flex;gap:1em;flex-wrap:wrap;margin:0 0 .5em; }
-#JellyPConfigPage .jp-steps .emby-button { padding:.7em .4em;margin:0;font-size:.85em;white-space:normal; }
-#JellyPConfigPage .jp-steps [aria-current=step] { font-weight:700;text-decoration:underline;text-underline-offset:.5em; }
+#JellyPConfigPage .jp-steps .emby-button { display:flex;gap:.65em;align-items:center;text-align:start;background:transparent;box-shadow:none;padding:.6em .3em;margin:0;font-size:.85em;white-space:normal;min-height:44px;color:inherit; }
+#JellyPConfigPage .jp-step-number { display:inline-flex;align-items:center;justify-content:center;width:1.9em;height:1.9em;flex-shrink:0;border:1px solid rgba(128,128,128,.65);border-radius:50%;font-variant-numeric:tabular-nums; }
+#JellyPConfigPage .jp-steps [aria-current=step] { color:var(--jp-accent);font-weight:700; }
+#JellyPConfigPage .jp-steps [aria-current=step] .jp-step-number { background:#007da8;border-color:#007da8;color:#fff; }
+#JellyPConfigPage .jp-steps [data-complete=true] .jp-step-number { border-color:var(--jp-accent);color:var(--jp-accent);background:color-mix(in srgb,var(--jp-accent) 9%,transparent); }
+#JellyPConfigPage .jp-steps .emby-button:hover:not(:disabled) { background:rgba(128,128,128,.1); }
+#JellyPConfigPage .jp-steps :disabled { opacity:.45; }
 #JellyPConfigPage .jp-back { margin:0 0 1.5em; }
+#JellyPConfigPage .jp-back a { color:var(--jp-accent); }
 #JellyPConfigPage .jp-counts { display:flex;flex-wrap:wrap;gap:1em 2em;margin:1.5em 0; }
 #JellyPConfigPage .jp-counts strong { display:block;font-size:1.6em;font-weight:500; }
-#JellyPConfigPage .jp-row { display:grid;grid-template-columns:2em minmax(0,1.1fr) minmax(0,1fr);gap:1.2em;padding:1.4em 0;border-top:1px solid rgba(128,128,128,.3);align-items:start;overflow-wrap:anywhere; }
+#JellyPConfigPage .jp-draft-lines > div { display:block;border-top:1px solid rgba(128,128,128,.25);padding:.9em 0; }
+#JellyPConfigPage .jp-draft-lines dt { font-size:.72em;text-transform:uppercase;letter-spacing:.06em; }
+#JellyPConfigPage .jp-draft-lines dd { text-align:start;margin-top:.4em; }
+#JellyPConfigPage .jp-snapshot { display:flex;align-items:center;justify-content:space-between;gap:1em; }
+#JellyPConfigPage .jp-row { display:grid;grid-template-columns:1.6em 3.2em minmax(0,1.1fr) minmax(0,1fr);gap:1em;padding:1.4em 0;border-top:1px solid rgba(128,128,128,.3);align-items:start;overflow-wrap:anywhere; }
+#JellyPConfigPage .jp-row[data-selected=true] { background:color-mix(in srgb,var(--jp-accent) 7%,transparent);box-shadow:inset 3px 0 var(--jp-accent); }
+#JellyPConfigPage .jp-preview { display:flex;position:relative;align-items:center;justify-content:center;width:3.2em;aspect-ratio:2/3;background:rgba(128,128,128,.12);border:1px solid rgba(128,128,128,.25);border-radius:3px;overflow:hidden;box-sizing:border-box; }
+#JellyPConfigPage .jp-preview[data-shape=wide] { aspect-ratio:16/9; }
+#JellyPConfigPage .jp-preview[data-shape=logo] { aspect-ratio:1; }
+#JellyPConfigPage .jp-preview img { position:absolute;inset:0;width:100%;height:100%;object-fit:cover; }
+#JellyPConfigPage .jp-preview[data-shape=logo] img { object-fit:contain; }
+#JellyPConfigPage .jp-preview .material-icons { font-size:1.4em;opacity:.55; }
+#JellyPConfigPage .jp-identity-preview { display:flex;align-items:start;gap:1em; }
 #JellyPConfigPage .jp-row .checkboxContainer { margin:0; }
 #JellyPConfigPage .jp-row .checkboxLabel { position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%); }
 #JellyPConfigPage .jp-row h3 { margin:.1em 0 .5em; }
 #JellyPConfigPage .jp-row p { margin:.4em 0; }
-#JellyPConfigPage .jp-tag { display:inline-block;font-size:.7em;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border:1px solid rgba(128,128,128,.5);padding:.3em .6em;margin:0 0 .5em; }
-#JellyPConfigPage .jp-pager { display:flex;justify-content:space-between;align-items:center;gap:.5em;margin:1em 0;padding:.6em 0;border-block:1px solid rgba(128,128,128,.3); }
-#JellyPConfigPage .jp-pager .emby-button { font-size:.8em;margin:0; }
-#JellyPConfigPage .jp-pager span { text-align:center;font-size:.8em; }
+#JellyPConfigPage .jp-tag { display:inline-block;font-size:.7em;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border:1px solid currentColor;border-radius:3px;padding:.3em .6em;margin:0 0 .5em;color:var(--jp-info);background:color-mix(in srgb,var(--jp-info) 7%,transparent); }
+#JellyPConfigPage .jp-tag[data-action-kind=Regenerate] { color:var(--jp-warn);background:color-mix(in srgb,var(--jp-warn) 7%,transparent); }
+#JellyPConfigPage .jp-tag[data-action-kind=Keep] { color:inherit;background:rgba(128,128,128,.08);border-color:rgba(128,128,128,.5); }
+#JellyPConfigPage .jp-pager { display:flex;justify-content:center;align-items:center;gap:.5em;margin:1em 0;padding:.3em 0; }
+#JellyPConfigPage .jp-pager .emby-button { display:inline-flex;align-items:center;gap:.3em;font-size:.8em;margin:0;padding:.6em; }
+#JellyPConfigPage .jp-pager .material-icons { font-size:1.25em; }
+#JellyPConfigPage .jp-pager > span { text-align:center;font-size:.8em;font-variant-numeric:tabular-nums;padding-inline:.4em; }
 #JellyPConfigPage .jp-bill { border-block:1px solid rgba(128,128,128,.5);padding:1.5em 0;margin:1.5em 0; }
 #JellyPConfigPage .jp-bill-grid { display:grid;grid-template-columns:minmax(0,1fr) 1em minmax(0,1fr);gap:1.5em; }
 #JellyPConfigPage .jp-bill-total { font-size:1.8em;font-weight:500;display:block;margin:.3em 0;font-variant-numeric:tabular-nums; }
@@ -69,16 +119,48 @@
 #JellyPConfigPage dd { margin:0;text-align:end;font-variant-numeric:tabular-nums; }
 #JellyPConfigPage .jp-balance { border-top:1px dashed rgba(128,128,128,.5);padding-top:1em;margin-top:1em; }
 #JellyPConfigPage .jp-balance strong { font-size:1.7em;display:block; }
-#JellyPConfigPage .jp-balance[data-sign=extra] { border-inline-start:3px solid #be7d16;padding-inline-start:1em; }
-#JellyPConfigPage .jp-balance[data-sign=released] { border-inline-start:3px solid #328355;padding-inline-start:1em; }
+#JellyPConfigPage .jp-balance[data-sign=extra] { color:var(--jp-warn); }
+#JellyPConfigPage .jp-balance[data-sign=released] { color:var(--jp-success); }
+#JellyPConfigPage .jp-aside .jp-bill-grid { grid-template-columns:minmax(0,1fr);gap:1em; }
+#JellyPConfigPage .jp-aside .jp-bill-grid > span { display:none; }
+#JellyPConfigPage .jp-aside .jp-bill-grid > div:last-child { border-top:1px solid rgba(128,128,128,.3);padding-top:1em; }
+#JellyPConfigPage .jp-aside .jp-bill { margin:1.2em 0;padding:1.2em 0; }
+#JellyPConfigPage .jp-aside .jp-bill .fieldDescription { font-size:.82em;line-height:1.5; }
+#JellyPConfigPage .jp-aside .jp-bill-total { font-size:1.5em; }
+#JellyPConfigPage .jp-aside .jp-balance strong { font-size:1.55em; }
+#JellyPConfigPage .jp-aside .jp-bill p { margin:.6em 0; }
+#JellyPConfigPage .jp-aside .jp-rule:first-child { margin-top:0;padding-top:0;border:0; }
+#JellyPConfigPage .jp-list-tools { display:flex;align-items:center;flex-wrap:wrap;gap:.2em 1em;border-top:1px solid rgba(128,128,128,.3);padding:.7em 0 0;margin:1em 0 0; }
+#JellyPConfigPage .jp-list-tools > .fieldDescription { flex-basis:100%;margin:.2em 0 .5em; }
+#JellyPConfigPage .jp-list-tools .checkboxContainer { margin:0; }
+/* Jellyfin 12.1 enhances checked/unchecked only. Keep its generated outline and
+   add the native input's mixed state, rather than building another checkbox. */
+#JellyPConfigPage [data-select-page]:indeterminate + span + .checkboxOutline { border-color:var(--jp-accent); }
+#JellyPConfigPage [data-select-page]:indeterminate + span + .checkboxOutline > .checkboxIcon { display:none !important; }
+#JellyPConfigPage [data-select-page]:indeterminate + span + .checkboxOutline::after { content:"";width:65%;height:3px;background:var(--jp-accent); }
+#JellyPConfigPage .jp-list-tools .jp-actions { margin:0;gap:.5em 1em; }
+#JellyPConfigPage .jp-list-tools .emby-button:not(.jp-danger-button) { box-shadow:none;background:transparent;color:var(--jp-accent);font-size:.85em;padding:.6em .2em;min-height:44px; }
+#JellyPConfigPage .jp-list-tools .emby-button:hover:not(:disabled) { text-decoration:underline;background:color-mix(in srgb,var(--jp-accent) 9%,transparent); }
 #JellyPConfigPage .jp-toolbar { border-block:1px solid rgba(128,128,128,.35);padding:1em 0;margin:1em 0; }
-#JellyPConfigPage .jp-selection { display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1em; }
+#JellyPConfigPage .jp-selection { display:flex;justify-content:space-between;align-items:center;gap:1em; }
+#JellyPConfigPage .jp-selection-bar { position:sticky;bottom:12px;z-index:3;padding:1em;margin:1em 0 0;border:1px solid rgba(128,128,128,.5);border-radius:4px;box-shadow:0 3px 14px #0003; }
+#JellyPConfigPage .jp-selection-bar > .emby-button { display:inline-flex;align-items:center;justify-content:center;gap:.4em;flex-shrink:0;margin:0;white-space:normal; }
+#JellyPConfigPage:has(dialog[open]) .jp-selection-bar { visibility:hidden; }
+#JellyPConfigPage .jp-row :is(input,button,summary),#JellyPConfigPage .jp-pager { scroll-margin-bottom:180px; }
+#JellyPConfigPage .restoreEntry { display:flex;align-items:center;justify-content:space-between;gap:1.5em;border-top:2px solid var(--jp-accent); }
+#JellyPConfigPage .restoreEntry h2 { margin-bottom:.5em; }
+#JellyPConfigPage .restoreEntry p { margin:0; }
+#JellyPConfigPage .restoreEntry .jp-link { display:inline-flex;align-items:center;justify-content:center;gap:.5em;flex-shrink:0;border:1px solid var(--jp-accent);padding:.8em 1.1em;text-align:center; }
 #JellyPConfigPage .jp-selection p { margin:.3em 0; }
 #JellyPConfigPage .jp-rule { border-top:1px solid rgba(128,128,128,.3);padding-top:1.25em;margin-top:1.25em; }
 #JellyPConfigPage .jp-search-result { display:block;width:100%;text-align:start;justify-content:start;margin:.4em 0;white-space:normal; }
 #JellyPConfigPage .jp-selected-item { padding:1em 0;border-bottom:1px solid rgba(128,128,128,.25); }
-#JellyPConfigPage .jp-local-nav { border-bottom:1px solid rgba(128,128,128,.3);margin-bottom:1.5em; }
-#JellyPConfigPage .jp-local-nav a { white-space:normal;margin:0 .5em .5em 0; }
+#JellyPConfigPage .jp-local-nav { display:flex;flex-wrap:wrap;gap:.5em 1.5em;border-bottom:1px solid rgba(128,128,128,.3);margin-bottom:1.5em; }
+#JellyPConfigPage .jp-local-nav a { display:inline-flex;align-items:center;gap:.5em;white-space:normal;margin:0;padding:.8em .2em;border-bottom:3px solid transparent;border-radius:0; }
+#JellyPConfigPage .jp-local-nav a[aria-current=page] { border-bottom-color:currentColor;font-weight:700; }
+#JellyPConfigPage .jp-local-nav .jp-danger-link { color:var(--jp-error); }
+#JellyPConfigPage .jp-local-nav .jp-danger-link:hover { color:var(--jp-error);background:color-mix(in srgb,var(--jp-error) 8%,transparent); }
+#JellyPConfigPage .jp-local-nav .material-icons { font-size:1.2em; }
 #JellyPConfigPage .jp-code { overflow-wrap:anywhere;white-space:pre-wrap;font-size:.8em; }
 #JellyPConfigPage progress { width:100%;height:.65em; }
 #JellyPConfigPage :is(h1,h2,h3,[tabindex="-1"],input,summary) { scroll-margin-top:7em; }
@@ -92,14 +174,18 @@
 #JellyPConfigPage .jp-dialog-actions { border-top:1px solid rgba(128,128,128,.3);padding-top:1em; }
 @media(max-width:80em) {
  #JellyPConfigPage .jp-layout { grid-template-columns:10em minmax(0,1fr);gap:1.5em; }
- #JellyPConfigPage .jp-work { grid-template-columns:minmax(0,1fr) 15em;gap:1em; }
+ #JellyPConfigPage .jp-work { grid-template-columns:minmax(0,1fr) 18em;gap:1em; }
  #JellyPConfigPage .jp-panel { padding:1.25em; }
  #JellyPConfigPage .jp-type-head { grid-template-columns:minmax(0,1fr);gap:.6em; }
+ #JellyPConfigPage .jp-review .jp-row { grid-template-columns:1.2em 2.5em minmax(0,1fr); }
+ #JellyPConfigPage .jp-review .jp-row > .jp-outcome { grid-column:3; }
+ #JellyPConfigPage .jp-review .jp-preview { width:2.5em; }
  #JellyPConfigPage .jp-disclosure { justify-self:start;margin-inline-start:2.2em; }
 }
 @media(max-width:65em) {
  #JellyPConfigPage .jp-layout { display:block; }
- #JellyPConfigPage .jp-navigation { position:static; }
+ #JellyPConfigPage .jp-navigation { position:static;max-height:none;overflow:visible; }
+ #JellyPConfigPage .jp-nav-separator { display:none; }
  #JellyPConfigPage .jp-navigation nav { display:flex;overflow:auto;margin:1em 0; }
  #JellyPConfigPage .jp-navigation nav a { white-space:nowrap;font-size:.85em;border-inline-start:0;border-bottom:3px solid transparent; }
  #JellyPConfigPage .jp-language { max-width:13em;margin:1em 0; }
@@ -109,22 +195,31 @@
 @media(max-width:43em) {
  #JellyPConfigPage .jp-work { display:flex;flex-direction:column; }
  #JellyPConfigPage .jp-work > * { width:100%;box-sizing:border-box; }
- #JellyPConfigPage .jp-aside { position:static; }
+ #JellyPConfigPage .jp-aside { position:static;max-height:none;overflow:visible; }
  #JellyPConfigPage .jp-navigation nav { display:none; }
  #JellyPConfigPage .jp-mobile-nav { display:block;margin:1em 0; }
  #JellyPConfigPage .jp-language { margin:1em 0;max-width:none; }
  #JellyPConfigPage .jp-panel { padding:1.1em; }
  #JellyPConfigPage .jp-columns { display:block; }
- #JellyPConfigPage .jp-row { grid-template-columns:1.7em minmax(0,1fr);gap:.75em; }
- #JellyPConfigPage .jp-row > .jp-outcome { grid-column:2; }
+ #JellyPConfigPage .jp-row { grid-template-columns:1.5em 2.2em minmax(0,1fr);gap:.7em; }
+ #JellyPConfigPage .jp-preview { width:2.2em; }
+ #JellyPConfigPage .jp-row > .jp-outcome { grid-column:3; }
  #JellyPConfigPage .jp-steps { gap:.3em;flex-wrap:nowrap; }
  #JellyPConfigPage .jp-steps li { flex:1;min-width:0; }
+ #JellyPConfigPage .jp-steps .emby-button { flex-direction:column;align-items:start;gap:.5em;width:100%;font-size:.75em; }
  #JellyPConfigPage .jp-bill-grid { gap:.7em; }
  #JellyPConfigPage .jp-bill-total { font-size:1.35em; }
  #JellyPConfigPage .jp-bill dl > div { display:block; }
  #JellyPConfigPage .jp-bill dd { text-align:start; }
  #JellyPConfigPage .jp-pager .emby-button { padding:.8em .5em; }
- #JellyPConfigPage .jp-selection { display:block; }
+ #JellyPConfigPage .jp-selection-bar { bottom:0;padding:.8em .6em calc(.8em + env(safe-area-inset-bottom,0px));gap:.7em;font-size:.85em; }
+ #JellyPConfigPage .jp-selection-bar > .emby-button { max-width:52%;flex-shrink:1;padding:.8em; }
+ #JellyPConfigPage .jp-selection-bar .fieldDescription { font-size:.8em; }
+ #JellyPConfigPage .jp-local-nav { display:grid;gap:0; }
+ #JellyPConfigPage .restoreEntry { display:block; }
+ #JellyPConfigPage .restoreEntry .jp-link { margin:1.2em 0 0; }
+ #JellyPConfigPage .jp-draft-lines { display:none; }
+ #JellyPConfigPage .jp-snapshot { align-items:start; }
  #JellyPConfigPage dialog { width:calc(100% - 1.5em);padding:1em; }
 }
 @media(prefers-reduced-motion:reduce) { #JellyPConfigPage * { scroll-behavior:auto !important;transition:none !important; } }
@@ -156,6 +251,19 @@ const tr = (en,pt) => language === 'pt' ? pt : en;
 const cat = key => names[key] ? tr(...names[key]) : key;
 let visible = false, initialized = false, pollTimer, searchTimer, searchSequence = 0, renderSequence = 0, billingSequence = 0;
 let analyzeController, mutating = false, dialogContext, dialogFocus;
+let stickyObserver;
+function measureStickyHeader() {
+ const headers = [...document.querySelectorAll('.skinHeader,header.MuiAppBar-root')].filter(node => node.getClientRects().length);
+ const bottom = Math.max(0,...headers.map(node => node.getBoundingClientRect().bottom));
+ page.style.setProperty('--jp-sticky-top',Math.ceil(bottom + 16) + 'px');
+}
+function startStickyLayout() {
+ stopStickyLayout(); measureStickyHeader();
+ stickyObserver = new ResizeObserver(measureStickyHeader);
+ for (const node of document.querySelectorAll('.skinHeader,header.MuiAppBar-root')) stickyObserver.observe(node);
+ window.addEventListener('resize',measureStickyHeader);
+}
+function stopStickyLayout() { stickyObserver?.disconnect(); stickyObserver = null; window.removeEventListener('resize',measureStickyHeader); }
 const itemNames = new Map(), inspections = new Map();
 let S = {settings:null,draft:null,auto:null,cfg:null,autoDirty:false,cfgDirty:false,plan:null,planId:null,planDraft:null,stale:false,selection:[],review:null,reviewKeys:[],operationId:null,operation:null,activeId:null,planPage:null,backups:null,operations:null,tasks:null,nativeTasks:null,status:null,pages:{images:0,review:0,retention:0,backups:0,operations:0,operation:0},restore:[],retire:[],backupFilter:'restorable',area:'simulate',stage:'draft',sub:'',returnTo:'',signature:null};
 
@@ -171,9 +279,9 @@ async function api(endpoint,method = 'GET',body,signal) {
  }
  return result;
 }
-function message(text = '',warning = false) { $('JpMessage').textContent = text; $('JpMessage').classList.toggle('jp-warning',warning); }
+function message(text = '',warning = false) { $('JpMessage').textContent = text; $('JpMessage').classList.toggle('jp-danger',warning); $('JpMessage').classList.toggle('jp-success',!!text && !warning); }
 function announce(text) { $('JpAnnouncer').textContent = text; }
-function showError(error) { if (['ManualDefaultsChanged','PlanExpired','PlanAlreadyApplied'].includes(error.code)) invalidate(); message(error.message + (error.code ? ' (' + error.code + ')' : ''),true); }
+function showError(error) { $('JpMain').removeAttribute('aria-busy'); if (['ManualDefaultsChanged','PlanExpired','PlanAlreadyApplied'].includes(error.code)) invalidate(); message(error.message + (error.code ? ' (' + error.code + ')' : ''),true); }
 function bytes(value) {
  if (value == null) return tr('Unknown','Desconhecido');
  let number = Math.abs(value), unit = 'B';
@@ -184,9 +292,43 @@ function date(value) { return value ? new Date(value).toLocaleString(language ==
 function dims(w,h) { return w && h ? w + ' × ' + h + ' px' : tr('Dimensions not recorded','Dimensões não registradas'); }
 function effective(policy) { return (policy.Lossless ? tr('Lossless','Sem perdas') : tr('Quality ','Qualidade ') + policy.Quality) + ' · ' + (policy.ResizeImages ? tr('up to ','até ') + policy.MaximumDimension + ' px' : tr('original dimensions','dimensões originais')) + ' · SSIM ≥ ' + policy.MinimumSsim; }
 function policyFor(category) { const draft = S.planDraft || S.draft; const policy = draft?.Policies.find(p => p.Category === category); return policy?.OverrideGlobal ? policy : draft; }
-function itemTitle(row) { const item = itemNames.get(id32(row.ItemId)); return [row.Name || item?.Name || tr('Library item','Item da biblioteca'),row.ProductionYear || item?.ProductionYear,row.ItemType || item?.Type].filter(Boolean).join(' · '); }
-function button(label,action,extra = '',primary = false,cls = '') { return '<button is="emby-button" type="button" class="raised ' + cls + (primary ? ' button-submit' : '') + '" data-action="' + action + '" ' + extra + '><span>' + esc(label) + '</span></button>'; }
-function link(label,area,options = {},cls = '') { return '<a is="emby-linkbutton" class="' + cls + '" href="' + routeUrl(area,options) + '">' + esc(label) + '</a>'; }
+function itemTitle(row) {
+ const item = itemNames.get(id32(row.ItemId)), name = row.Name || item?.Name || tr('Library item','Item da biblioteca'), year = row.ProductionYear || item?.ProductionYear;
+ const types = {Movie:['Movie','Filme'],Series:['Series','Série'],Episode:['Episode','Episódio'],Person:['Person','Pessoa'],MusicAlbum:['Album','Álbum'],CollectionFolder:['Library','Biblioteca'],Folder:['Folder','Pasta'],BoxSet:['Collection','Coleção']};
+ const type = types[row.ItemType || item?.Type];
+ return [name,year && !String(name).includes(String(year)) ? year : '',type ? tr(...type) : ''].filter(Boolean).join(' · ');
+}
+function formatName(mime) { return ({'image/png':'PNG','image/jpeg':'JPEG','image/webp':'WebP','image/gif':'GIF','image/svg+xml':'SVG'})[mime] || tr('Format not recorded','Formato não registrado'); }
+function preview(row) {
+ // Only server-confirmed LOCAL slots may reach the image endpoint. Never use a
+ // primary-cover fallback for a different slot or materialize a remote reference.
+ const type = row.TypeName || row.Type, index = row.Index;
+ const local = ['Ready','AlreadyWebp','Shared'].includes(row.State);
+ const shape = ['Thumb','Backdrop','Banner','Art'].includes(type) ? 'wide' : ['Logo','Disc'].includes(type) ? 'logo' : 'cover';
+ const label = local ? tr('Current image','Imagem atual') + ' · ' + itemTitle(row) + ' · ' + cat(row.Category || type) + ' · ' + index : tr('Preview unavailable','Prévia indisponível');
+ const url = local && /^[a-f\d-]{32,36}$/i.test(row.ItemId || '') && categories.includes(row.Category || type) && Number.isInteger(index) && index >= 0 ? ApiClient.getImageUrl(row.ItemId,{type,index,maxWidth:160,quality:85}) : '';
+ return '<span class="jp-preview" data-shape="' + shape + '" role="img" aria-label="' + esc(label) + '"><span class="material-icons image" aria-hidden="true">image</span>' + (url ? '<img src="' + esc(url) + '" alt="' + esc(label) + '" loading="lazy" decoding="async" data-slot-type="' + esc(type) + '" data-slot-index="' + index + '">' : '') + '</span>';
+}
+function inspectedPreview(id) {
+ const inspection = inspections.get(id32(id)), local = inspection?.Images?.filter(image => ['Ready','AlreadyWebp'].includes(image.State)), slot = local?.find(image => image.Type === 'Primary') || local?.[0];
+ return preview(slot ? {...slot,ItemId:id} : {ItemId:id});
+}
+function slotPreview(row) {
+ const slot = inspections.get(id32(row.ItemId))?.Images?.find(image => image.Type === (row.TypeName || row.Type) && image.Index === row.Index);
+ return preview({...row,State:slot?.State});
+}
+function refreshPreviews() {
+ for (const node of page.querySelectorAll('[data-item-preview]')) node.innerHTML = inspectedPreview(node.dataset.itemPreview);
+}
+function hostPalette() {
+ // Read the rendered host, including custom themes. No hardcoded global dark theme.
+ let node = page, channels;
+ while (node && !channels) { const color = getComputedStyle(node).backgroundColor.match(/[\d.]+/g); if (color && color.length >= 3 && (color.length < 4 || Number(color[3]) > .5)) channels = color.slice(0,3).map(Number); node = node.parentElement; }
+ page.dataset.jpDark = String(!!channels && channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722 < 140);
+}
+function icon(name) { return '<span class="material-icons" aria-hidden="true">' + name + '</span>'; }
+function button(label,action,extra = '',primary = false,cls = '',symbol = '') { return '<button is="emby-button" type="button" class="' + (primary || cls.includes('jp-danger-button') ? 'raised ' : 'jp-secondary ') + cls + (primary ? ' button-submit' : '') + '" data-action="' + action + '" ' + extra + '>' + (symbol ? icon(symbol) : '') + '<span>' + esc(label) + '</span></button>'; }
+function link(label,area,options = {},cls = '',attrs = '',symbol = '') { return '<a is="emby-linkbutton" class="jp-link ' + cls + '" href="' + routeUrl(area,options) + '" ' + attrs + '>' + (symbol ? icon(symbol) : '') + '<span>' + esc(label) + '</span></a>'; }
 function check(id,label,checked,attrs = '') { return '<div class="checkboxContainer"><label class="emby-checkbox-label"><input is="emby-checkbox" type="checkbox" id="' + viewId + id + '" data-jp-id="' + id + '" ' + attrs + (checked ? ' checked' : '') + '><span>' + esc(label) + '</span></label></div>'; }
 function input(id,label,value,attrs = '',help = '') { return '<div class="inputContainer"><input is="emby-input" id="' + viewId + id + '" data-jp-id="' + id + '" label="' + esc(label) + '" value="' + esc(value) + '" ' + attrs + '>' + (help ? '<div class="fieldDescription">' + esc(help) + '</div>' : '') + '</div>'; }
 function select(id,label,value,options,attrs = '') { return '<div class="selectContainer"><select is="emby-select" id="' + viewId + id + '" data-jp-id="' + id + '" label="' + esc(label) + '" ' + attrs + '>' + options.map(([v,n]) => '<option value="' + v + '"' + (String(value) === String(v) ? ' selected' : '') + '>' + esc(n) + '</option>').join('') + '</select></div>'; }
@@ -215,13 +357,14 @@ function canSelect() { return !!S.plan && S.plan.Status === 'Ready' && !S.stale 
 function signature(settings) { return JSON.stringify([settings.Defaults,settings.Globals]); }
 function renderShell() {
  $('JpEyebrow').textContent = tr('Library artwork','Imagens da biblioteca');
- $('JpNav').innerHTML = '<nav aria-label="' + tr('JellyP areas','Áreas do JellyP') + '">' + areas.map(([key,en,pt]) => '<a is="emby-linkbutton" href="' + routeUrl(key) + '"' + (S.area === key ? ' aria-current="page"' : '') + '>' + esc(tr(en,pt)) + '</a>').join('') + '</nav><div class="jp-mobile-nav">' + select('JpArea',tr('JellyP area','Área do JellyP'),S.area,areas.map(([key,en,pt]) => [key,tr(en,pt)])) + '</div>';
+  const symbols = ['science','play_arrow','schedule','history','settings'];
+  $('JpNav').innerHTML = '<nav aria-label="' + tr('JellyP areas','Áreas do JellyP') + '">' + areas.map(([key,en,pt],index) => (index === 2 ? '<div class="jp-nav-separator" aria-hidden="true"></div>' : '') + link(tr(en,pt),key,{},'',S.area === key ? 'aria-current="page"' : '',symbols[index])).join('') + '</nav><div class="jp-mobile-nav">' + select('JpArea',tr('JellyP area','Área do JellyP'),S.area,areas.map(([key,en,pt]) => [key,tr(en,pt)])) + '</div>';
  $('JpLanguage').innerHTML = select('Language',tr('Interface language','Idioma da interface'),language,[['pt','Português (Brasil)'],['en','English']]); activity();
 }
-function activity() { $('JpActivity').innerHTML = S.activeId || S.operationId ? link(S.activeId ? tr('Operation in progress →','Operação em andamento →') : tr('Last operation →','Última operação →'),'execute',{operation:S.activeId || S.operationId}) : ''; }
+function activity() { $('JpActivity').innerHTML = S.activeId || S.operationId ? link(S.activeId ? tr('Operation in progress','Operação em andamento') : tr('Last operation','Última operação'),'execute',{operation:S.activeId || S.operationId},'','','arrow_forward') : ''; }
 function steps(current) {
  const enabled = [true,!!S.planId,canSelect() && S.selection.length > 0];
- return '<nav aria-label="' + tr('Manual stages','Etapas do trabalho manual') + '"><ol class="jp-steps">' + [tr('1 · Select','1 · Selecionar'),tr('2 · Simulate and choose','2 · Simular e escolher'),tr('3 · Review and apply','3 · Revisar e aplicar')].map((label,index) => '<li>' + button(label,'stage','data-stage="' + index + '"' + (index === current ? ' aria-current="step"' : '') + (!enabled[index] ? ' disabled' : '')) + '</li>').join('') + '</ol></nav>' + (current ? '<div class="jp-back">' + link(tr('← Back','← Voltar'),'simulate',{stage:current === 2 ? 'result' : ''}) + '</div>' : '');
+ return '<nav aria-label="' + tr('Manual stages','Etapas do trabalho manual') + '"><ol class="jp-steps">' + [tr('Select','Selecionar'),tr('Simulate and choose','Simular e escolher'),tr('Review and apply','Revisar e aplicar')].map((label,index) => '<li><button is="emby-button" type="button" data-action="stage" data-stage="' + index + '" data-complete="' + (index < current) + '"' + (index === current ? ' aria-current="step"' : '') + (!enabled[index] ? ' disabled' : '') + '><b class="jp-step-number" aria-hidden="true">' + (index + 1) + '</b><span>' + esc(label) + '</span></button></li>').join('') + '</ol></nav>' + (current ? '<div class="jp-back">' + link(tr('← Back','← Voltar'),'simulate',{stage:current === 2 ? 'result' : ''}) + '</div>' : '');
 }
 function generalEditor(owner,value,maxBatch) {
  const attrs = key => 'data-owner="' + owner + '" data-field="' + key + '"';
@@ -245,7 +388,10 @@ function storageText(keep) { return keep ? tr('Keeps the exact original to resto
 function scopeEditor(owner,value) {
  const scope = owner === 'draft' ? value.Scope : value.ScopeMode;
  const opts = [['libraries',tr('Selected libraries','Bibliotecas selecionadas')],['items',tr('Specific items','Itens específicos')],['all',tr('All libraries and global metadata','Todas as bibliotecas e metadata global')]];
- if (scope === 'legacy') opts.unshift(['legacy',tr('Preserved legacy scope — review explicitly','Escopo legado preservado — revise explicitamente')]);
+ if (scope === 'legacy') {
+  if (value.ItemIds.length) { opts.splice(1,1,['legacy',tr('Specific items','Itens específicos')]); }
+  else opts.unshift(['legacy',tr('Choose where to automate','Escolha onde automatizar')]);
+ }
  return select(owner + 'Scope',tr('Scope','Alcance'),scope,opts,'data-owner="' + owner + '" data-field="' + (owner === 'draft' ? 'Scope' : 'ScopeMode') + '"') + '<div id="' + owner + 'ScopeBody">' + scopeBody(owner,value) + '</div>';
 }
 function scopeBody(owner,value) {
@@ -256,10 +402,11 @@ function scopeBody(owner,value) {
   for (const id of value.LibraryIds) if (!libraries.some(l => id32(l.ItemId) === id32(id))) libraries.push({ItemId:id,Name:tr('Unavailable library — remove or review','Biblioteca indisponível — remova ou revise')});
   return (libraries.length ? libraries.map(lib => check(owner + 'Lib' + id32(lib.ItemId),lib.Name,value.LibraryIds.some(id => id32(id) === id32(lib.ItemId)),'data-library="' + esc(lib.ItemId) + '" data-owner="' + owner + '"')).join('') : notice(tr('No libraries available. Select individual items instead.','Nenhuma biblioteca disponível. Selecione itens individuais.'))) + '<p class="fieldDescription">' + tr('Includes descendants. Media-folder artwork and shared references remain protected. People photos are global.','Inclui descendentes. Imagens junto à mídia e referências compartilhadas continuam protegidas. Fotos de pessoas são globais.') + '</p>';
  }
- return (scope === 'legacy' ? notice(tr('Legacy item selection is preserved. Empty legacy scope is NOT broadened to all libraries. Choose an explicit scope before enabling.','A seleção legada de itens está preservada. Escopo legado vazio NÃO é ampliado para todas as bibliotecas. Escolha um alcance explícito antes de habilitar.'),'jp-warning') : '') + input(owner + 'Search',tr('Find an item by name','Buscar um item pelo nome'),'','type="search" autocomplete="off" data-search="' + owner + '"') + '<div class="jp-columns">' + input(owner + 'Year',tr('Year (optional)','Ano (opcional)'),'','type="number" min="1800" max="2200" data-search-filter="' + owner + '"') + select(owner + 'ItemType',tr('Item type','Tipo de item'),'', [['',tr('All types','Todos os tipos')],['Movie',tr('Movie','Filme')],['Series',tr('Series','Série')],['Episode',tr('Episode','Episódio')],['Person',tr('Person','Pessoa')],['MusicAlbum',tr('Album','Álbum')]],'data-search-filter="' + owner + '"') + '</div><div id="' + owner + 'SearchState" class="fieldDescription" role="status"></div><div id="' + owner + 'SearchResults"></div><div id="' + owner + 'Selected">' + selectedItems(owner,value) + '</div><p class="fieldDescription">' + tr('An item includes only its own images, not its descendants. JellyP never downloads missing artwork.','Um item inclui apenas as próprias imagens, não seus descendentes. O JellyP não baixa imagens ausentes.') + '</p><details><summary>' + tr('Add by item ID or Jellyfin link','Adicionar por ID ou link do Jellyfin') + '</summary><div class="jp-details">' + input(owner + 'Ids',tr('IDs or details URLs','IDs ou links de detalhes'),'','type="text" autocomplete="off"') + button(tr('Add items','Adicionar itens'),'addIds','data-owner="' + owner + '"') + '</div></details>';
+ if (scope === 'legacy' && !value.ItemIds.length) return notice(tr('Before saving, choose libraries, specific items or all libraries. Existing saved tasks are unchanged until you save.','Antes de salvar, escolha bibliotecas, itens específicos ou todas as bibliotecas. As tarefas já salvas não mudam até você salvar.'),'jp-warning');
+ return input(owner + 'Search',tr('Find an item by name','Buscar um item pelo nome'),'','type="search" autocomplete="off" data-search="' + owner + '"') + '<div class="jp-columns">' + input(owner + 'Year',tr('Year (optional)','Ano (opcional)'),'','type="number" min="1800" max="2200" data-search-filter="' + owner + '"') + select(owner + 'ItemType',tr('Item type','Tipo de item'),'', [['',tr('All types','Todos os tipos')],['Movie',tr('Movie','Filme')],['Series',tr('Series','Série')],['Episode',tr('Episode','Episódio')],['Person',tr('Person','Pessoa')],['MusicAlbum',tr('Album','Álbum')]],'data-search-filter="' + owner + '"') + '</div><div id="' + owner + 'SearchState" class="fieldDescription" role="status"></div><div id="' + owner + 'SearchResults"></div><div id="' + owner + 'Selected">' + selectedItems(owner,value) + '</div><p class="fieldDescription">' + tr('An item includes only its own images, not its descendants. JellyP never downloads missing artwork.','Um item inclui apenas as próprias imagens, não seus descendentes. O JellyP não baixa imagens ausentes.') + '</p><details><summary>' + tr('Add by item ID or Jellyfin link','Adicionar por ID ou link do Jellyfin') + '</summary><div class="jp-details">' + input(owner + 'Ids',tr('IDs or details URLs','IDs ou links de detalhes'),'','type="text" autocomplete="off"') + button(tr('Add items','Adicionar itens'),'addIds','data-owner="' + owner + '"') + '</div></details>';
 }
 function selectedItems(owner,value) {
- return value.ItemIds.length ? value.ItemIds.map(id => '<div class="jp-selected-item"><strong>' + esc(itemTitle({ItemId:id})) + '</strong><p class="fieldDescription" data-inspection="' + id32(id) + '">' + esc(inspectionText(id)) + '</p>' + button(tr('Remove item','Remover item'),'removeItem','data-owner="' + owner + '" data-id="' + esc(id) + '"') + '</div>').join('') : '<p class="fieldDescription">' + tr('No items selected. Empty never means everything.','Nenhum item selecionado. Vazio nunca significa tudo.') + '</p>';
+ return value.ItemIds.length ? value.ItemIds.map(id => '<div class="jp-selected-item jp-identity-preview"><span data-item-preview="' + id32(id) + '">' + inspectedPreview(id) + '</span><div><strong>' + esc(itemTitle({ItemId:id})) + '</strong><p class="fieldDescription" data-inspection="' + id32(id) + '">' + esc(inspectionText(id)) + '</p>' + button(tr('Remove item','Remover item'),'removeItem','data-owner="' + owner + '" data-id="' + esc(id) + '"') + '</div></div>').join('') : '<p class="fieldDescription">' + tr('No items selected. Empty never means everything.','Nenhum item selecionado. Vazio nunca significa tudo.') + '</p>';
 }
 function inspectionText(id) {
  const inspection = inspections.get(id32(id));
@@ -275,7 +422,22 @@ function rules(returnTo) {
 }
 function draftView() {
  const draft = S.draft;
- return heading(tr('Simulate','Simular'),tr('See what would change. Only the images you select can proceed to application.','Veja o que mudaria. Só as imagens que você escolher poderão seguir para aplicação.')) + steps(0) + '<div class="jp-work"><form id="JpDraftForm" class="paperList jp-panel" data-form-owner="draft"><section class="jp-section"><h2><span class="jp-section-number">01</span>' + tr('Where to analyze','Onde analisar') + '</h2>' + scopeEditor('draft',draft) + '</section><section class="jp-section"><h2><span class="jp-section-number">02</span>' + tr('Images and quality','Imagens e qualidade') + '</h2>' + policiesEditor('draft',draft) + '<div class="jp-rule">' + generalEditor('draft',draft,Math.min(S.settings.Defaults.BatchSize,1000)) + '</div></section><section class="jp-section"><h2><span class="jp-section-number">03</span>' + tr('Originals after applying','Originais após aplicar') + '</h2>' + storageEditor('draft',draft) + '</section></form><aside class="paperList jp-panel jp-aside"><h2>' + tr('Your manual test','Seu teste manual') + '</h2><p id="JpDraftSummary">' + esc(effective(draft)) + '</p><p class="fieldDescription">' + tr('Starts from saved manual defaults. Editing here never saves settings or automation.','Parte dos padrões manuais salvos. Editar aqui nunca salva ajustes ou automação.') + '</p>' + (S.settings.LegacyDefaultsWarning ? notice(tr('Manual defaults currently project legacy settings. Save independent defaults in Settings when ready.','Os padrões manuais ainda projetam os ajustes legados. Salve padrões independentes em Configurações quando desejar.'),'jp-warning') : '') + button(tr('Simulate images','Simular as imagens'),'analyze','id="Analyze"',true,'jp-wide') + '<p class="fieldDescription">' + tr('Reads real image bytes and SSIM. No artwork or automation is changed.','Lê bytes e SSIM reais. Não altera imagens nem automação.') + '</p><div id="JpAnalyzing" hidden role="status">' + notice(tr('Analyzing on the server… No percentage is available.','Analisando no servidor… Não há percentual disponível.')) + button(tr('Cancel analysis request','Cancelar solicitação de análise'),'abortAnalyze') + '</div><div class="jp-actions">' + button(tr('Use saved global defaults','Usar padrões globais'),'copyDefaults') + (S.planId ? link(tr('Consult previous simulation','Consultar simulação anterior'),'simulate',{stage:'result'}) : '') + '</div><p class="fieldDescription">' + tr('Copy only: keeps scope, enabled types and original preservation. Does not save.','Só copia: mantém alcance, tipos habilitados e preservação. Não salva.') + '</p></aside></div>';
+ return heading(tr('Simulate','Simular'),tr('See what would change. Only the images you select can proceed to application.','Veja o que mudaria. Só as imagens que você escolher poderão seguir para aplicação.')) + steps(0)
+  + '<div class="jp-work"><form id="JpDraftForm" class="paperList jp-panel" data-form-owner="draft"><section class="jp-section"><h2><span class="jp-section-number">01</span>' + tr('Where to analyze','Onde analisar') + '</h2>' + scopeEditor('draft',draft) + '</section><section class="jp-section"><h2><span class="jp-section-number">02</span>' + tr('Images and quality','Imagens e qualidade') + '</h2>' + policiesEditor('draft',draft) + '<div class="jp-rule">' + generalEditor('draft',draft,Math.min(S.settings.Defaults.BatchSize,1000)) + '</div></section><section class="jp-section"><h2><span class="jp-section-number">03</span>' + tr('Originals after applying','Originais após aplicar') + '</h2>' + storageEditor('draft',draft) + '</section></form>'
+  + '<aside class="paperList jp-panel jp-aside"><h2>' + tr('Your manual test','Seu teste manual') + '</h2><div id="JpDraftSummary">' + draftSummary() + '</div><p class="fieldDescription">' + tr('Starts from Global defaults saved in Settings. Editing here never saves settings or automation.','Parte dos Padrões globais salvos em Configurações. Editar aqui nunca salva ajustes ou automação.') + '</p>' + defaultsWarning()
+  + button(tr('Simulate images','Simular as imagens'),'analyze','id="Analyze"',true,'jp-wide') + '<p class="fieldDescription">' + tr('Reads real image bytes and SSIM. No artwork or automation is changed.','Lê bytes e SSIM reais. Não altera imagens nem automação.') + '</p><div id="JpAnalyzing" hidden role="status">' + notice(tr('Analyzing on the server… No percentage is available.','Analisando no servidor… Não há percentual disponível.')) + button(tr('Cancel analysis request','Cancelar solicitação de análise'),'abortAnalyze') + '</div>'
+  + '<div class="jp-actions jp-summary-actions">' + button(tr('Use global defaults','Usar padrões globais'),'copyDefaults') + (S.planId ? link(tr('Consult previous simulation','Consultar simulação anterior'),'simulate',{stage:'result'}) : '') + '</div><p class="fieldDescription">' + tr('Copy only: keeps scope, enabled types and original preservation. Does not save or change automation.','Só copia: mantém alcance, tipos habilitados e preservação. Não salva nem muda a automação.') + '</p></aside></div>';
+}
+function defaultsWarning() { return S.settings.LegacyDefaultsWarning ? notice(tr('Using your current settings until you save Global defaults in Settings. Opening this page saves nothing.','Usa seus ajustes atuais até você salvar Padrões globais em Configurações. Abrir esta página não salva nada.'),'jp-warning') : ''; }
+function scopeDescription(draft) {
+ if (!draft) return tr('Scope not recorded','Alcance não registrado');
+ if (draft.Scope === 'all') return tr('All libraries and global metadata','Todas as bibliotecas e metadata global');
+ if (draft.Scope === 'libraries') return draft.LibraryIds.map(id => S.libraries.find(lib => id32(lib.ItemId) === id32(id))?.Name || tr('Unavailable library','Biblioteca indisponível')).join(' · ') || tr('No libraries selected','Nenhuma biblioteca selecionada');
+ return draft.ItemIds.length + tr(' specific items',' itens específicos');
+}
+function draftSummary() {
+ const draft = S.draft, entry = (label,value) => '<div><dt class="secondaryText">' + esc(label) + '</dt><dd>' + esc(value) + '</dd></div>';
+ return '<dl class="jp-draft-lines">' + entry(tr('Scope','Alcance'),scopeDescription(draft)) + entry(tr('Images','Imagens'),draft.Policies.filter(policy => policy.Enabled).map(policy => cat(policy.Category)).join(' · ') || tr('No image types selected','Nenhum tipo selecionado')) + entry(tr('Settings for this test','Ajustes deste teste'),effective(draft)) + entry(tr('Originals','Originais'),draft.PreserveOriginals ? tr('Keep to be able to undo','Guardar para poder desfazer') : tr('Remove after verification','Remover após verificar')) + '</dl>';
 }
 const reasonNames = {
  Ready:['Local candidate','Candidata local'],AlreadyWebp:['Already WebP','Já em WebP'],Remote:['Remote image — not downloaded','Imagem remota — não é baixada'],Missing:['Local file missing','Arquivo local ausente'],Excluded:['Excluded by protection rules','Excluída pelas proteções'],Shared:['Shared reference — protected','Referência compartilhada — protegida'],
@@ -286,11 +448,15 @@ function reason(key) { return key ? reasonNames[key] ? tr(...reasonNames[key]) :
 function actionTitle(action) { return action === 'Convert' ? tr('Convert to WebP','Converter para WebP') : action === 'Regenerate' ? tr('Regenerate from the stored original','Gerar novamente a partir do original guardado') : tr('Keep current image','Manter imagem atual'); }
 function pager(key,total,offset) {
  if (total <= pageSize) return '';
- return '<nav class="jp-pager" aria-label="' + tr('Pagination','Paginação') + ' · ' + key + '">' + button(tr('← Previous','← Anterior'),'page','data-list="' + key + '" data-offset="' + Math.max(0,offset - pageSize) + '"' + (!offset ? ' disabled' : '')) + '<span id="JpRange' + key + '" tabindex="-1">' + (total ? offset + 1 : 0) + '–' + Math.min(offset + pageSize,total) + tr(' of ',' de ') + total + '</span>' + button(tr('Next →','Próxima →'),'page','data-list="' + key + '" data-offset="' + (offset + pageSize) + '"' + (offset + pageSize >= total ? ' disabled' : '')) + '</nav>';
+  return '<nav class="jp-pager" aria-label="' + tr('Pagination','Paginação') + ' · ' + key + '">' + button(tr('Previous','Anterior'),'page','data-list="' + key + '" data-offset="' + Math.max(0,offset - pageSize) + '"' + (!offset ? ' disabled' : ''),false,'','chevron_left') + '<span id="JpRange' + key + '" tabindex="-1">' + (total ? offset + 1 : 0) + '–' + Math.min(offset + pageSize,total) + tr(' of ',' de ') + total + '</span>' + button(tr('Next','Próxima'),'page','data-list="' + key + '" data-offset="' + (offset + pageSize) + '"' + (offset + pageSize >= total ? ' disabled' : ''),false,'','chevron_right') + '</nav>';
 }
 function planRow(row,selectable) {
  const proposed = ['Convert','Regenerate'].includes(row.Action), policy = policyFor(row.Category);
- return '<article class="jp-row" data-image-key="' + esc(row.Key) + '"><div>' + (selectable && proposed ? check('image' + row.Key.replace(/[^a-z0-9]/gi,''),tr('Select ','Selecionar ') + itemTitle(row) + ' · ' + cat(row.Category) + ' ' + row.Index,S.selection.includes(row.Key),'data-plan-key="' + esc(row.Key) + '"' + (!canSelect() ? ' disabled' : '')) : '<span aria-hidden="true">—</span>') + '</div><div><h3>' + esc(itemTitle(row)) + '</h3><p class="fieldDescription">' + esc(cat(row.Category)) + ' · ' + esc(row.TypeName) + ' · ' + tr('position ','posição ') + row.Index + '<br>' + esc(row.SourceMimeType || tr('Format not recorded','Formato não registrado')) + ' · ' + dims(row.SourceWidth,row.SourceHeight) + ' · ' + bytes(row.CurrentBytes) + '</p><details><summary>' + tr('Identity and settings','Identidade e ajustes') + '</summary><p class="fieldDescription">' + esc(policy ? effective(policy) : tr('Policy not recorded','Política não registrada')) + '<br>SSIM: ' + (row.Ssim == null ? '—' : row.Ssim.toFixed(4)) + '</p><p class="jp-code">' + esc(row.Key) + '<br>SHA-256: ' + esc(row.SourceHash || '—') + '</p></details></div><div class="jp-outcome"><span class="jp-tag">' + esc(actionTitle(row.Action)) + '</span><p>' + esc(reason(row.Reason)) + '</p>' + (proposed ? '<p class="fieldDescription">WebP · ' + dims(row.OutputWidth,row.OutputHeight) + ' · ' + bytes(row.OutputBytes) + '<br>' + (row.Action === 'Regenerate' ? tr('Reuses the verified original; never recompresses the active WebP.','Reutiliza o original verificado; nunca recomprime o WebP ativo.') : tr('Real output estimate from the server.','Estimativa real da saída calculada no servidor.')) + '</p>' : '') + '</div></article>';
+ const action = row.Action === 'Convert' ? tr('↓ Convert','↓ Converter') : row.Action === 'Regenerate' ? tr('↻ Regenerate','↻ Gerar novamente') : tr('— Keep','— Manter');
+ const source = row.State === 'AlreadyWebp' ? 'WebP · ' + bytes(row.CurrentBytes) + (row.Action === 'Regenerate' ? '<br>' + tr('Original source: ','Original de origem: ') + formatName(row.SourceMimeType) + ' · ' + dims(row.SourceWidth,row.SourceHeight) : '') : formatName(row.SourceMimeType) + ' · ' + dims(row.SourceWidth,row.SourceHeight) + ' · ' + bytes(row.CurrentBytes);
+ return '<article class="jp-row" data-image-key="' + esc(row.Key) + '"><div>' + (selectable && proposed ? check('image' + row.Key.replace(/[^a-z0-9]/gi,''),tr('Select ','Selecionar ') + itemTitle(row) + ' · ' + cat(row.Category) + ' ' + row.Index,S.selection.includes(row.Key),'data-plan-key="' + esc(row.Key) + '"' + (!canSelect() ? ' disabled' : '')) : '<span aria-hidden="true">—</span>') + '</div>' + preview(row)
+  + '<div><h3>' + esc(itemTitle(row)) + '</h3><p class="fieldDescription">' + esc(cat(row.Category)) + ' · ' + tr('position ','posição ') + row.Index + '<br>' + source + '</p><p class="fieldDescription">' + tr('Preview: current image','Prévia: imagem atual') + '</p><details><summary>' + tr('Identity and settings','Identidade e ajustes') + '</summary><p class="fieldDescription">' + esc(policy ? effective(policy) : tr('Policy not recorded','Política não registrada')) + '<br>SSIM: ' + (row.Ssim == null ? '—' : row.Ssim.toFixed(4)) + '</p><p class="jp-code">' + esc(row.Key) + '<br>' + esc(row.TypeName) + ' · ' + esc(row.SourceMimeType) + '<br>SHA-256: ' + esc(row.SourceHash || '—') + '</p></details></div>'
+  + '<div class="jp-outcome"><span class="jp-tag" data-action-kind="' + esc(row.Action) + '">' + esc(action) + '</span><p><strong>' + esc(actionTitle(row.Action)) + '</strong></p><p>' + esc(reason(row.Reason)) + '</p>' + (proposed ? '<p class="fieldDescription">' + tr('Proposed output: ','Saída proposta: ') + 'WebP · ' + dims(row.OutputWidth,row.OutputHeight) + ' · ' + bytes(row.OutputBytes) + '<br>' + (row.Action === 'Regenerate' ? tr('Reuses the verified original; never recompresses the active WebP.','Reutiliza o original verificado; nunca recomprime o WebP ativo.') : tr('Real output estimate from the server.','Estimativa real da saída calculada no servidor.')) + '</p>' : '') + '</div></article>';
 }
 function zeroBilling() { return {ActiveBytesBefore:0,BackupBytesBefore:0,ActiveBytesAfter:0,BackupBytesAfter:0,TotalBytesBefore:0,TotalBytesAfter:0}; }
 function bill(billing,label,past = false) {
@@ -301,7 +467,14 @@ function bill(billing,label,past = false) {
 }
 function resultView() {
  const plan = S.plan;
- return heading(tr('Simulate','Simular'),tr('Read the result, select images, then review. Nothing is selected by default.','Confira o resultado, selecione imagens e revise. Nenhuma vem selecionada.')) + steps(1) + '<section class="jp-notice"><h2 id="JpResultTitle" tabindex="-1">' + tr('Simulation complete — no artwork changed','Simulação concluída — nenhuma imagem foi alterada') + '</h2><p>' + plan.Convert + tr(' images would convert; ',' imagens seriam convertidas; ') + plan.Regenerate + tr(' would regenerate from their stored original; ',' seriam recriadas a partir do original guardado; ') + plan.Kept + tr(' remain unchanged.',' são mantidas.') + '</p><p>' + esc(storageText(plan.PreserveOriginals)) + '</p><p>' + tr('Next: select images below. The bill AFTER the list follows only your selection across all pages.','Próximo passo: selecione as imagens abaixo. A conta APÓS a lista acompanha só a sua seleção em todas as páginas.') + '</p><p class="fieldDescription">' + tr('Valid until ','Válida até ') + date(plan.ExpiresUtc) + ' · ' + plan.Evaluated + tr(' evaluated · ',' avaliadas · ') + plan.NotEvaluated + tr(' outside the batch limit',' fora do limite do teste') + '</p></section>' + (S.stale || plan.Status !== 'Ready' ? notice(tr('Read-only report. Settings changed, the plan expired, or its authorization was consumed. Make a new simulation to apply.','Relatório somente leitura. Ajustes mudaram, o plano expirou ou sua autorização foi consumida. Faça nova simulação para aplicar.'),'jp-warning') : '') + '<section class="paperList jp-panel"><h2>' + tr('Choose what to apply','Escolha o que aplicar') + '</h2><div class="jp-counts"><span><strong>' + plan.TotalImages + '</strong>' + tr('images found','imagens encontradas') + '</span><span><strong>' + plan.Proposed + '</strong>' + tr('proposals','propostas') + '</span><span><strong>' + plan.Kept + '</strong>' + tr('kept','mantidas') + '</span></div><div class="jp-actions">' + button(tr('Select proposals on this page','Selecionar propostas desta página'),'selectPage',!canSelect() ? 'disabled' : '') + button(tr('Select proposals from all results','Selecionar propostas de todos os resultados'),'selectAll',!canSelect() ? 'disabled' : '') + button(tr('Clear selection','Limpar seleção'),'clearSelection') + '</div><p class="fieldDescription">' + tr('Up to 1,000 exact image keys per selection. No silent truncation.','Até 1.000 chaves exatas por seleção. Sem truncamento silencioso.') + '</p>' + (S.planPage?.Items.length ? pager('images',S.planPage.Total,S.pages.images) + S.planPage.Items.map(row => planRow(row,true)).join('') : notice(tr('No registered images in this scope. JellyP does not download missing artwork.','Nenhuma imagem cadastrada neste alcance. O JellyP não baixa imagens ausentes.'))) + '<div id="JpSelectedBill">' + bill(zeroBilling(),tr('No changes selected','Sem alterações selecionadas')) + '</div><p class="fieldDescription">' + tr('Secondary comparison: all ','Comparação secundária: todas as ') + plan.Proposed + tr(' proposals reduce active image bytes by ',' propostas reduzem os bytes das imagens ativas em ') + bytes(plan.EstimatedSavingsBytes) + tr(', BEFORE accounting for stored originals. Not your selection or free disk space.',', ANTES de contar os originais guardados. Não é sua seleção nem espaço livre.') + '</p><div class="jp-toolbar jp-selection"><div><strong id="JpSelectedCount">' + S.selection.length + tr(' selected across all pages',' selecionadas em todas as páginas') + '</strong><p class="fieldDescription">' + tr('Only these identities can proceed.','Somente estas identidades podem seguir.') + '</p></div>' + button(tr('Review selection →','Revisar seleção →'),'review','id="Review"' + (!canSelect() || !S.selection.length ? ' disabled' : ''),true) + '</div></section>';
+ return heading(tr('Simulate','Simular'),tr('Read the result, select images, then review. Nothing is selected by default.','Confira o resultado, selecione imagens e revise. Nenhuma vem selecionada.')) + steps(1)
+  + '<section class="jp-notice jp-success"><h2 id="JpResultTitle" tabindex="-1">' + tr('Simulation complete — no artwork changed','Simulação concluída — nenhuma imagem foi alterada') + '</h2><p>' + plan.Convert + tr(' images would convert; ',' imagens seriam convertidas; ') + plan.Regenerate + tr(' would regenerate from their stored original; ',' seriam recriadas a partir do original guardado; ') + plan.Kept + tr(' remain unchanged.',' são mantidas.') + '</p><p>' + esc(storageText(plan.PreserveOriginals)) + '</p><p><strong>' + tr('Next: select images below.','Próximo passo: selecione as imagens abaixo.') + '</strong> ' + tr('The bill AFTER the list follows only your selection across all pages.','A conta APÓS a lista acompanha só a sua seleção em todas as páginas.') + '</p><p class="fieldDescription">' + tr('Valid until ','Válida até ') + date(plan.ExpiresUtc) + ' · ' + plan.Evaluated + tr(' evaluated · ',' avaliadas · ') + plan.NotEvaluated + tr(' outside the batch limit',' fora do limite do teste') + '</p></section>'
+  + (S.stale || plan.Status !== 'Ready' ? notice(tr('Read-only report. Settings changed, the plan expired, or its authorization was consumed. Make a new simulation to apply.','Relatório somente leitura. Ajustes mudaram, o plano expirou ou sua autorização foi consumida. Faça nova simulação para aplicar.'),'jp-warning') : '')
+   + '<section class="paperList jp-panel jp-snapshot"><div><strong>' + esc(scopeDescription(S.planDraft)) + '</strong><p class="fieldDescription">' + date(plan.CreatedUtc) + ' · ' + tr('Frozen settings · nothing changed','Ajustes congelados · nada foi alterado') + '</p><details><summary>' + tr('Settings used in this simulation','Ajustes usados nesta simulação') + '</summary><p class="fieldDescription">' + esc(effective(S.planDraft || S.draft)) + '</p></details></div>' + link(tr('Edit selection','Editar seleção'),'simulate') + '</section>'
+  + '<section class="paperList jp-panel"><h2>' + tr('Choose what to apply','Escolha o que aplicar') + '</h2><div class="jp-counts"><span><strong>' + plan.TotalImages + '</strong>' + tr('images found','imagens encontradas') + '</span><span><strong>' + plan.Proposed + '</strong>' + tr('proposals','propostas') + '</span><span><strong>' + plan.Kept + '</strong>' + tr('kept','mantidas') + '</span></div>'
+   + '<div class="jp-list-tools" role="group" aria-label="' + tr('Image selection','Seleção de imagens') + '">' + check('SelectPage',tr('Proposals on this page','Propostas desta página'),false,'data-select-page' + (!canSelect() ? ' disabled' : '')) + '<div class="jp-actions">' + button(tr('Select all ','Selecionar todas · ') + plan.Proposed + tr(' proposals',' propostas'),'selectAll',!canSelect() ? 'disabled' : '') + button(tr('Clear selection','Limpar seleção'),'clearSelection') + '</div><p class="fieldDescription">' + tr('Page checkbox affects only this page. “All” includes every page. Maximum 1,000 images.','O checkbox afeta só esta página. “Todas” inclui todas as páginas. Máximo de 1.000 imagens.') + '</p></div>'
+  + (S.planPage?.Items.length ? pager('images',S.planPage.Total,S.pages.images) + S.planPage.Items.map(row => planRow(row,true)).join('') : notice(tr('No registered images in this scope. JellyP does not download missing artwork.','Nenhuma imagem cadastrada neste alcance. O JellyP não baixa imagens ausentes.')))
+   + '<div id="JpSelectedBill">' + bill(zeroBilling(),tr('No changes selected','Sem alterações selecionadas')) + '</div><p class="fieldDescription">' + tr('Secondary comparison: all ','Comparação secundária: todas as ') + plan.Proposed + tr(' proposals reduce active image bytes by ',' propostas reduzem os bytes das imagens ativas em ') + bytes(plan.EstimatedSavingsBytes) + tr(', BEFORE accounting for stored originals. Not your selection or free disk space.',', ANTES de contar os originais guardados. Não é sua seleção nem espaço livre.') + '</p><div class="paperList jp-selection-bar jp-selection"><div><strong id="JpSelectedCount">' + S.selection.length + tr(' selected across all pages',' selecionadas em todas as páginas') + '</strong><p class="fieldDescription">' + tr('Only these identities can proceed.','Somente estas identidades podem seguir.') + '</p></div>' + button(tr('Review selection','Revisar seleção'),'review','id="Review"' + (!canSelect() || !S.selection.length ? ' disabled' : ''),true) + '</div></section>';
 }
 function retentionView(retention) {
  const offset = retention.Offset || 0, total = retention.Total ?? retention.EligibleCount;
@@ -313,19 +486,50 @@ function retentionView(retention) {
 function reviewView() {
  const review = S.review;
  if (!review || !canSelect() || !S.selection.length) return heading(tr('Execute','Executar'),tr('An application requires a current simulation and an exact reviewed selection.','Uma aplicação exige simulação atual e seleção exata revisada.')) + link(tr('Go to simulation','Ir para simulação'),'simulate',{stage:S.planId ? 'result' : ''}) + (S.operationId ? '<p>' + link(tr('View last operation','Ver última operação'),'execute',{operation:S.operationId}) + '</p>' : '');
- return heading(tr('Review and apply','Revisar e aplicar'),tr('The server revalidates every identity. Changed images are not replaced by other ones.','O servidor revalida cada identidade. Imagens alteradas não são substituídas por outras.')) + steps(2) + '<div class="jp-work"><section class="paperList jp-panel"><h2>' + review.TotalSelected + tr(' exact images',' imagens exatas') + '</h2><p class="fieldDescription">' + tr('Plan valid until ','Plano válido até ') + date(S.plan.ExpiresUtc) + '</p>' + pager('review',review.TotalSelected,S.pages.review) + review.Items.map(row => planRow(row,false)).join('') + bill(review.Billing,tr('Only the reviewed selection','Somente a seleção revisada')) + retentionView(review.Retention) + '<p class="fieldDescription">' + tr('Avoid manual image uploads while applying. Jellyfin cannot lock out a simultaneous upload. Scans and related metadata work are awaited safely.','Evite envios manuais de imagens ao aplicar. O Jellyfin não bloqueia uploads simultâneos. Varreduras e metadata relacionado são aguardados com segurança.') + '</p>' + check('ReviewAck',tr('I reviewed this exact selection and its storage impact','Revisei esta seleção exata e seu impacto de armazenamento'),false,'data-consent') + (!S.plan.PreserveOriginals ? check('PermanentAck',tr('I authorize permanent removal of these originals after verification','Autorizo a remoção permanente destes originais após verificar'),false,'data-consent') : '') + (review.Retention.EligibleCount ? check('RetentionAck',tr('I separately authorize expiry of the other originals in this paged review','Autorizo separadamente a expiração dos outros originais desta revisão paginada'),false,'data-consent') : '') + button(tr('Apply to ','Aplicar às ') + review.TotalSelected + tr(' images',' imagens'),'apply','id="Apply" disabled',true) + '<p class="fieldDescription">' + tr('Queues a persisted native task. A 202 receipt is not a completed conversion.','Enfileira uma tarefa nativa persistida. Recibo 202 não é conversão concluída.') + '</p></section><aside class="paperList jp-panel jp-aside">' + rules('review') + '</aside></div>';
+ return heading(tr('Review and apply','Revisar e aplicar'),tr('The server revalidates every identity. Changed images are not replaced by other ones.','O servidor revalida cada identidade. Imagens alteradas não são substituídas por outras.')) + steps(2)
+  + '<div class="jp-work jp-review"><section class="paperList jp-panel"><h2>' + review.TotalSelected + (review.TotalSelected === 1 ? tr(' exact image',' imagem exata') : tr(' exact images',' imagens exatas')) + '</h2><p class="fieldDescription">' + tr('Plan valid until ','Plano válido até ') + date(S.plan.ExpiresUtc) + '</p>' + pager('review',review.TotalSelected,S.pages.review) + review.Items.map(row => planRow(row,false)).join('')
+  + '<p class="fieldDescription">' + tr('Avoid manual image uploads while applying. Jellyfin cannot lock out a simultaneous upload. Scans and related metadata work are awaited safely.','Evite envios manuais de imagens ao aplicar. O Jellyfin não bloqueia uploads simultâneos. Varreduras e metadata relacionado são aguardados com segurança.') + '</p>' + rules('review') + retentionView(review.Retention) + '</section>'
+  + '<aside class="paperList jp-panel jp-aside" aria-label="' + tr('Before authorizing','Antes de autorizar') + '"><h2>' + tr('Before authorizing','Antes de autorizar') + '</h2><p>' + esc(storageText(S.plan.PreserveOriginals)) + '</p>' + bill(review.Billing,tr('Only the reviewed selection','Somente a seleção revisada'))
+  + (review.Retention.EligibleCount ? notice(review.Retention.EligibleCount + tr(' OTHER originals will expire at the start of this batch · ',' OUTROS originais expirarão no início deste lote · ') + bytes(review.Retention.EligibleBytes) + tr('. Separate from the balance above. Every identity is listed in the paged expiry review.','. Separados do saldo acima. Todas as identidades estão na revisão paginada de expiração.'),'jp-warning') : '')
+  + check('ReviewAck',tr('I reviewed this exact selection and its storage impact','Revisei esta seleção exata e seu impacto de armazenamento'),false,'data-consent')
+  + (!S.plan.PreserveOriginals ? check('PermanentAck',tr('I authorize permanent removal of these originals after verification','Autorizo a remoção permanente destes originais após verificar'),false,'data-consent') : '')
+  + (review.Retention.EligibleCount ? check('RetentionAck',tr('I separately authorize expiry of the other originals in this paged review','Autorizo separadamente a expiração dos outros originais desta revisão paginada'),false,'data-consent') : '')
+  + button((review.TotalSelected === 1 ? tr('Apply to ','Aplicar à ') : tr('Apply to ','Aplicar às ')) + review.TotalSelected + (review.TotalSelected === 1 ? tr(' image',' imagem') : tr(' images',' imagens')),'apply','id="Apply" disabled',S.plan.PreserveOriginals,S.plan.PreserveOriginals ? 'jp-wide' : 'jp-wide jp-danger-button')
+  + '<p class="fieldDescription">' + tr('Starts a task on the server. Follow its progress here; navigating does not cancel it.','Inicia uma tarefa no servidor. Acompanhe o andamento aqui; navegar não a cancela.') + '</p></aside></div>';
 }
-function operationView() { return heading(tr('Execution','Execução'),tr('Persisted on the server. Navigating or reloading does not cancel this operation.','Persistida no servidor. Navegar ou recarregar não cancela esta operação.')) + '<section class="paperList jp-panel" id="JpExecutionBody">' + executionBody() + '</section>'; }
+function operationView() { return heading(tr('Execution','Execução'),tr('Persisted on the server. Navigating or reloading does not cancel this operation.','Persistida no servidor. Navegar ou recarregar não cancela esta operação.')) + '<section class="paperList jp-panel" id="JpExecutionBody">' + executionBody() + '</section><section id="JpRestoreEntry" class="paperList jp-panel restoreEntry"' + (['Queued','Running'].includes(S.operation?.Operation.State) ? ' hidden' : '') + '>' + restoreEntry() + '</section>'; }
+function restoreEntry() {
+ const op = S.operation?.Operation;
+ if (!op || ['Queued','Running'].includes(op.State)) return '';
+ const available = S.restorableTotal > 0, removed = op.Kind === 'Retire';
+ const title = available ? op.Kind === 'Apply' ? tr('Want to undo a conversion?','Quer desfazer uma conversão?') : tr('Other stored originals','Outros originais guardados') : removed ? tr('Permanent removal cannot be undone','A remoção permanente não pode ser desfeita') : S.restorableTotal == null ? tr('Check original availability','Confira a disponibilidade dos originais') : tr('No restorable originals available','Nenhum original restaurável disponível');
+ const text = available ? S.restorableTotal + tr(' verified originals available in History and restoration. Review one or more exact images. Permanently removed originals cannot be restored.',' originais verificados disponíveis em Histórico e restauração. Revise uma ou mais imagens exatas. Originais removidos permanentemente não podem ser restaurados.') : S.restorableTotal == null ? tr('Availability could not be checked. Consult History and restoration before retrying.','Não foi possível verificar a disponibilidade. Consulte Histórico e restauração antes de tentar novamente.') : tr('Only verified originals still stored by JellyP can be restored. Restored or permanently removed originals are not offered again.','Só podem ser restaurados originais verificados ainda guardados pelo JellyP. Originais restaurados ou removidos permanentemente não são oferecidos novamente.');
+ return '<div><h2>' + title + '</h2><p class="fieldDescription">' + text + '</p></div>' + (available ? link(tr('Go to restoration','Ir para restauração'),'history',{},'','','restore') : '');
+}
 function executionBody() {
  const detail = S.operation;
  if (!detail) return notice(tr('Loading persisted receipt…','Carregando recibo persistido…'));
  const op = detail.Operation, running = ['Queued','Running'].includes(op.State);
- return '<h2 id="JpOperationTitle" tabindex="-1">' + esc(reason(op.Kind)) + ' · ' + esc(reason(op.State)) + '</h2><p role="status">' + esc(reason(op.Phase)) + (op.CancelRequested ? tr(' · Stop requested',' · Parada solicitada') : '') + '</p>' + (running ? '<progress aria-label="' + tr('Processed images','Imagens processadas') + '" max="' + Math.max(1,op.TotalItems) + '" value="' + op.Processed + '"></progress>' : '') + '<div class="jp-counts"><span><strong>' + op.Processed + ' / ' + op.TotalItems + '</strong>' + tr('processed images','imagens processadas') + '</span><span><strong>' + op.Changed + '</strong>' + tr('changed','alteradas') + '</span><span><strong>' + op.Failed + '</strong>' + tr('failed','falhas') + '</span><span><strong>' + op.Invalidated + '</strong>' + tr('invalidated','invalidadas') + '</span><span><strong>' + op.NotStarted + '</strong>' + tr('not started','não iniciadas') + '</span></div>' + (running ? button(tr('Stop after current transaction','Parar após a transação atual'),'cancelOperation','id="CancelOperation"' + (op.CancelRequested ? ' disabled' : '')) + '<p class="fieldDescription">' + tr('Cancellation does not undo committed changes. Waiting for metadata can also be cancelled.','Cancelar não desfaz alterações confirmadas. A espera por metadata também pode ser cancelada.') + '</p>' : bill(op.Billing,tr('Completed changes only','Somente alterações concluídas'),true) + button(tr('New simulation','Nova simulação'),'newSimulation','',true)) + '<p class="fieldDescription">' + tr('Global expiry removed ','A expiração global removeu ') + op.RetentionPurgedCount + tr(' other originals · ',' outros originais · ') + bytes(op.RetentionPurgedBytes) + '</p><details><summary>' + tr('Operation identity','Identidade da operação') + '</summary><p class="jp-code">' + esc(op.OperationId) + '<br>' + date(op.CreatedUtc) + '</p></details><h3>' + tr('Individual results','Resultados individuais') + '</h3>' + pager('operation',detail.TotalItems,S.pages.operation) + detail.Items.map(row => '<article class="jp-row"><span aria-hidden="true">—</span><div><h3>' + esc(itemTitle(row)) + '</h3><p class="fieldDescription">' + esc(cat(row.Category)) + ' · ' + esc(row.TypeName) + ' · ' + row.Index + '</p><details><summary>' + tr('Stored evidence','Evidência armazenada') + '</summary><p class="fieldDescription">' + esc(row.OriginalMimeType || tr('Format not recorded','Formato não registrado')) + ' · ' + dims(row.OriginalWidth,row.OriginalHeight) + ' · ' + bytes(row.OriginalBytes) + '<br>' + tr('Output: ','Saída: ') + dims(row.OutputWidth,row.OutputHeight) + ' · ' + bytes(row.OutputBytes) + '</p><p class="jp-code">SHA-256 original: ' + esc(row.SourceHash || '—') + '<br>SHA-256 ' + tr('output','saída') + ': ' + esc(row.OutputHash || '—') + '<br>' + esc(row.Key) + '</p></details></div><div class="jp-outcome"><strong>' + esc(reason(row.Status)) + '</strong><p>' + esc(reason(row.Reason)) + '</p></div></article>').join('') + (!running ? '<section class="jp-rule"><h3>' + tr('Want to undo a conversion?','Quer desfazer uma conversão?') + '</h3><p class="fieldDescription">' + tr('Restore exact originals while verified copies remain available.','Restaure originais exatos enquanto cópias verificadas estiverem disponíveis.') + '</p>' + link(tr('Go to restoration','Ir para restauração'),'history') + '</section>' : '');
+ return '<h2 id="JpOperationTitle" tabindex="-1">' + esc(reason(op.Kind)) + ' · ' + esc(reason(op.State)) + '</h2><p role="status" class="jp-notice ' + (running ? '' : op.State === 'Completed' ? 'jp-success' : op.State === 'Failed' ? 'jp-danger' : 'jp-warning') + '">' + esc(reason(op.Phase)) + (op.CancelRequested ? tr(' · Stop requested',' · Parada solicitada') : '') + '</p>'
+  + (running ? '<progress aria-label="' + tr('Processed images','Imagens processadas') + '" max="' + Math.max(1,op.TotalItems) + '" value="' + op.Processed + '"></progress>' : '')
+  + '<div class="jp-counts"><span><strong>' + op.Processed + ' / ' + op.TotalItems + '</strong>' + tr('processed images','imagens processadas') + '</span><span><strong>' + op.Changed + '</strong>' + tr('changed','alteradas') + '</span><span><strong>' + op.Failed + '</strong>' + tr('failed','falhas') + '</span><span><strong>' + op.Invalidated + '</strong>' + tr('invalidated','invalidadas') + '</span><span><strong>' + op.NotStarted + '</strong>' + tr('not started','não iniciadas') + '</span></div>'
+  + (running ? button(tr('Stop after current transaction','Parar após a transação atual'),'cancelOperation','id="CancelOperation"' + (op.CancelRequested ? ' disabled' : '')) + '<p class="fieldDescription">' + tr('Cancellation does not undo committed changes. Waiting for metadata can also be cancelled.','Cancelar não desfaz alterações confirmadas. A espera por metadata também pode ser cancelada.') + '</p>' : bill(op.Billing,tr('Completed changes only','Somente alterações concluídas'),true) + button(tr('New simulation','Nova simulação'),'newSimulation','',true))
+  + '<p class="fieldDescription">' + tr('Global expiry removed ','A expiração global removeu ') + op.RetentionPurgedCount + tr(' other originals · ',' outros originais · ') + bytes(op.RetentionPurgedBytes) + '</p><details><summary>' + tr('Operation identity','Identidade da operação') + '</summary><p class="jp-code">' + esc(op.OperationId) + '<br>' + date(op.CreatedUtc) + '</p></details><h3>' + tr('Individual results','Resultados individuais') + '</h3>' + pager('operation',detail.TotalItems,S.pages.operation) + detail.Items.map(executionRow).join('')
+   ;
+}
+function executionRow(row) {
+ return '<article class="jp-row"><span aria-hidden="true">—</span>' + slotPreview(row) + '<div><h3>' + esc(itemTitle(row)) + '</h3><p class="fieldDescription">' + esc(cat(row.Category)) + ' · ' + tr('position ','posição ') + row.Index + '<br>' + tr('Preview: current image','Prévia: imagem atual') + '</p><details><summary>' + tr('Stored evidence','Evidência armazenada') + '</summary><p class="fieldDescription">' + formatName(row.OriginalMimeType) + ' · ' + dims(row.OriginalWidth,row.OriginalHeight) + ' · ' + bytes(row.OriginalBytes) + '<br>' + tr('Output: ','Saída: ') + dims(row.OutputWidth,row.OutputHeight) + ' · ' + bytes(row.OutputBytes) + '</p><p class="jp-code">' + esc(row.TypeName) + ' · ' + esc(row.OriginalMimeType) + '<br>SHA-256 original: ' + esc(row.SourceHash || '—') + '<br>SHA-256 ' + tr('output','saída') + ': ' + esc(row.OutputHash || '—') + '<br>' + esc(row.Key) + '</p></details></div><div class="jp-outcome"><strong>' + esc(reason(row.Status)) + '</strong><p>' + esc(reason(row.Reason)) + '</p></div></article>';
 }
 function savedText(owner) { return S[owner + 'Dirty'] ? tr('Unsaved draft changes','Alterações no rascunho não salvas') : tr('Matches saved settings','Corresponde aos ajustes salvos'); }
 function automationView() {
  const value = S.auto;
- return heading(tr('Automation','Automação'),tr('Independent saved settings for Jellyfin scheduled tasks. Saving does not run a task.','Ajustes salvos independentes para tarefas agendadas do Jellyfin. Salvar não executa uma tarefa.')) + '<div class="jp-work"><form id="JpAutoForm" class="paperList jp-panel"><section class="jp-section"><h2>' + tr('What future tasks may do','O que as próximas tarefas podem fazer') + '</h2>' + check('autoEnabled',tr('Allow scheduled tasks to change artwork','Permitir que tarefas agendadas alterem imagens'),value.Enabled,'data-owner="auto" data-field="Enabled"') + '<p class="fieldDescription">' + tr('This compatibility switch blocks only applying mutations. Scheduled analysis in analyze mode still reads bytes and writes a report; it does not disable task triggers.','Este campo de compatibilidade bloqueia somente mutações em modo aplicar. A análise agendada em modo analisar ainda lê bytes e grava relatório; ele não desabilita os disparos das tarefas.') + '</p>' + select('autoDryRun',tr('Scheduled processing mode','Modo do processamento agendado'),String(value.DryRun),[['true',tr('Only analyze and generate a report','Apenas analisar e gerar relatório')],['false',tr('Apply conversions','Aplicar conversões')]],'data-owner="auto" data-field="DryRun"') + notice(tr('Analysis is a diagnostic before enabling automatic changes. It reads bytes, uses CPU and writes a report/state, but changes no images and stores no originals. It is NOT an approval queue. Switching to Apply does not apply an old report: the next task re-evaluates artwork.','A análise é diagnóstico antes de habilitar alterações automáticas. Lê bytes, usa CPU e grava relatório/estado, mas não altera imagens nem guarda originais. NÃO é fila de aprovação. Mudar para Aplicar não aplica um relatório antigo: a próxima tarefa reavalia as imagens.')) + '</section><section class="jp-section"><h2>' + tr('Scope','Alcance') + '</h2>' + scopeEditor('auto',value) + '</section><section class="jp-section"><h2>' + tr('Images and quality','Imagens e qualidade') + '</h2>' + policiesEditor('auto',value) + '<div class="jp-rule">' + generalEditor('auto',value,10000) + '</div>' + check('autoSyncUnchanged',tr('Native synchronization also regenerates unchanged policies','Sincronização nativa também regenera políticas inalteradas'),value.SyncUnchangedPolicies,'data-owner="auto" data-field="SyncUnchangedPolicies"') + '</section><section class="jp-section"><h2>' + tr('Originals','Originais') + '</h2>' + storageEditor('auto',value) + '<div id="autoPermanentField"' + (value.Enabled && !value.DryRun && !value.PreserveOriginals ? '' : ' hidden') + '>' + check('AutoPermanentAck',tr('I authorize permanent original removal for applying automation','Autorizo remoção permanente de originais pela automação de aplicação'),false) + '</div></section></form><aside class="paperList jp-panel jp-aside"><h2>' + tr('Save automation','Salvar automação') + '</h2><p id="JpAutoDirty" role="status">' + savedText('auto') + '</p><p class="fieldDescription">' + tr('Saved mode: ','Modo salvo: ') + (!S.settings.Automation.DryRun ? (S.settings.Automation.Enabled ? tr('apply','aplicar') : tr('apply mode blocked; scheduled tasks do not change artwork','modo aplicar bloqueado; tarefas agendadas não alteram imagens')) : tr('analysis only','somente análise')) + '</p>' + button(tr('Save automation','Salvar automação'),'saveAuto','id="SaveAutomation"',true) + '<p class="fieldDescription">' + tr('Does not change manual drafts, defaults or task triggers. Idle is not disabled; no triggers means no automatic schedule.','Não altera rascunhos manuais, padrões ou disparos das tarefas. Ociosa não é desabilitada; sem disparos não há horário automático.') + '</p>' + rules('automation') + '</aside></div><section class="paperList jp-panel"><h2>' + tr('Native tasks and last report','Tarefas nativas e último relatório') + '</h2><div id="JpTasks">' + tasksView() + '</div></section>';
+ return heading(tr('Automation','Automação'),tr('Independent saved settings for Jellyfin scheduled tasks. Saving does not run a task.','Ajustes salvos independentes para tarefas agendadas do Jellyfin. Salvar não executa uma tarefa.'))
+  + '<div class="jp-work"><form id="JpAutoForm" class="paperList jp-panel"><section class="jp-section"><h2>' + tr('What future tasks may do','O que as próximas tarefas podem fazer') + '</h2>' + check('autoEnabled',tr('Allow scheduled tasks to change artwork','Permitir que tarefas agendadas alterem imagens'),value.Enabled,'data-owner="auto" data-field="Enabled"') + '<p class="fieldDescription">' + tr('Allows image changes in Apply mode. When unchecked, scheduled analysis can still read images and save a report in Analyze mode. Jellyfin task schedules are unchanged.','Permite alterar imagens no modo Aplicar. Desmarcado, a análise agendada ainda pode ler imagens e salvar relatório no modo Analisar. Os horários das tarefas do Jellyfin não mudam.') + '</p>'
+  + select('autoDryRun',tr('Scheduled processing mode','Modo do processamento agendado'),String(value.DryRun),[['true',tr('Only analyze and generate a report','Apenas analisar e gerar relatório')],['false',tr('Apply conversions','Aplicar conversões')]],'data-owner="auto" data-field="DryRun"') + notice(tr('Analysis is a diagnostic before enabling automatic changes. It reads bytes, uses CPU and writes a report/state, but changes no images and stores no originals. It is NOT an approval queue. Switching to Apply does not apply an old report: the next task re-evaluates artwork.','A análise é diagnóstico antes de habilitar alterações automáticas. Lê bytes, usa CPU e grava relatório/estado, mas não altera imagens nem guarda originais. NÃO é fila de aprovação. Mudar para Aplicar não aplica um relatório antigo: a próxima tarefa reavalia as imagens.')) + '</section>'
+  + '<section class="jp-section"><h2>' + tr('Scope','Alcance') + '</h2>' + scopeEditor('auto',value) + '</section><section class="jp-section"><h2>' + tr('Images and quality','Imagens e qualidade') + '</h2><p class="fieldDescription">' + tr('Automation has its own quality and image settings. Saving Global defaults does not overwrite them. Global storage protections and retention still apply.','A automação tem qualidade e ajustes de imagem próprios. Salvar Padrões globais não os sobrescreve. As proteções globais de armazenamento e retenção continuam valendo.') + '</p>'
+  + policiesEditor('auto',value) + '<div class="jp-rule">' + generalEditor('auto',value,10000) + '</div>' + check('autoSyncUnchanged',tr('Native synchronization also regenerates unchanged policies','Sincronização nativa também regenera políticas inalteradas'),value.SyncUnchangedPolicies,'data-owner="auto" data-field="SyncUnchangedPolicies"') + '</section><section class="jp-section"><h2>' + tr('Originals','Originais') + '</h2>' + storageEditor('auto',value) + '<div id="autoPermanentField"' + (value.Enabled && !value.DryRun && !value.PreserveOriginals ? '' : ' hidden') + '>' + check('AutoPermanentAck',tr('I authorize permanent original removal for applying automation','Autorizo remoção permanente de originais pela automação de aplicação'),false) + '</div></section></form>'
+  + '<aside class="paperList jp-panel jp-aside"><h2>' + tr('Save automation','Salvar automação') + '</h2><p id="JpAutoDirty" role="status">' + savedText('auto') + '</p><p class="fieldDescription">' + tr('Saved mode: ','Modo salvo: ') + (!S.settings.Automation.DryRun ? (S.settings.Automation.Enabled ? tr('apply','aplicar') : tr('apply mode blocked; scheduled tasks do not change artwork','modo aplicar bloqueado; tarefas agendadas não alteram imagens')) : tr('analysis only','somente análise')) + '</p>' + button(tr('Save automation','Salvar automação'),'saveAuto','id="SaveAutomation"',true) + '<p class="fieldDescription">' + tr('Does not change manual drafts, Global defaults or task schedules. Idle is not disabled; no triggers means no automatic schedule.','Não altera rascunhos manuais, Padrões globais ou horários das tarefas. Ociosa não é desabilitada; sem disparos não há horário automático.') + '</p>' + rules('automation') + '</aside></div>'
+  + '<section class="paperList jp-panel"><h2>' + tr('Native tasks and last report','Tarefas nativas e último relatório') + '</h2><div id="JpTasks">' + tasksView() + '</div></section>';
 }
 function tasksView() {
  if (!S.tasks) return notice(tr('Task status unavailable. Settings remain editable.','Estado das tarefas indisponível. Os ajustes continuam editáveis.'),'jp-warning');
@@ -333,16 +537,24 @@ function tasksView() {
  return S.tasks.Tasks.map(task => {
   const native = S.nativeTasks?.find(t => t.Key === task.Key);
   return '<section class="jp-rule"><h3>' + esc(task.Key === 'JellyPOptimizeArtwork' ? tr('Optimize new images','Otimizar novas imagens') : tr('Update conversions from originals','Atualizar conversões a partir dos originais')) + '</h3><p>' + esc(reason(task.State)) + ' · ' + (native?.Triggers ? native.Triggers.length + tr(' configured triggers',' disparos configurados') : tr('Triggers unavailable','Disparos indisponíveis')) + '</p>' + (native?.Triggers?.length ? '<details><summary>' + tr('Configured trigger details','Detalhes dos disparos configurados') + '</summary><pre class="jp-code">' + esc(JSON.stringify(native.Triggers,null,2)) + '</pre></details>' : '') + '<p class="fieldDescription">' + esc(task.Key) + ' · ' + esc(task.Id) + '</p></section>';
- }).join('') + '<p class="fieldDescription">' + tr('Configure triggers in Jellyfin Dashboard → Scheduled Tasks → JellyP. No schedule is created here.','Configure os disparos em Painel do Jellyfin → Tarefas Agendadas → JellyP. Nenhum agendamento é criado aqui.') + '</p>' + (report?.FinishedUtc || report?.StartedUtc ? '<details><summary>' + tr('Consult real last scheduled/legacy report','Consultar último relatório real agendado/legado') + '</summary><p>' + esc(reason(report.Phase)) + ' · ' + date(report.FinishedUtc || report.StartedUtc) + '</p><p class="fieldDescription">' + (report.DryRun ? tr('Analysis only','Somente análise') : tr('Applying','Aplicação')) + ' · ' + report.Examined + tr(' examined · ',' avaliadas · ') + report.WouldConvert + tr(' would convert · ',' seriam convertidas · ') + report.Converted + tr(' converted · ',' convertidas · ') + report.Failed + tr(' failed',' falhas') + '</p><p class="fieldDescription">' + tr('Only the last report and up to 20 samples are retained, not a full scheduled-analysis history.','Somente o último relatório e até 20 amostras são mantidos, não um histórico completo de análises agendadas.') + '</p>' + (report.Samples || []).map(row => '<p class="fieldDescription">' + esc(itemTitle(row)) + ' · ' + esc(cat(row.Type)) + ' · ' + bytes(row.OriginalBytes) + ' → ' + bytes(row.OutputBytes) + ' · ' + esc(reason(row.Reason)) + '</p>').join('') + '</details>' : notice(tr('No scheduled/legacy report recorded yet.','Nenhum relatório agendado/legado registrado ainda.')));
+  }).join('') + '<p class="fieldDescription">' + tr('Configure triggers in Jellyfin Dashboard → Scheduled Tasks → JellyP. No schedule is created here.','Configure os disparos em Painel do Jellyfin → Tarefas Agendadas → JellyP. Nenhum agendamento é criado aqui.') + '</p>' + (report?.FinishedUtc || report?.StartedUtc ? '<details><summary>' + tr('Consult last available report','Consultar último relatório disponível') + '</summary><p>' + esc(reason(report.Phase)) + ' · ' + date(report.FinishedUtc || report.StartedUtc) + '</p><p class="fieldDescription">' + (report.DryRun ? tr('Analysis only','Somente análise') : tr('Applying','Aplicação')) + ' · ' + report.Examined + tr(' examined · ',' avaliadas · ') + report.WouldConvert + tr(' would convert · ',' seriam convertidas · ') + report.Converted + tr(' converted · ',' convertidas · ') + report.Failed + tr(' failed',' falhas') + '</p><p class="fieldDescription">' + tr('Only the last report and up to 20 samples are retained. Its origin was not recorded; this is not a complete scheduled-analysis history.','Somente o último relatório e até 20 amostras são mantidos. A origem não foi registrada; não é um histórico completo de análises agendadas.') + '</p>' + (report.Samples || []).map(row => '<p class="fieldDescription">' + esc(itemTitle(row)) + ' · ' + esc(cat(row.Type)) + ' · ' + bytes(row.OriginalBytes) + ' → ' + bytes(row.OutputBytes) + ' · ' + esc(reason(row.Reason)) + '</p>').join('') + '</details>' : notice(tr('No report available yet.','Nenhum relatório disponível ainda.')));
 }
 function settingsView() {
  const limits = S.cfg.Globals;
  const field = (key,label,value,min,help,step = 'any',scale = 1,max = '') => input('cfg' + key,label,value,'type="number" min="' + min + '"' + (max === '' ? '' : ' max="' + max + '"') + ' step="' + step + '" required data-global="' + key + '" data-scale="' + scale + '"',help);
- return heading(tr('Settings','Configurações'),tr('Saved manual defaults and global protections. Nothing changes until you explicitly save.','Padrões manuais salvos e proteções globais. Nada muda até salvar explicitamente.')) + (S.returnTo ? '<div class="jp-back">' + link(S.returnTo === 'automation' ? tr('← Back to Automation','← Voltar à Automação') : tr('← Back to review','← Voltar à revisão'),S.returnTo === 'automation' ? 'automation' : 'execute',{sub:S.returnTo === 'automation' ? '' : 'review'}) + '<p class="fieldDescription">' + tr('Your previous draft/selection is preserved. Saving here requires a new manual analysis.','Seu rascunho/seleção anterior está preservado. Salvar aqui exige nova análise manual.') + '</p></div>' : '') + '<div class="jp-work"><form id="JpSettingsForm" class="paperList jp-panel"><section class="jp-section"><h2>' + tr('Manual defaults','Padrões manuais') + '</h2>' + generalEditor('cfg',S.cfg.Defaults,10000) + storageEditor('cfg',S.cfg.Defaults) + policiesEditor('cfg',S.cfg.Defaults) + '</section><section class="jp-section"><h2 id="JpStorageTitle" tabindex="-1">' + tr('Storage protections · global','Proteções de armazenamento · globais') + '</h2>' + field('MinimumFreeSpaceBytes',tr('Minimum free space (GiB)','Espaço livre mínimo (GiB)'),limits.MinimumFreeSpaceBytes / 1073741824,.0625,tr('Protected disk reserve. Lowering it does not free space.','Reserva protegida do disco. Reduzi-la não libera espaço.'),'any',1073741824) + field('MaximumBackupBytes',tr('Total original budget (MiB)','Limite total de originais (MiB)'),limits.MaximumBackupBytes / 1048576,32,tr('Total stored originals, including the safe temporary copy before verified removal. Not a per-batch allowance.','Total de originais guardados, incluindo a cópia temporária segura antes da remoção verificada. Não é orçamento por lote.'),'any',1048576) + field('BackupRetentionDays',tr('Original retention (days; 0 = no expiry)','Retenção de originais (dias; 0 = não expirar)'),limits.BackupRetentionDays,0,tr('Age since CompletedUtc, not file date or last access. Eligible originals expire only at the start of an applying batch, not daily. Never media or active WebP. Selected regeneration originals are protected.','Idade desde CompletedUtc, não data do arquivo ou último acesso. Originais elegíveis expiram só no início de lote aplicado, não diariamente. Nunca mídia ou WebP ativo. Originais de regenerações selecionadas são protegidos.'),'1') + '</section><details class="jp-section"><summary>' + tr('Global savings filters','Filtros globais de economia') + '</summary><div class="jp-details">' + field('MinimumSavingsRatio',tr('Minimum savings (%)','Redução mínima (%)'),limits.MinimumSavingsRatio * 100,0,'','any',.01,90) + field('MinimumSavingsBytes',tr('Minimum savings (KiB)','Redução mínima (KiB)'),limits.MinimumSavingsBytes / 1024,0,'','any',1024) + '</div></details></form><aside class="paperList jp-panel jp-aside"><h2>' + tr('Save defaults and globals','Salvar padrões e globais') + '</h2><p id="JpCfgDirty" role="status">' + savedText('cfg') + '</p>' + notice(tr('Saving invalidates manual analysis/review. Automation and its unsaved draft are not saved or broadened.','Salvar invalida análise/revisão manual. A automação e seu rascunho não são salvos nem ampliados.'),'jp-warning') + button(tr('Save settings','Salvar configurações'),'saveSettings','id="SaveSettings"',true) + '</aside></div>';
+ return heading(tr('Settings','Configurações'),tr('Global defaults and storage protections. Nothing changes until you explicitly save.','Padrões globais e proteções de armazenamento. Nada muda até salvar explicitamente.'))
+  + (S.returnTo ? '<div class="jp-back">' + link(S.returnTo === 'automation' ? tr('← Back to Automation','← Voltar à Automação') : tr('← Back to review','← Voltar à revisão'),S.returnTo === 'automation' ? 'automation' : 'execute',{sub:S.returnTo === 'automation' ? '' : 'review'}) + '<p class="fieldDescription">' + tr('Your previous draft/selection is preserved. Saving here requires a new manual analysis.','Seu rascunho/seleção anterior está preservado. Salvar aqui exige nova análise manual.') + '</p></div>' : '')
+  + '<div class="jp-work"><form id="JpSettingsForm" class="paperList jp-panel"><section class="jp-section"><h2>' + tr('Global defaults','Padrões globais') + '</h2><p class="fieldDescription">' + tr('Starting point for new manual tests. Automation keeps its own quality and image settings; these defaults do not overwrite them.','Ponto de partida para novos testes manuais. A automação mantém qualidade e ajustes de imagem próprios; estes padrões não os sobrescrevem.') + '</p>' + defaultsWarning() + generalEditor('cfg',S.cfg.Defaults,10000) + storageEditor('cfg',S.cfg.Defaults) + policiesEditor('cfg',S.cfg.Defaults) + '</section>'
+  + '<section class="jp-section"><h2 id="JpStorageTitle" tabindex="-1">' + tr('Storage protections · global','Proteções de armazenamento · globais') + '</h2><p class="fieldDescription">' + tr('Apply to ALL operations, including automation. Retention can permanently remove eligible stored originals.','Valem para TODAS as operações, inclusive automação. A retenção pode remover permanentemente originais guardados elegíveis.') + '</p>'
+  + field('MinimumFreeSpaceBytes',tr('Minimum free space (GiB)','Espaço livre mínimo (GiB)'),limits.MinimumFreeSpaceBytes / 1073741824,.0625,tr('Protected disk reserve. Lowering it does not free space.','Reserva protegida do disco. Reduzi-la não libera espaço.'),'any',1073741824)
+  + field('MaximumBackupBytes',tr('Total original budget (MiB)','Limite total de originais (MiB)'),limits.MaximumBackupBytes / 1048576,32,tr('Total stored originals, including the safe temporary copy before verified removal. Not a per-batch allowance.','Total de originais guardados, incluindo a cópia temporária segura antes da remoção verificada. Não é orçamento por lote.'),'any',1048576)
+  + field('BackupRetentionDays',tr('Original retention (days; 0 = no expiry)','Retenção de originais (dias; 0 = não expirar)'),limits.BackupRetentionDays,0,tr('Age since conversion or regeneration completed, not file date or last access. Eligible originals expire only at the start of an applying batch, not daily. Never media or active WebP. Selected regeneration originals are protected.','Idade desde a conclusão da conversão ou regeneração, não data do arquivo ou último acesso. Originais elegíveis expiram só no início de lote aplicado, não diariamente. Nunca mídia ou WebP ativo. Originais de regenerações selecionadas são protegidos.'),'1') + '</section>'
+  + '<details class="jp-section"><summary>' + tr('Global savings filters','Filtros globais de economia') + '</summary><div class="jp-details">' + field('MinimumSavingsRatio',tr('Minimum savings (%)','Redução mínima (%)'),limits.MinimumSavingsRatio * 100,0,'','any',.01,90) + field('MinimumSavingsBytes',tr('Minimum savings (KiB)','Redução mínima (KiB)'),limits.MinimumSavingsBytes / 1024,0,'','any',1024) + '</div></details></form>'
+  + '<aside class="paperList jp-panel jp-aside"><h2>' + tr('Save global defaults','Salvar padrões globais') + '</h2><p id="JpCfgDirty" role="status">' + savedText('cfg') + '</p>' + notice(tr('Saving invalidates manual analysis/review. Automation quality and scope are not saved or broadened. Global storage protections and retention DO affect automation.','Salvar invalida análise/revisão manual. Qualidade e alcance da automação não são salvos nem ampliados. Proteções globais de armazenamento e retenção AFETAM a automação.'),'jp-warning') + button(tr('Save global defaults','Salvar padrões globais'),'saveSettings','id="SaveSettings"',true) + '</aside></div>';
 }
 function backupRow(row,retire) {
  const selected = retire ? S.retire : S.restore, eligible = retire ? row.Retirable : row.Restorable;
- return '<article class="jp-row" data-backup-id="' + esc(row.RecordId) + '"><div>' + check('backup' + row.RecordId,tr('Select original of ','Selecionar original de ') + itemTitle(row) + ' · ' + cat(row.Category) + ' ' + row.Index,selected.includes(row.RecordId),'data-backup="' + row.RecordId + '"' + (!eligible || hasActive() || mutating ? ' disabled' : '')) + '</div><div><h3>' + esc(itemTitle(row)) + '</h3><p class="fieldDescription">' + esc(cat(row.Category)) + ' · ' + esc(row.TypeName) + ' · ' + tr('position ','posição ') + row.Index + '<br>' + date(row.CompletedUtc || row.CreatedUtc) + '</p><p>' + esc(row.OriginalMimeType || tr('Format not recorded','Formato não registrado')) + ' · ' + dims(row.OriginalWidth,row.OriginalHeight) + ' · ' + bytes(row.OriginalBytes) + '</p><details><summary>' + tr('Stored evidence and identity','Evidência armazenada e identidade') + '</summary><p class="fieldDescription">WebP: ' + dims(row.OutputWidth,row.OutputHeight) + ' · ' + bytes(row.OutputBytes) + '<br>' + tr('Previous settings: only the fingerprint is recorded. Older dimensions/policies may be unknown.','Ajustes anteriores: só o fingerprint é registrado. Dimensões/políticas antigas podem ser desconhecidas.') + '</p><p class="jp-code">SHA-256 original: ' + esc(row.SourceHash) + '<br>SHA-256 WebP: ' + esc(row.OutputHash) + '<br>' + tr('Policy fingerprint: ','Fingerprint da política: ') + esc(row.PolicyFingerprint || '—') + '<br>' + esc(row.RecordId) + '</p></details></div><div class="jp-outcome"><strong>' + (eligible ? retire ? tr('Permanent removal eligible','Elegível para remoção permanente') : tr('Verified original available','Original verificado disponível') : tr('Protected — not selectable','Protegido — não selecionável')) + '</strong><p class="fieldDescription">' + esc(reason(row.Reason)) + '</p>' + (eligible ? button(retire ? tr('Review permanent removal','Revisar remoção permanente') : tr('Restore this original','Restaurar este original'),'reviewOneBackup','data-id="' + row.RecordId + '"' + (hasActive() ? ' disabled' : '')) : '') + '</div></article>';
+ return '<article class="jp-row" data-backup-id="' + esc(row.RecordId) + '"><div>' + check('backup' + row.RecordId,tr('Select original of ','Selecionar original de ') + itemTitle(row) + ' · ' + cat(row.Category) + ' ' + row.Index,selected.includes(row.RecordId),'data-backup="' + row.RecordId + '"' + (!eligible || hasActive() || mutating ? ' disabled' : '')) + '</div>' + slotPreview(row) + '<div><h3>' + esc(itemTitle(row)) + '</h3><p class="fieldDescription">' + esc(cat(row.Category)) + ' · ' + tr('position ','posição ') + row.Index + '<br>' + date(row.CompletedUtc || row.CreatedUtc) + '</p><p class="fieldDescription">' + tr('Preview: current image. Stored original:','Prévia: imagem atual. Original guardado:') + '</p><p>' + formatName(row.OriginalMimeType) + ' · ' + dims(row.OriginalWidth,row.OriginalHeight) + ' · ' + bytes(row.OriginalBytes) + '</p><details><summary>' + tr('Stored evidence and identity','Evidência armazenada e identidade') + '</summary><p class="fieldDescription">WebP: ' + dims(row.OutputWidth,row.OutputHeight) + ' · ' + bytes(row.OutputBytes) + '<br>' + tr('Previous settings: only the fingerprint is recorded. Older dimensions/policies may be unknown.','Ajustes anteriores: só o fingerprint é registrado. Dimensões/políticas antigas podem ser desconhecidas.') + '</p><p class="jp-code">' + esc(row.TypeName) + ' · ' + esc(row.OriginalMimeType) + '<br>SHA-256 original: ' + esc(row.SourceHash) + '<br>SHA-256 WebP: ' + esc(row.OutputHash) + '<br>' + tr('Policy fingerprint: ','Fingerprint da política: ') + esc(row.PolicyFingerprint || '—') + '<br>' + esc(row.RecordId) + '</p></details></div><div class="jp-outcome"><strong>' + (eligible ? retire ? tr('Permanent removal eligible','Elegível para remoção permanente') : tr('Verified original available','Original verificado disponível') : tr('Protected — not selectable','Protegido — não selecionável')) + '</strong><p class="fieldDescription">' + esc(reason(row.Reason)) + '</p>' + (eligible ? button(retire ? tr('Review permanent removal','Revisar remoção permanente') : tr('Restore this original','Restaurar este original'),'reviewOneBackup','data-id="' + row.RecordId + '"' + (hasActive() ? ' disabled' : ''),false,retire ? 'jp-danger-button' : '') : '') + '</div></article>';
 }
 function operationsView() {
  const operations = S.operations;
@@ -356,7 +568,15 @@ function recoveryView() {
 }
 function historyView() {
  const retire = S.sub === 'retire', selected = retire ? S.retire : S.restore, backups = S.backups;
- return heading(retire ? tr('Remove originals · permanent','Remover originais · permanente') : tr('History and restoration','Histórico e restauração'),retire ? tr('Select exact verified originals. Active WebP and media are never deleted. Uncertain originals stay protected.','Selecione originais verificados exatos. WebP ativo e mídia nunca são excluídos. Originais incertos continuam protegidos.') : tr('Find a conversion and restore its exact stored original. Restoring does not change automation.','Encontre uma conversão e restaure seu original exato guardado. Restaurar não muda a automação.')) + '<nav class="jp-local-nav" aria-label="' + tr('Original maintenance','Manutenção de originais') + '">' + link(tr('Operations and restoration','Operações e restauração'),'history',{},retire ? '' : 'button-accent') + link(tr('Remove originals · permanent','Remover originais · permanente'),'history',{sub:'retire'},'jp-danger-button') + '</nav>' + (!retire ? recoveryView() : notice(tr('Permanent deletion ends restoration and original-based regeneration for these exact images.','Excluir permanentemente encerra restauração e regeneração a partir do original destas imagens exatas.'),'jp-danger')) + '<section class="paperList jp-panel"><h2>' + (retire ? tr('Originals eligible for removal','Originais elegíveis para remoção') : tr('Operations · images with stored originals','Operações · imagens com originais guardados')) + '</h2>' + (!retire ? select('BackupFilter',tr('Show originals','Exibir originais'),S.backupFilter,[['restorable',tr('Only restorable','Somente restauráveis')],['all',tr('All active originals, including protected','Todos os originais ativos, incluindo protegidos')]]) : '') + '<div class="jp-toolbar"><div class="jp-actions">' + button(tr('Select eligible on this page','Selecionar elegíveis desta página'),'selectBackupPage',hasActive() ? 'disabled' : '') + button(retire ? tr('Select ALL eligible originals in the plugin','Selecionar TODOS os originais elegíveis do plugin') : tr('Select ALL restorable originals in the plugin','Selecionar TODOS os restauráveis do plugin'),'selectAllBackups',hasActive() ? 'disabled' : '') + button(tr('Clear selection','Limpar seleção'),'clearBackups') + '</div><div class="jp-selection"><p id="JpBackupCount">' + selected.length + tr(' selected across all pages',' selecionados em todas as páginas') + '</p>' + button(retire ? tr('Review permanent removal…','Revisar remoção permanente…') : tr('Review restoration…','Revisar restauração…'),'reviewBackups','id="ReviewBackups"' + (!selected.length || hasActive() ? ' disabled' : ''),!retire,retire ? 'jp-danger-button' : '') + '</div><p class="fieldDescription">' + tr('Maximum 200 originals per maintenance operation. “All” refuses larger sets; it never silently truncates. Select a smaller exact subset.','Máximo de 200 originais por operação de manutenção. “Todos” recusa conjuntos maiores; nunca trunca silenciosamente. Selecione um subconjunto exato menor.') + '</p></div>' + (backups?.Items.length ? pager('backups',backups.Total,S.pages.backups) + backups.Items.map(row => backupRow(row,retire)).join('') : notice(tr('No originals match this filter. Completed operations remain in the receipts below.','Nenhum original corresponde ao filtro. Operações concluídas continuam nos recibos abaixo.'))) + '<p class="fieldDescription">' + tr('Stored format and SHA-256 are evidence of the file. A browser WebP response is a Jellyfin representation, not proof of the original source format.','Formato armazenado e SHA-256 são evidência do arquivo. Uma resposta WebP ao navegador é representação do Jellyfin, não prova do formato original de origem.') + '</p></section>' + (!retire ? operationsView() : '');
+ return heading(retire ? tr('Remove originals · permanent','Remover originais · permanente') : tr('History and restoration','Histórico e restauração'),retire ? tr('Select exact verified originals. Active WebP and media are never deleted. Uncertain originals stay protected.','Selecione originais verificados exatos. WebP ativo e mídia nunca são excluídos. Originais incertos continuam protegidos.') : tr('Find a conversion and restore its exact stored original. Restoring does not change automation.','Encontre uma conversão e restaure seu original exato guardado. Restaurar não muda a automação.'))
+  + '<nav class="jp-local-nav" aria-label="' + tr('Original maintenance','Manutenção de originais') + '">' + link(tr('Operations and restoration','Operações e restauração'),'history',{},'',!retire ? 'aria-current="page"' : '','restore') + link(tr('Remove originals · permanent','Remover originais · permanente'),'history',{sub:'retire'},'jp-danger-link',retire ? 'aria-current="page"' : '','delete_outline') + '</nav>'
+  + (!retire ? recoveryView() : notice(tr('Permanent deletion ends restoration and original-based regeneration for these exact images.','Excluir permanentemente encerra restauração e regeneração a partir do original destas imagens exatas.'),'jp-danger'))
+  + '<section class="paperList jp-panel"><h2>' + (retire ? tr('Originals eligible for removal','Originais elegíveis para remoção') : tr('Operations · images with stored originals','Operações · imagens com originais guardados')) + '</h2>'
+  + (!retire ? select('BackupFilter',tr('Show originals','Exibir originais'),S.backupFilter,[['restorable',tr('Only restorable','Somente restauráveis')],['all',tr('All active originals, including protected','Todos os originais ativos, incluindo protegidos')]]) : '')
+  + '<div class="jp-list-tools"><div class="jp-actions">' + button(tr('Select eligible on this page','Selecionar elegíveis desta página'),'selectBackupPage',hasActive() ? 'disabled' : '') + button(retire ? tr('Select ALL eligible originals in the plugin','Selecionar TODOS os originais elegíveis do plugin') : tr('Select ALL restorable originals in the plugin','Selecionar TODOS os restauráveis do plugin'),'selectAllBackups',hasActive() ? 'disabled' : '') + button(tr('Clear selection','Limpar seleção'),'clearBackups') + '</div><p class="fieldDescription">' + tr('Maximum 200 originals per maintenance operation. “All” refuses larger sets; it never silently truncates. Select a smaller exact subset.','Máximo de 200 originais por operação de manutenção. “Todos” recusa conjuntos maiores; nunca trunca silenciosamente. Selecione um subconjunto exato menor.') + '</p></div>'
+  + (backups?.Items.length ? pager('backups',backups.Total,S.pages.backups) + backups.Items.map(row => backupRow(row,retire)).join('') : notice(tr('No originals match this filter. Completed operations remain in the receipts below.','Nenhum original corresponde ao filtro. Operações concluídas continuam nos recibos abaixo.')))
+  + '<p class="fieldDescription">' + tr('Stored format and SHA-256 are evidence of the file. A browser WebP response is a Jellyfin representation, not proof of the original source format.','Formato armazenado e SHA-256 são evidência do arquivo. Uma resposta WebP ao navegador é representação do Jellyfin, não prova do formato original de origem.') + '</p>'
+  + '<div class="paperList jp-selection-bar jp-selection"><p id="JpBackupCount">' + selected.length + tr(' selected across all pages',' selecionados em todas as páginas') + '</p>' + button(retire ? tr('Review permanent removal…','Revisar remoção permanente…') : tr('Review restoration…','Revisar restauração…'),'reviewBackups','id="ReviewBackups"' + (!selected.length || hasActive() ? ' disabled' : ''),!retire,retire ? 'jp-danger-button' : '') + '</div></section>' + (!retire ? operationsView() : '');
 }
 async function loadHistory() {
  const filter = S.sub === 'retire' ? 'retirable' : S.backupFilter;
@@ -364,6 +584,7 @@ async function loadHistory() {
  S.backups = backups; S.operations = operations; S.status = status;
  if (backups.Total && S.pages.backups >= backups.Total) { S.pages.backups = Math.floor((backups.Total - 1) / pageSize) * pageSize; return loadHistory(); }
  await resolveNames(backups.Items.map(row => row.ItemId));
+ await inspect(backups.Items.map(row => row.ItemId));
 }
 async function resolveNames(ids) {
  const missing = [...new Set(ids.map(id32))].filter(id => !itemNames.has(id));
@@ -378,6 +599,7 @@ async function inspect(ids) {
   catch (_) { for (const id of batch) inspections.set(id32(id),{Unavailable:true}); }
  }
  for (const node of page.querySelectorAll('[data-inspection]')) node.textContent = inspectionText(node.dataset.inspection);
+ refreshPreviews();
 }
 async function search(owner) {
  const sequence = ++searchSequence, term = $(owner + 'Search')?.value.trim(), year = $(owner + 'Year')?.value, type = $(owner + 'ItemType')?.value;
@@ -391,22 +613,28 @@ async function search(owner) {
   const response = await api('Items?' + new URLSearchParams(params));
   if (sequence !== searchSequence || !visible || !$(owner + 'SearchResults')) return;
   const selected = S[owner].ItemIds.map(id32), rows = response.Items.filter(item => !selected.includes(id32(item.Id)));
-  for (const item of rows) itemNames.set(id32(item.Id),item);
+   for (const item of rows) itemNames.set(id32(item.Id),item);
+   await inspect(rows.map(item => item.Id));
+   if (sequence !== searchSequence || !visible || !$(owner + 'SearchResults')) return;
   $(owner + 'SearchState').textContent = rows.length ? tr('Select a result to add it. Showing up to 20; narrow filters for more.','Selecione um resultado para adicioná-lo. Mostrando até 20; refine os filtros para mais.') : tr('No matching items. Existing selection was kept.','Nenhum item correspondente. A seleção anterior foi preservada.');
-  $(owner + 'SearchResults').innerHTML = rows.map(item => button([item.Name,item.ProductionYear,item.Type].filter(Boolean).join(' · '),'addItem','data-owner="' + owner + '" data-id="' + esc(item.Id) + '"',false,'jp-search-result')).join('');
+   $(owner + 'SearchResults').innerHTML = rows.map(item => '<button is="emby-button" type="button" class="jp-search-result jp-identity-preview" data-action="addItem" data-owner="' + owner + '" data-id="' + esc(item.Id) + '">' + inspectedPreview(item.Id) + '<span>' + esc(itemTitle({ItemId:item.Id})) + '</span></button>').join('');
  } catch (_) { if (sequence === searchSequence && $(owner + 'SearchState')) $(owner + 'SearchState').textContent = tr('Search unavailable. Add an item ID below.','Busca indisponível. Adicione um ID abaixo.'); }
 }
 async function loadPlanPage() { S.planPage = await api('JellyP/Plan/' + S.planId + '/Images?offset=' + S.pages.images + '&limit=' + pageSize); }
 async function loadReview() { S.review = await api('JellyP/Plan/' + S.planId + '/Review','POST',{Keys:S.selection,Offset:S.pages.review,Limit:pageSize,RetentionOffset:S.pages.retention || 0,RetentionLimit:pageSize}); S.reviewKeys = [...S.selection]; }
 async function loadOperation() {
  const detail = await api('JellyP/Executions/' + S.operationId + '?offset=' + S.pages.operation + '&limit=' + pageSize), previousState = S.operation?.Operation.State;
- S.operation = detail;
+  S.operation = detail;
+  S.restorableTotal = ['Queued','Running'].includes(detail.Operation.State) ? null : await api('JellyP/Backups?filter=restorable&offset=0&limit=1').then(result => result.Total).catch(() => null);
+ await inspect(detail.Items.map(row => row.ItemId));
  if (['Queued','Running'].includes(detail.Operation.State)) S.activeId = detail.Operation.OperationId;
  else if (S.activeId === detail.Operation.OperationId) S.activeId = null;
  if (previousState && previousState !== detail.Operation.State) announce(reason(detail.Operation.State));
 }
 async function render(move = true) {
  const sequence = ++renderSequence;
+ $('JpMain').setAttribute('aria-busy','true');
+ hostPalette();
  renderShell();
  if (S.area === 'history') await loadHistory();
  if (S.area === 'simulate' && S.stage === 'result' && S.planId) await loadPlanPage();
@@ -426,13 +654,17 @@ async function render(move = true) {
  if ($('JpAutoForm')) updateEditor('auto');
  if ($('JpSettingsForm')) updateEditor('cfg');
  if (S.area === 'simulate' && S.stage === 'result' && canSelect()) updateBill();
+  updatePlanSelection();
+  if (S.area === 'history') updateBackupSelection();
  if (S.area === 'settings' && S.sub === 'storage') $('JpStorageTitle')?.focus(); else if (move) $('JpTitle')?.focus();
  if (S.area === 'simulate' && S.stage === 'draft') inspect(S.draft.ItemIds);
  if (S.area === 'automation') inspect(S.auto.ItemIds);
+ $('JpMain').removeAttribute('aria-busy');
  persist();
 }
 async function updateBill() {
  const sequence = ++billingSequence, container = $('JpSelectedBill'), keys = [...S.selection];
+ updatePlanSelection();
  if ($('JpSelectedCount')) $('JpSelectedCount').textContent = keys.length + tr(' selected across all pages',' selecionadas em todas as páginas');
  if ($('Review')) $('Review').disabled = !canSelect() || !keys.length;
  if (!container) return;
@@ -456,7 +688,8 @@ async function refreshState() {
  activity();
  // Update read-only results only. Do not re-render editors or replace a focused
  // cancel control while a native task is making progress.
- if (S.area === 'execute' && $('JpExecutionBody') && !$('JpDialog').open) {
+  if (S.area === 'execute' && $('JpExecutionBody') && !$('JpDialog').open) {
+   if ($('JpRestoreEntry') && !$('JpRestoreEntry').contains(document.activeElement)) { $('JpRestoreEntry').hidden = ['Queued','Running'].includes(S.operation.Operation.State); $('JpRestoreEntry').innerHTML = restoreEntry(); }
   const body = $('JpExecutionBody'), focused = document.activeElement?.id;
   if (!body.contains(document.activeElement)) {
    const details = [...body.querySelectorAll('details')].map(node => node.open);
@@ -489,7 +722,7 @@ function validate(owner) {
  if (owner === 'cfg') return;
  const scope = owner === 'draft' ? value.Scope : value.ScopeMode;
  if (scope === 'libraries' && (!value.LibraryIds.length || value.LibraryIds.some(id => !S.libraries.some(lib => id32(lib.ItemId) === id32(id))))) throw new Error(tr('Select available libraries. Empty never means all.','Selecione bibliotecas disponíveis. Vazio nunca significa todas.'));
- if (scope === 'items' && !value.ItemIds.length || scope === 'legacy' && value.Enabled && !value.ItemIds.length) throw new Error(tr('Select items or explicitly choose all libraries.','Selecione itens ou escolha explicitamente todas as bibliotecas.'));
+ if (scope === 'items' && !value.ItemIds.length || scope === 'legacy' && !value.ItemIds.length) throw new Error(tr('Choose libraries, specific items or all libraries before saving.','Escolha bibliotecas, itens específicos ou todas as bibliotecas antes de salvar.'));
 }
 function markEdited(owner) { if (owner === 'draft') invalidate(); else { S[owner + 'Dirty'] = true; const node = $(owner === 'auto' ? 'JpAutoDirty' : 'JpCfgDirty'); if (node) node.textContent = savedText(owner); } persist(); }
 function updateEditor(owner) {
@@ -497,17 +730,27 @@ function updateEditor(owner) {
  for (const category of categories) {
   const policy = value.Policies.find(p => p.Category === category), row = form.querySelector('[data-type="' + category + '"]');
   row.querySelector('[data-effective]').textContent = effective(policy.OverrideGlobal ? policy : value);
-  row.querySelector('[data-origin]').textContent = policy.OverrideGlobal ? tr('Using own settings','Usando ajustes próprios') : owner === 'draft' ? tr('Using settings for this test','Usando ajustes deste teste') : tr('Using general settings','Usando ajustes gerais');
+   row.querySelector('[data-origin]').textContent = policy.OverrideGlobal ? tr('Using own settings','Usando ajustes próprios') : owner === 'draft' ? tr('Using settings for this test','Usando ajustes deste teste') : owner === 'cfg' ? tr('Using global defaults','Usando padrões globais') : tr('Using automation settings','Usando ajustes da automação');
   row.querySelector('[data-overrides]').hidden = !policy.OverrideGlobal;
   row.querySelectorAll('[data-category]').forEach(node => { if (!['Enabled','OverrideGlobal'].includes(node.dataset.field)) node.disabled = !policy.OverrideGlobal || node.dataset.field === 'Quality' && policy.Lossless || node.dataset.field === 'MaximumDimension' && !policy.ResizeImages; });
  }
  $(owner + 'Quality').disabled = value.Lossless; $(owner + 'MaximumDimension').disabled = !value.ResizeImages;
  form.querySelector('[data-storage-note]').textContent = storageText(value.PreserveOriginals);
- if (owner === 'draft') $('JpDraftSummary').textContent = effective(value);
+  if (owner === 'draft') $('JpDraftSummary').innerHTML = draftSummary();
  if (owner === 'auto') $('autoPermanentField').hidden = !(value.Enabled && !value.DryRun && !value.PreserveOriginals);
 }
 function applyEnabled() {
  if ($('Apply')) $('Apply').disabled = mutating || hasActive() || !canSelect() || !S.review || !!S.status?.PendingRecovery || !$('ReviewAck')?.checked || !!$('PermanentAck') && !$('PermanentAck').checked || !!$('RetentionAck') && !$('RetentionAck').checked;
+}
+function updatePlanSelection() {
+ const keys = S.planPage?.Items.filter(row => ['Convert','Regenerate'].includes(row.Action)).map(row => row.Key) || [];
+ const count = keys.filter(key => S.selection.includes(key)).length, control = $('SelectPage');
+ if (control) { control.checked = !!keys.length && count === keys.length; control.indeterminate = count > 0 && count < keys.length; control.disabled = !canSelect() || !keys.length; control.setAttribute('aria-checked',control.indeterminate ? 'mixed' : String(control.checked)); }
+ for (const node of page.querySelectorAll('[data-image-key]')) node.dataset.selected = String(!!node.querySelector('[data-plan-key]') && S.selection.includes(node.dataset.imageKey));
+ const next = page.querySelector('[data-action="stage"][data-stage="2"]');
+ if (next) next.disabled = !canSelect() || !S.selection.length;
+ const clear = page.querySelector('[data-action="clearSelection"]');
+ if (clear) clear.disabled = !S.selection.length;
 }
 async function analyze() {
  if (analyzeController) return;
@@ -540,13 +783,15 @@ async function saveAuto() {
 }
 async function saveSettings() {
  validate('cfg'); const result = await api('JellyP/Settings/Defaults','PUT',S.cfg);
- S.settings = result; S.cfg = {Defaults:copy(result.Defaults),Globals:copy(result.Globals)}; S.cfgDirty = false; S.signature = signature(result); invalidate(); persist(); await render(false); message(tr('Defaults and globals saved. Reanalyze before applying. Automation was not saved.','Padrões e globais salvos. Simule novamente antes de aplicar. A automação não foi salva.'));
+ S.settings = result; S.cfg = {Defaults:copy(result.Defaults),Globals:copy(result.Globals)}; S.cfgDirty = false; S.signature = signature(result); invalidate(); persist(); await render(false); message(tr('Global defaults saved. Reanalyze before applying. Automation quality and scope were not saved; global storage protections still apply to automation.','Padrões globais salvos. Simule novamente antes de aplicar. Qualidade e alcance da automação não foram salvos; proteções globais de armazenamento continuam valendo para automação.'));
 }
 function updateBackupSelection() {
  const selected = S.sub === 'retire' ? S.retire : S.restore;
  for (const node of page.querySelectorAll('[data-backup]')) node.checked = selected.includes(node.dataset.backup);
  if ($('JpBackupCount')) $('JpBackupCount').textContent = selected.length + tr(' selected across all pages',' selecionados em todas as páginas');
  if ($('ReviewBackups')) $('ReviewBackups').disabled = !selected.length || hasActive() || mutating;
+ const clear = page.querySelector('[data-action="clearBackups"]');
+ if (clear) clear.disabled = !selected.length;
 }
 async function reviewBackups(oneId) {
  if (hasActive()) throw new Error(tr('Wait for the active operation.','Aguarde a operação ativa.'));
@@ -566,7 +811,9 @@ async function reviewBackups(oneId) {
 }
 function renderBackupDialog() {
  const context = dialogContext, total = context.rows.reduce((sum,row) => sum + row.OriginalBytes,0);
- $('JpDialog').innerHTML = '<h2 id="JpDialogTitle" tabindex="-1">' + (context.retire ? tr('Confirm permanent original removal','Confirmar remoção permanente de originais') : tr('Confirm exact restoration','Confirmar restauração exata')) + '</h2><p>' + context.keys.length + tr(' exact originals · ',' originais exatos · ') + bytes(total) + '</p><p class="fieldDescription">' + (context.retire ? tr('Only these originals will be removed. Restoration and regeneration end permanently. Active WebP remains.','Somente estes originais serão removidos. Restauração e regeneração acabam permanentemente. WebP ativo permanece.') : tr('Only these active transactions will be restored from verified original bytes. Each is revalidated; no substitutes.','Somente estas transações ativas serão restauradas dos bytes originais verificados. Cada uma é revalidada; sem substitutas.')) + '</p><div class="jp-dialog-scroll">' + pager('dialog',context.rows.length,context.offset) + context.rows.slice(context.offset,context.offset + pageSize).map(row => '<div class="jp-dialog-row"><strong>' + esc(itemTitle(row)) + ' · ' + esc(cat(row.Category)) + ' · ' + row.Index + '</strong><p class="fieldDescription">' + esc(row.OriginalMimeType || tr('Unknown format','Formato desconhecido')) + ' · ' + dims(row.OriginalWidth,row.OriginalHeight) + ' · ' + bytes(row.OriginalBytes) + '</p><p class="jp-code">' + esc(row.RecordId) + '<br>SHA-256: ' + esc(row.SourceHash) + '</p></div>').join('') + '</div><div class="jp-dialog-actions">' + check('BackupAck',context.retire ? tr('I authorize permanent deletion of these exact originals','Autorizo a exclusão permanente destes originais exatos') : tr('I confirm restoration of these exact originals','Confirmo a restauração destes originais exatos'),false,'data-backup-consent') + '<div class="jp-actions">' + button(tr('Back','Voltar'),'closeDialog') + button(context.retire ? tr('Permanently remove originals','Remover originais permanentemente') : tr('Restore selected originals','Restaurar originais selecionados'),'confirmBackup','id="ConfirmBackup" disabled',!context.retire,context.retire ? 'jp-danger-button' : '') + '</div></div>';
+ $('JpDialog').innerHTML = '<h2 id="JpDialogTitle" tabindex="-1">' + (context.retire ? tr('Confirm permanent original removal','Confirmar remoção permanente de originais') : tr('Confirm exact restoration','Confirmar restauração exata')) + '</h2><p>' + context.keys.length + (context.keys.length === 1 ? tr(' exact original · ',' original exato · ') : tr(' exact originals · ',' originais exatos · ')) + bytes(total) + '</p><p class="fieldDescription">' + (context.retire ? tr('Only these originals will be removed. Restoration and regeneration end permanently. Active WebP remains.','Somente estes originais serão removidos. Restauração e regeneração acabam permanentemente. WebP ativo permanece.') : tr('Only these active transactions will be restored from verified original bytes. Each is revalidated; no substitutes.','Somente estas transações ativas serão restauradas dos bytes originais verificados. Cada uma é revalidada; sem substitutas.')) + '</p>'
+  + '<div class="jp-dialog-scroll">' + pager('dialog',context.rows.length,context.offset) + context.rows.slice(context.offset,context.offset + pageSize).map(row => '<div class="jp-dialog-row"><strong>' + esc(itemTitle(row)) + ' · ' + esc(cat(row.Category)) + ' · ' + tr('position ','posição ') + row.Index + '</strong><p class="fieldDescription">' + formatName(row.OriginalMimeType) + ' · ' + dims(row.OriginalWidth,row.OriginalHeight) + ' · ' + bytes(row.OriginalBytes) + '</p><details><summary>' + tr('Stored identity and checksum','Identidade e checksum armazenados') + '</summary><p class="jp-code">' + esc(row.RecordId) + '<br>' + esc(row.OriginalMimeType) + '<br>SHA-256: ' + esc(row.SourceHash) + '</p></details></div>').join('') + '</div>'
+  + '<div class="jp-dialog-actions">' + check('BackupAck',context.retire ? tr('I authorize permanent deletion of these exact originals','Autorizo a exclusão permanente destes originais exatos') : tr('I confirm restoration of these exact originals','Confirmo a restauração destes originais exatos'),false,'data-backup-consent') + '<div class="jp-actions">' + button(tr('Back','Voltar'),'closeDialog') + button(context.retire ? tr('Permanently remove originals','Remover originais permanentemente') : tr('Restore selected originals','Restaurar originais selecionados'),'confirmBackup','id="ConfirmBackup" disabled',!context.retire,context.retire ? 'jp-danger-button' : '') + '</div></div>';
 }
 function closeDialog() { $('JpDialog').close(); dialogContext = null; dialogFocus?.focus({preventScroll:true}); }
 function editValue(node) {
@@ -585,13 +832,22 @@ page.addEventListener('input',event => {
 });
 page.addEventListener('change',event => {
  const node = event.target, localId = node.dataset.jpId || node.id;
- if (localId === 'Language') { language = node.value; localStorage.setItem('jellyp-language',language); render(false).catch(showError); }
+ if (node.hasAttribute('data-select-page')) {
+  if (!canSelect()) return;
+  const pageKeys = S.planPage.Items.filter(row => ['Convert','Regenerate'].includes(row.Action)).map(row => row.Key);
+  const keys = node.checked ? [...new Set([...S.selection,...pageKeys])] : S.selection.filter(key => !pageKeys.includes(key));
+  if (keys.length > 1000) { updatePlanSelection(); message(tr('Maximum 1,000 images. Nothing was truncated.','Máximo de 1.000 imagens. Nada foi truncado.'),true); return; }
+  S.selection = keys; S.review = null; S.pages.review = 0; S.pages.retention = 0;
+  for (const input of page.querySelectorAll('[data-plan-key]')) input.checked = keys.includes(input.dataset.planKey);
+  persist(); updateBill();
+ }
+ else if (localId === 'Language') { language = node.value; localStorage.setItem('jellyp-language',language); render(false).catch(showError); }
  else if (localId === 'JpArea') go(node.value);
  else if (node.dataset.searchFilter) search(node.dataset.searchFilter);
  else if (node.dataset.field && (node.tagName === 'SELECT' || node.type === 'checkbox')) editValue(node);
  else if (node.dataset.library) {
   const value = S[node.dataset.owner], id = node.dataset.library;
-  value.LibraryIds = node.checked ? [...new Set([...value.LibraryIds,id])] : value.LibraryIds.filter(key => id32(key) !== id32(id)); markEdited(node.dataset.owner);
+   value.LibraryIds = node.checked ? [...new Set([...value.LibraryIds,id])] : value.LibraryIds.filter(key => id32(key) !== id32(id)); markEdited(node.dataset.owner); if (node.dataset.owner === 'draft') $('JpDraftSummary').innerHTML = draftSummary();
  } else if (node.dataset.planKey) {
   if (!canSelect()) return;
   const keys = node.checked ? [...new Set([...S.selection,node.dataset.planKey])] : S.selection.filter(key => key !== node.dataset.planKey);
@@ -606,17 +862,21 @@ page.addEventListener('change',event => {
  else if (node.hasAttribute('data-backup-consent')) $('ConfirmBackup').disabled = !node.checked || mutating;
 });
 page.addEventListener('click',event => { const node = event.target.closest('[data-action]'); if (!node || node.disabled) return; event.preventDefault(); handleAction(node).catch(showError); });
+// Capturing error avoids broken-image chrome without an inline JS handler. No
+// fallback URL is ever requested, especially for an unavailable local slot.
+page.addEventListener('error',event => { if (event.target.matches('.jp-preview img')) { const image = event.target; image.parentElement.setAttribute('aria-label',tr('Preview unavailable','Prévia indisponível')); image.remove(); } },true);
 async function handleAction(node) {
  const action = node.dataset.action; message();
  if (action === 'disclose') { const target = $(node.getAttribute('aria-controls')); target.hidden = !target.hidden; node.setAttribute('aria-expanded',String(!target.hidden)); node.querySelector('[aria-hidden]').textContent = target.hidden ? '⌄' : '⌃'; }
- else if (action === 'stage') { if (node.dataset.stage === '2') { await loadReview(); go('execute',{sub:'review'}); } else go('simulate',{stage:node.dataset.stage === '1' ? 'result' : ''}); }
+  else if (action === 'stage') { if (node.dataset.stage === '2') { await loadReview(); go('execute',{sub:'review'}); } else go('simulate',{stage:node.dataset.stage === '1' ? 'result' : ''}); }
+  else if (action === 'editDraft') go('simulate');
  else if (action === 'analyze') await analyze();
  else if (action === 'abortAnalyze') analyzeController?.abort();
  else if (action === 'copyDefaults') {
-  if (!window.confirm(tr('Copy saved encoding defaults to this test only? Scope, enabled types and preservation are kept.','Copiar os padrões de codificação salvos só para este teste? Alcance, tipos habilitados e preservação são mantidos.'))) return;
+   if (!window.confirm(tr('Use Global defaults for this test only? Scope, enabled types and preservation are kept. Automation is unchanged.','Usar Padrões globais só para este teste? Alcance, tipos habilitados e preservação são mantidos. A automação não muda.'))) return;
   const defaults = copy(S.settings.Defaults), old = S.draft;
   defaults.Policies.forEach(policy => { policy.Enabled = old.Policies.find(row => row.Category === policy.Category).Enabled; });
-  S.draft = {...old,...defaults,Scope:old.Scope,ItemIds:old.ItemIds,LibraryIds:old.LibraryIds,PreserveOriginals:old.PreserveOriginals}; invalidate(); await render(false);
+   S.draft = {...old,...defaults,Scope:old.Scope,ItemIds:old.ItemIds,LibraryIds:old.LibraryIds,PreserveOriginals:old.PreserveOriginals}; invalidate(); await render(false); message(tr('Global defaults copied to this test only. Nothing saved; automation unchanged.','Padrões globais copiados só para este teste. Nada salvo; automação inalterada.'));
  } else if (['addItem','addIds','removeItem'].includes(action)) {
   const owner = node.dataset.owner, value = S[owner];
   const ids = action === 'addIds' ? ($(owner + 'Ids').value.match(/\b(?:[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}|[a-f\d]{32})\b/gi) || []) : [node.dataset.id];
@@ -673,7 +933,7 @@ async function handleAction(node) {
  }
 }
 page.addEventListener('viewshow',async () => {
- visible = true; readRoute(); Dashboard.showLoadingMsg();
+  visible = true; startStickyLayout(); readRoute(); Dashboard.showLoadingMsg();
  try {
   const [settings,libraries,plugins,tasks,nativeTasks] = await Promise.all([api('JellyP/Settings'),api('Library/VirtualFolders'),api('Plugins'),api('JellyP/Tasks').catch(() => null),api('ScheduledTasks').catch(() => null)]);
   if (!visible) return;
@@ -698,11 +958,11 @@ page.addEventListener('viewshow',async () => {
  } catch (error) { showError(error); if (!initialized) $('JpMain').innerHTML = heading(tr('JellyP unavailable','JellyP indisponível'),tr('Check administrator authentication and plugin loading, then reload. No settings were saved.','Confira a autenticação de administrador e o carregamento do plugin; depois recarregue. Nenhum ajuste foi salvo.')); }
  finally { Dashboard.hideLoadingMsg(); }
 });
-page.addEventListener('viewhide',() => { visible = false; clearTimeout(pollTimer); clearTimeout(searchTimer); searchSequence++; renderSequence++; billingSequence++; analyzeController?.abort(); if ($('JpDialog').open) closeDialog(); persist(); });
+page.addEventListener('viewhide',() => { visible = false; stopStickyLayout(); clearTimeout(pollTimer); clearTimeout(searchTimer); searchSequence++; renderSequence++; billingSequence++; analyzeController?.abort(); if ($('JpDialog').open) closeDialog(); persist(); });
 function visibilityChanged() { if (visible) { if (document.hidden) clearTimeout(pollTimer); else refreshState().then(schedulePoll).catch(showError); } }
 document.addEventListener('visibilitychange',visibilityChanged);
 page.addEventListener('viewdestroy',() => {
- visible = false; clearTimeout(pollTimer); clearTimeout(searchTimer);
+  visible = false; stopStickyLayout(); clearTimeout(pollTimer); clearTimeout(searchTimer);
  searchSequence++; renderSequence++; billingSequence++; analyzeController?.abort();
  document.removeEventListener('visibilitychange',visibilityChanged);
  // A hidden cached view may be destroyed after another view saved newer state.
