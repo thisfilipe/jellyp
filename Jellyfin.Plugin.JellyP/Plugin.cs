@@ -40,7 +40,9 @@ public sealed class Plugin : BasePlugin<JellyPConfiguration>, IHasWebPages
         new PluginPageInfo
         {
             Name = "jellyp",
+            DisplayName = "JellyP",
             EmbeddedResourcePath = "Jellyfin.Plugin.JellyP.Web.config.html",
+            EnableInMainMenu = true,
         },
     ];
 }
