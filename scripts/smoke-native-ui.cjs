@@ -417,9 +417,9 @@ async function main() {
   await navigationCraft(page,'automation tablet');
   if (!process.env.JELLYP_UI_SOURCE) {
    const plugin = (await api('Plugins')).find(plugin => plugin.Id.replaceAll('-','') === '0928e33489714205a455f42a76527f9e');
-   check(plugin.HasImage === true,'native installed plugin advertises its packaged symbol');
+    check(plugin.HasImage === true,'native installed plugin advertises its packaged catalog composition');
    const installedImage = await fetch(base + '/Plugins/' + plugin.Id + '/' + plugin.Version + '/Image');
-   check(installedImage.ok && installedImage.headers.get('content-type')?.startsWith('image/png') && Buffer.from(await installedImage.arrayBuffer()).equals(fs.readFileSync(path.join(__dirname,'../assets/branding/jellyp-plugin.png'))),'native anonymous plugin Image endpoint serves exact padded 16:9 symbol via meta.json imagePath');
+    check(installedImage.ok && installedImage.headers.get('content-type')?.startsWith('image/png') && Buffer.from(await installedImage.arrayBuffer()).equals(fs.readFileSync(path.join(__dirname,'../assets/branding/jellyp-catalog.png'))),'native anonymous plugin Image endpoint serves the approved opaque catalog composition via meta.json imagePath');
    for (const theme of ['light','dark']) {
     await hostTheme(theme); await nativeReady(page);
     await page.goto(base + '/web/#/dashboard/plugins');
@@ -434,11 +434,12 @@ async function main() {
       const context = canvas.getContext('2d'); context.drawImage(image,0,0);
       const pixels = context.getImageData(0,0,canvas.width,canvas.height).data;
       let left = canvas.width, top = canvas.height, right = 0, bottom = 0;
-      for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) if (pixels[(y * canvas.width + x) * 4 + 3]) { left = Math.min(left,x); top = Math.min(top,y); right = Math.max(right,x + 1); bottom = Math.max(bottom,y + 1); }
+       // Bound the foreground against the opaque navy background, not alpha.
+       for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) { const i = (y * canvas.width + x) * 4; if (Math.max(Math.abs(pixels[i] - pixels[0]),Math.abs(pixels[i+1] - pixels[1]),Math.abs(pixels[i+2] - pixels[2])) > 40) { left = Math.min(left,x); top = Math.min(top,y); right = Math.max(right,x + 1); bottom = Math.max(bottom,y + 1); } }
       const scale = Math.max(rect.width / canvas.width,rect.height / canvas.height), offsetX = (rect.width - canvas.width * scale) / 2, offsetY = (rect.height - canvas.height * scale) / 2;
       return {source:new URL(source).pathname,naturalWidth:canvas.width,naturalHeight:canvas.height,backgroundSize:style.backgroundSize,backgroundPosition:style.backgroundPosition,rect:rect.toJSON(),alphaBounds:{left,top,right,bottom},painted:{left:offsetX + left * scale,top:offsetY + top * scale,right:offsetX + right * scale,bottom:offsetY + bottom * scale}};
      });
-     check(geometry.naturalWidth === 768 && geometry.naturalHeight === 432 && geometry.backgroundSize === 'cover' && geometry.backgroundPosition === '50% 50%' && geometry.painted.left > 1 && geometry.painted.top > 1 && geometry.painted.right < geometry.rect.width - 1 && geometry.painted.bottom < geometry.rect.height - 1,'real installed plugin card ' + theme + ' ' + device + ' keeps every nontransparent symbol pixel inside the native fixed-height cover surface, without stretching');
+      check(geometry.naturalWidth === 960 && geometry.naturalHeight === 540 && geometry.backgroundSize === 'cover' && geometry.backgroundPosition === '50% 50%' && geometry.painted.left > 1 && geometry.painted.top > 1 && geometry.painted.right < geometry.rect.width - 1 && geometry.painted.bottom < geometry.rect.height - 1,'real installed plugin card ' + theme + ' ' + device + ' keeps the approved symbol and wordmark inside the native cover surface');
      fs.writeFileSync(path.join(screenshots,'installed-card-' + theme + '-' + device + '.json'),JSON.stringify(geometry,null,2));
      await page.screenshot({path:path.join(screenshots,'installed-card-' + theme + '-' + device + '.png')});
      await cardImage.locator('..').screenshot({path:path.join(screenshots,'installed-card-' + theme + '-' + device + '-detail.png')});
@@ -447,7 +448,7 @@ async function main() {
     await page.goto(base + '/web/#/dashboard/plugins/' + plugin.Id + '?name=JellyP');
     const detailImage = page.locator('img[src*="/Plugins/"]');
     await detailImage.waitFor(); await detailImage.evaluate(image => image.decode());
-    check(await detailImage.evaluate(image => { const r = image.getBoundingClientRect(), box = image.parentElement.getBoundingClientRect(); return image.naturalWidth === 768 && image.naturalHeight === 432 && Math.abs(r.width / r.height - 16 / 9) < .01 && r.left >= box.left - 1 && r.right <= box.right + 1 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1; }),'native installed-plugin detail ' + theme + ' displays the complete 16:9 canvas without clipping');
+    check(await detailImage.evaluate(image => { const r = image.getBoundingClientRect(), box = image.parentElement.getBoundingClientRect(); return image.naturalWidth === 960 && image.naturalHeight === 540 && Math.abs(r.width / r.height - 16 / 9) < .01 && r.left >= box.left - 1 && r.right <= box.right + 1 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1; }),'native installed-plugin detail ' + theme + ' displays the complete approved catalog composition');
     await page.screenshot({path:path.join(screenshots,'installed-plugin-detail-' + theme + '-desktop.png')});
     await page.setViewportSize({width:390,height:844});
     check(!await detailImage.isVisible(),'native installed-plugin detail ' + theme + ' preserves host mobile layout, which intentionally hides its large image');

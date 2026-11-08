@@ -9,6 +9,12 @@ spec.loader.exec_module(audit)
 
 
 class BrandingAssetTests(unittest.TestCase):
+    def test_installed_plugin_uses_the_approved_catalog_artwork(self):
+        self.assertEqual(
+            (ROOT / 'assets/branding/jellyp-catalog.png').read_bytes(),
+            (ROOT / 'assets/branding/jellyp-plugin.png').read_bytes(),
+        )
+
     def test_only_the_nine_approved_pngs_are_hash_allowlisted(self):
         files = {str(path.relative_to(ROOT)) for folder in ('assets/branding', 'Jellyfin.Plugin.JellyP/Web/branding') for path in (ROOT / folder).rglob('*.png')}
         self.assertEqual(9, len(files))

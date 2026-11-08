@@ -17,22 +17,17 @@ public sealed class BrandingTests
     }
 
     [Fact]
-    public void InstalledCardAddsOnlyTransparentMarginsWithoutChangingSymbolPixels()
+    public void InstalledCardUsesOpaqueCatalogComposition()
     {
-        using var stream = typeof(Plugin).Assembly.GetManifestResourceStream("Jellyfin.Plugin.JellyP.Web.branding.jellyp-symbol.png");
-        using var symbol = SKBitmap.Decode(stream);
         using var card = SKBitmap.Decode(Path.Combine(AppContext.BaseDirectory, "branding", "jellyp-plugin.png"));
-        Assert.Equal(768, card.Width);
-        Assert.Equal(432, card.Height);
+        Assert.Equal(960, card.Width);
+        Assert.Equal(540, card.Height);
         for (var y = 0; y < card.Height; y++)
         {
             for (var x = 0; x < card.Width; x++)
             {
                 var pixel = card.GetPixel(x, y);
-                if (x >= 256 && x < 512 && y >= 88 && y < 344)
-                    Assert.Equal(symbol.GetPixel(x - 256, y - 88), pixel);
-                else
-                    Assert.Equal(0, pixel.Alpha);
+                Assert.Equal(255, pixel.Alpha);
             }
         }
     }

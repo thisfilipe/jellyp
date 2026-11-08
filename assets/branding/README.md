@@ -23,12 +23,25 @@ was cropped. Master margins and the approved opaque catalog framing are retained
 
 ## Optimized delivery files
 
+Correction after owner feedback: the installed card must use the same approved
+navy-background symbol-and-wordmark composition as the catalog, not the isolated
+transparent symbol. `jellyp-plugin.png` now matches `jellyp-catalog.png` byte for
+byte. The earlier transparent-card validation below is historical and does not
+validate this replacement. The corrected source passes five branding .NET tests
+and 17 release tests. After explicit owner approval, the verified disposable
+fixture image was updated without restarting or changing the DLL. All 122 focused
+native checks passed, including the exact catalog-byte endpoint comparison and
+card/detail geometry in both themes. The rendered dark desktop card was also
+visually inspected: navy background, symbol and full JellyP wordmark. Evidence:
+`/tmp/opencode/jellyp-native/branding-catalog-correction/`. No production or
+publication changes were made.
+
 | Path (relative to repository root) | Dimensions | Bytes | Purpose |
 |---|---:|---:|---|
 | `Jellyfin.Plugin.JellyP/Web/branding/jellyp-wordmark-light.png` | 480 × 159 | 31,343 | Navy wordmark on the real light host surface |
 | `Jellyfin.Plugin.JellyP/Web/branding/jellyp-wordmark-dark.png` | 480 × 159 | 30,201 | White wordmark on the real dark host surface |
 | `Jellyfin.Plugin.JellyP/Web/branding/jellyp-symbol.png` | 256 × 256 | 34,203 | Local square symbol resource |
-| `assets/branding/jellyp-plugin.png` | 768 × 432 | 38,844 | Transparent 16:9 installed-plugin image, with the unchanged 256 px symbol centered |
+| `assets/branding/jellyp-plugin.png` | 960 × 540 | 366,952 | Installed-plugin image, byte-identical to the approved opaque catalog composition |
 | `assets/branding/jellyp-catalog.png` | 960 × 540 | 366,952 | Opaque RGB catalog thumbnail on navy |
 
 Delivery copies use proportional downsampling (height rounded to a whole pixel)

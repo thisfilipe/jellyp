@@ -15,7 +15,7 @@ ALLOWED_FILES = {'.editorconfig', '.gitignore', 'JellyP.slnx', 'LICENSE', 'READM
 # Only these owner-approved PNGs may cross the binary-source boundary. Keep
 # unknown binaries rejected; changing artwork requires an explicit hash review.
 BRANDING_SHA256 = {
-    'assets/branding/jellyp-plugin.png': '250d2c78f3ccff65eb68fbadedd6d98740e393e2cf2eff8c816456200ec307b8',
+    'assets/branding/jellyp-plugin.png': '3012ba678c922cd4f041e33863f6f0691cdc4861171c2944038afa6f8f21baf8',
     'assets/branding/masters/jellyp-catalog-navy.png': 'b44b2754ecceb94bbe283ac14f0cc71a0c8891485f15db5e6e1e1b54e4d8ddef',
     'assets/branding/masters/jellyp-symbol.png': 'c6ebb298d39d212bb6fa25a62fb06d7daafd375e247198f65b6271bc28986c5a',
     'assets/branding/masters/jellyp-wordmark-dark.png': 'd6a88e08187b4bffb12fde707016955e010030e695c6ba262de1094e8a562b74',
