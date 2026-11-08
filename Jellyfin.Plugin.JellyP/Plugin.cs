@@ -44,5 +44,22 @@ public sealed class Plugin : BasePlugin<JellyPConfiguration>, IHasWebPages
             EmbeddedResourcePath = "Jellyfin.Plugin.JellyP.Web.config.html",
             EnableInMainMenu = true,
         },
+        // Jellyfin 12.1 serves these embedded resources with their PNG MIME type
+        // through web/ConfigurationPage. They are resources, not menu entries.
+        new PluginPageInfo
+        {
+            Name = "jellyp-wordmark-light.png",
+            EmbeddedResourcePath = "Jellyfin.Plugin.JellyP.Web.branding.jellyp-wordmark-light.png",
+        },
+        new PluginPageInfo
+        {
+            Name = "jellyp-wordmark-dark.png",
+            EmbeddedResourcePath = "Jellyfin.Plugin.JellyP.Web.branding.jellyp-wordmark-dark.png",
+        },
+        new PluginPageInfo
+        {
+            Name = "jellyp-symbol.png",
+            EmbeddedResourcePath = "Jellyfin.Plugin.JellyP.Web.branding.jellyp-symbol.png",
+        },
     ];
 }

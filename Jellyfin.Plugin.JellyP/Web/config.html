@@ -13,9 +13,10 @@
 #JellyPConfigPage .content-primary { max-width:96em; }
 #JellyPConfigPage [hidden] { display:none !important; }
 #JellyPConfigPage .jp-layout { display:grid;grid-template-columns:12em minmax(0,1fr);gap:2.5em;align-items:start; }
-#JellyPConfigPage .jp-brand { font-size:2em;font-weight:600;letter-spacing:-.04em;margin:0 0 .3em; }
+#JellyPConfigPage .jp-brand { display:flex;align-items:center;gap:.5em;margin:0 0 .6em; }
+#JellyPConfigPage .jp-logo { display:block;width:8em;max-width:calc(100% - 3.7em);height:auto;aspect-ratio:480 / 159; }
 #JellyPConfigPage .jp-eyebrow { font-size:.7em;letter-spacing:.12em;text-transform:uppercase;margin:0 0 .6em; }
-#JellyPConfigPage .jp-version { font-size:.4em;letter-spacing:normal;font-weight:400; }
+#JellyPConfigPage .jp-version { font-size:.7em;white-space:nowrap;font-weight:400; }
 #JellyPConfigPage .jp-navigation { min-width:0;position:sticky;top:min(var(--jp-sticky-top),calc(100dvh - var(--jp-panel-height,0px) - 16px)); }
 #JellyPConfigPage .jp-navigation nav { display:grid;margin:1.5em 0;gap:.25em; }
 #JellyPConfigPage .jp-navigation nav a { justify-content:start;text-align:start;margin:0;padding:.9em .8em;white-space:normal;border-inline-start:3px solid transparent; }
@@ -238,7 +239,7 @@
 @media(prefers-reduced-motion:reduce) { #JellyPConfigPage * { scroll-behavior:auto !important;transition:none !important; } }
 </style>
 <div data-role="content"><div class="content-primary"><p id="JpMessage" class="jp-message jp-notice" role="status" aria-live="polite"></p><div class="jp-layout">
- <aside class="jp-navigation"><p class="jp-eyebrow secondaryText" id="JpEyebrow"></p><div class="jp-brand">JellyP <span id="JpVersion" class="jp-version secondaryText"></span></div><div id="JpNav"></div><div id="JpActivity" class="jp-activity fieldDescription"></div><div id="JpLanguage" class="jp-language"></div></aside>
+ <aside class="jp-navigation"><p class="jp-eyebrow secondaryText" id="JpEyebrow"></p><div class="jp-brand"><img id="JpLogo" class="jp-logo" alt="JellyP" width="480" height="159" decoding="async"><span id="JpVersion" class="jp-version secondaryText"></span></div><div id="JpNav"></div><div id="JpActivity" class="jp-activity fieldDescription"></div><div id="JpLanguage" class="jp-language"></div></aside>
  <main id="JpMain" class="jp-main" tabindex="-1"><p role="status">Loading JellyP…</p></main>
 </div><div id="JpAnnouncer" class="jp-sr" role="status" aria-live="polite" aria-atomic="true"></div><dialog id="JpDialog" aria-labelledby="JpDialogTitle" class="paperList"></dialog></div></div>
 <script>
@@ -349,6 +350,8 @@ function hostPalette() {
  let node = page, channels;
  while (node && !channels) { const color = getComputedStyle(node).backgroundColor.match(/[\d.]+/g); if (color && color.length >= 3 && (color.length < 4 || Number(color[3]) > .5)) channels = color.slice(0,3).map(Number); node = node.parentElement; }
  page.dataset.jpDark = String(!!channels && channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722 < 140);
+ const logo = $('JpLogo'), source = ApiClient.getUrl('web/ConfigurationPage',{name:'jellyp-wordmark-' + (page.dataset.jpDark === 'true' ? 'dark' : 'light') + '.png'});
+ if (logo.getAttribute('src') !== source) logo.setAttribute('src',source);
 }
 function icon(name) { return '<span class="material-icons" aria-hidden="true">' + name + '</span>'; }
 function button(label,action,extra = '',primary = false,cls = '',symbol = '') { return '<button is="emby-button" type="button" class="' + (primary || cls.includes('jp-danger-button') ? 'raised ' : 'jp-secondary ') + cls + (primary ? ' button-submit' : '') + '" data-action="' + action + '" ' + extra + '>' + (symbol ? icon(symbol) : '') + '<span>' + esc(label) + '</span></button>'; }

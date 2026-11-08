@@ -31,6 +31,9 @@ def update(previous, archive, timestamp):
     if dt.datetime.fromisoformat(timestamp.replace('Z', '+00:00')).utcoffset() != dt.timedelta(0):
         raise ValueError('Catalog timestamp must use UTC.')
     entry = {key: meta[key] for key in ('guid', 'name', 'overview', 'description', 'owner', 'category')}
+    # The release tag pins the approved source thumbnail. Publication verifies
+    # its public bytes first; this reference is not a claim that it is live yet.
+    entry['imageUrl'] = f"https://raw.githubusercontent.com/{package.REPOSITORY}/v{meta['version']}/assets/branding/jellyp-catalog.png"
     release = {
         'version': meta['version'], 'targetAbi': meta['targetAbi'],
         'sourceUrl': f"https://github.com/{package.REPOSITORY}/releases/download/v{meta['version']}/{archive.name}",

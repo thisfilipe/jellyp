@@ -25,6 +25,7 @@ class CatalogTests(unittest.TestCase):
             archive.writestr(package.DLL_NAME, b'fictional compiled fixture')
             archive.writestr('LICENSE', 'fictional license fixture')
             archive.writestr('meta.json', json.dumps(self.meta))
+            archive.writestr(package.IMAGE_NAME, package.IMAGE_SOURCE.read_bytes())
             for name, content in extra.items():archive.writestr(name, content)
 
     def test_catalog_hashes_exact_zip_and_uses_versioned_release_url(self):
@@ -38,6 +39,25 @@ class CatalogTests(unittest.TestCase):
     def test_existing_release_is_idempotent_and_keeps_timestamp(self):
         previous = catalog.update([], self.archive, '2026-01-01T00:00:00Z')
         self.assertEqual(previous, catalog.update(previous, self.archive, '2026-01-02T00:00:00Z'))
+
+    def test_branding_uses_installed_symbol_and_tag_pinned_catalog_thumbnail(self):
+        self.assertEqual('jellyp-plugin.png', self.meta['imagePath'])
+        result = catalog.update([], self.archive, '2026-01-01T00:00:00Z')
+        self.assertEqual(f"https://raw.githubusercontent.com/{package.REPOSITORY}/v{self.meta['version']}/assets/branding/jellyp-catalog.png", result[0]['imageUrl'])
+        image = (package.ROOT / 'assets/branding/jellyp-catalog.png').read_bytes()
+        self.assertEqual(b'\x89PNG\r\n\x1a\n', image[:8])
+        self.assertEqual((960).to_bytes(4, 'big') + (540).to_bytes(4, 'big'), image[16:24])
+        self.assertEqual(2, image[25], 'Catalog thumbnail is opaque RGB, not RGBA')
+
+    def test_archive_image_must_match_approved_runtime_symbol(self):
+        with zipfile.ZipFile(self.archive) as source:
+            members = {name: source.read(name) for name in source.namelist()}
+        members[package.IMAGE_NAME] = b'wrong image'
+        with zipfile.ZipFile(self.archive, 'w') as archive:
+            for name, content in members.items():
+                archive.writestr(name, content)
+        with self.assertRaisesRegex(ValueError, 'plugin image'):
+            package.validate_archive(self.archive)
 
     def test_modified_published_release_is_rejected(self):
         previous = catalog.update([], self.archive, '2026-01-01T00:00:00Z')

@@ -66,6 +66,10 @@ No custom long-lived token is required by the workflow.
 Commit source, synthetic tests, documentation and workflows. Exclude local
 operational notes, databases, backups, journals, original artwork, credentials,
 logs, build directories and test credentials. `.local/` and `artifacts/` are
-ignored. The release archive has an explicit three-file allowlist: plugin DLL,
-`meta.json` and GPL license. Public release notes must describe product behavior,
+ignored. The release archive has an explicit four-file allowlist: plugin DLL,
+`meta.json`, GPL license and `jellyp-plugin.png` (the padded 16:9 native installed-plugin image).
+The next release's catalog uses the opaque thumbnail pinned to its source tag;
+publication checks that the public PNG exactly matches source before changing
+the catalog. See [branding](../assets/branding/README.md) for assets and the
+unpublished-reference boundary. Public release notes must describe product behavior,
 not a maintainer's library, host layout or incident history.

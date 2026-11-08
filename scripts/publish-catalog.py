@@ -10,6 +10,7 @@ import hashlib
 import json
 import subprocess
 import tempfile
+import urllib.request
 from pathlib import Path
 import catalog
 import package
@@ -26,6 +27,13 @@ def gh(*args, body=None, missing_ok=False):
             return None
         raise RuntimeError('GitHub API request failed; catalog not published.')
     return json.loads(result.stdout) if result.stdout else None
+
+
+def verify_catalog_image(url):
+    """Fail closed unless the tagged thumbnail is public and byte-for-byte exact."""
+    with urllib.request.urlopen(url, timeout=30) as response:
+        if response.headers.get_content_type() != 'image/png' or response.read() != (package.ROOT / 'assets/branding/jellyp-catalog.png').read_bytes():
+            raise ValueError('Public catalog image differs from the tagged source; catalog unchanged.')
 
 
 def publish(repository, archive):
@@ -48,6 +56,8 @@ def publish(repository, archive):
     content = gh(f'repos/{repository}/contents/manifest.json?ref=catalog', missing_ok=True)
     previous = json.loads(base64.b64decode(content['content'])) if content else []
     result = catalog.update(previous, archive, release['published_at'])
+    # Never publish an imageUrl before the tagged asset is publicly available.
+    verify_catalog_image(result[0]['imageUrl'])
     encoded = (json.dumps(result, indent=2) + '\n').encode()
     if content and encoded == base64.b64decode(content['content']):
         print('Catalog already matches the published release.')

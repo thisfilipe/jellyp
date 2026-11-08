@@ -10,6 +10,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DLL_NAME = "Jellyfin.Plugin.JellyP.dll"
+IMAGE_NAME = "jellyp-plugin.png"
+IMAGE_SOURCE = ROOT / "assets/branding" / IMAGE_NAME
 GUID = "0928e334-8971-4205-a455-f42a76527f9e"
 REPOSITORY = "thisfilipe/jellyp"
 
@@ -33,6 +35,7 @@ def metadata():
         "category": "General", "name": "JellyP", "guid": GUID,
         "version": version, "targetAbi": abi, "owner": "thisfilipe", "status": "Active",
         "autoUpdate": True, "assemblies": [DLL_NAME],
+        "imagePath": IMAGE_NAME,
         "overview": "Configurable WebP artwork optimization and original-based policy synchronization.",
         "description": "Administrator-selected artwork policies, verified alpha and quality, resumable migration and optional preserved originals.",
     }
@@ -41,10 +44,12 @@ def metadata():
 def validate_archive(archive, expected=None):
     expected = expected or metadata()
     with zipfile.ZipFile(archive) as package:
-        if package.testzip() is not None or len(package.namelist()) != 3 or set(package.namelist()) != {DLL_NAME, "meta.json", "LICENSE"}:
+        if package.testzip() is not None or len(package.namelist()) != 4 or set(package.namelist()) != {DLL_NAME, "meta.json", "LICENSE", IMAGE_NAME}:
             raise ValueError("Unexpected archive members or invalid CRC.")
         if json.loads(package.read("meta.json")) != expected:
             raise ValueError("Archive metadata does not match source version.")
+        if package.read(IMAGE_NAME) != IMAGE_SOURCE.read_bytes():
+            raise ValueError("Archive plugin image does not match source.")
         binary = package.read(DLL_NAME)
         for marker in (b"/home/", b"/tmp/jellyp", b"C:\\Users\\"):
             if marker in binary or marker.decode().encode("utf-16le") in binary:
@@ -59,7 +64,7 @@ def build(output=None):
     output = output or ROOT / "artifacts"
     output.mkdir(parents=True, exist_ok=True)
     archive = output / f"JellyP_{meta['version']}.zip"
-    files = {DLL_NAME: dll.read_bytes(), "meta.json": (json.dumps(meta, indent=2) + "\n").encode(), "LICENSE": (ROOT / "LICENSE").read_bytes()}
+    files = {DLL_NAME: dll.read_bytes(), "meta.json": (json.dumps(meta, indent=2) + "\n").encode(), "LICENSE": (ROOT / "LICENSE").read_bytes(), IMAGE_NAME: IMAGE_SOURCE.read_bytes()}
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as package:
         for name, data in sorted(files.items()):
             entry = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))

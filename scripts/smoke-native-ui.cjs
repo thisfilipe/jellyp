@@ -48,6 +48,15 @@ async function nativeReady(page) {
   // Actual 12.1 host save notifications are .toast, not .toastVisible. Wait for
   // their real disappearance instead of capturing a host toast over our CTA.
   await page.waitForFunction(() => ![...document.querySelectorAll('.toastContainer .toast')].some(node => node.getClientRects().length && getComputedStyle(node).opacity !== '0'));
+  await page.waitForFunction(() => { const image = document.querySelector('#JellyPConfigPage:not(.hide) #JpLogo'); return image?.complete && image.naturalWidth === 480; });
+}
+async function branding(page,theme,label) {
+ const ui = page.locator('#JellyPConfigPage:not(.hide)');
+ await nativeReady(page);
+ check(await ui.locator('#JpLogo').evaluate((image,theme) => {
+  const rect = image.getBoundingClientRect(), brand = image.parentElement.getBoundingClientRect(), version = image.parentElement.querySelector('#JpVersion'), url = new URL(image.currentSrc);
+  return image.alt === 'JellyP' && image.naturalWidth === 480 && image.naturalHeight === 159 && url.origin === location.origin && url.searchParams.get('name') === 'jellyp-wordmark-' + theme + '.png' && rect.height <= 46 && Math.abs(rect.width / rect.height - 480 / 159) < .02 && version.textContent.startsWith('v') && parseFloat(getComputedStyle(version).fontSize) < rect.height / 2 && version.getBoundingClientRect().right <= brand.right + 1 && ![...image.parentElement.childNodes].some(node => node.nodeType === Node.TEXT_NODE && node.textContent.includes('JellyP'));
+ },theme),label + ' local theme-correct PNG loads at native dimensions, compact/undistorted; one JellyP alternative and smaller dynamic version fit');
 }
 async function setHostTheme(page,theme,target) {
  await page.goto(base + '/web/#/mypreferencesdisplay?userId=' + auth.userId);
@@ -75,6 +84,7 @@ async function captureMatrix(page,label,inspect) {
    await ui.locator('[data-jp-id=Language]').selectOption(language); await nativeReady(page);
    for (const [device,viewport] of [['desktop',{width:1600,height:1100}],['mobile',{width:390,height:844}]]) {
     await page.setViewportSize(viewport); await nativeReady(page);
+    await branding(page,theme,label + ' ' + language + ' ' + theme + ' ' + device);
     await inspect(theme,language,device);
     if (await ui.locator('aside [data-consent]').count()) check(await ui.locator('aside [data-consent]').evaluateAll(inputs => inputs.every(input => { const label=input.closest('label'),text=label.querySelector('.checkboxLabel'),a=label.getBoundingClientRect(),b=text.getBoundingClientRect();return a.height >= 44 && b.bottom <= a.bottom + 1 && b.top >= a.top - 1; })),label + ' ' + theme + ' ' + language + ' ' + device + ' wrapped native consent labels fit their own 44px-minimum boxes');
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),label + ' ' + theme + ' ' + language + ' ' + device + ' no overflow');
@@ -275,6 +285,10 @@ async function main() {
   const response = await fetch(base + '/web/ConfigurationPage?name=jellyp',{headers});
   const embedded = await response.text();
   check(response.ok && embedded === fs.readFileSync(path.join(__dirname,'../Jellyfin.Plugin.JellyP/Web/config.html'),'utf8'),'installed DLL serves exact current embedded page; no source replacement');
+  for (const name of ['jellyp-wordmark-dark.png','jellyp-wordmark-light.png','jellyp-symbol.png']) {
+   const image = await fetch(base + '/web/ConfigurationPage?name=' + name,{headers});
+   check(image.ok && image.headers.get('content-type')?.startsWith('image/png') && Buffer.from(await image.arrayBuffer()).equals(fs.readFileSync(path.join(__dirname,'../Jellyfin.Plugin.JellyP/Web/branding',name))),name + ' host ConfigurationPage serves exact embedded PNG with image/png');
+  }
  }
  const unauth = await fetch(base + '/JellyP/Settings');
  check(unauth.status === 401,'real unauthenticated API returns 401');
@@ -313,6 +327,7 @@ async function main() {
  check(await ui.locator('[data-type]').count() === 11,'all eleven backend image categories represented');
   check(await ui.locator('.jp-steps [aria-current=step] .jp-step-number').textContent() === '1' && await ui.locator('.jp-steps [data-stage="1"]').isDisabled() && await ui.locator('.jp-steps [data-stage="2"]').isDisabled(),'numbered current step and distinct disabled future stages');
   await navigationCraft(page,'manual draft');
+  await branding(page,'dark','initial desktop');
   await realSticky(page,'manual-draft','aside'); await realSticky(page,'manual-draft','aside','mobile');
  await page.screenshot({path:path.join(screenshots,'01-native-selection-en-dark-desktop.png'),fullPage:true});
  await ui.locator('[data-type=Primary] [data-action=disclose]').focus();
@@ -351,10 +366,11 @@ async function main() {
     await page.goto(base+'/web/#/configurationpage?name=jellyp&jp=automation');await ui.locator('#SaveAutomation').waitFor();await nativeReady(page);
    }
  await ui.locator('[data-jp-id=Language]').selectOption('pt');
- await page.waitForFunction(() => document.querySelector('#JellyPConfigPage:not(.hide) #JpTitle')?.textContent === 'Automação');
+  await page.waitForFunction(() => document.querySelector('#JellyPConfigPage:not(.hide) #JpTitle')?.textContent === 'Automação');
  await page.screenshot({path:path.join(screenshots,'03-native-automation-pt-dark-desktop.png'),fullPage:true});
  await page.setViewportSize({width:390,height:844});
- await page.screenshot({path:path.join(screenshots,'04-native-automation-pt-dark-mobile.png'),fullPage:true});
+  await page.screenshot({path:path.join(screenshots,'04-native-automation-pt-dark-mobile.png'),fullPage:true});
+  await branding(page,'dark','mobile');
  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),'mobile no horizontal overflow');
  check(await ui.locator('#SaveAutomation').evaluate(node => getComputedStyle(node.closest('aside')).position === 'static'),'mobile save aside is in normal flow');
  async function audit(label) {
@@ -377,12 +393,14 @@ async function main() {
  await hostTheme('light');
  await nativeReady(page);
  const light = await ui.locator('.paperList').first().evaluate(node => getComputedStyle(node).backgroundColor);
- check(light !== 'rgb(32, 32, 32)' && light !== 'rgba(0, 0, 0, 0)','real host Light theme supplies plugin paperList surface');
- await page.screenshot({path:path.join(screenshots,'05-native-automation-pt-light-mobile.png'),fullPage:true});
+  check(light !== 'rgb(32, 32, 32)' && light !== 'rgba(0, 0, 0, 0)','real host Light theme supplies plugin paperList surface');
+  await branding(page,'light','mobile');
+  await page.screenshot({path:path.join(screenshots,'05-native-automation-pt-light-mobile.png'),fullPage:true});
  await audit('automation-pt-light-mobile');
  await page.setViewportSize({width:1600,height:1100});
  await nativeReady(page);
- await page.screenshot({path:path.join(screenshots,'06-native-automation-pt-light-desktop.png'),fullPage:true});
+  await branding(page,'light','desktop');
+  await page.screenshot({path:path.join(screenshots,'06-native-automation-pt-light-desktop.png'),fullPage:true});
  await audit('automation-pt-light-desktop');
  for (const area of ['simulate','settings','history']) {
   await ui.locator('#JpNav nav a[href*="jp=' + area + '"]').click();
@@ -397,6 +415,45 @@ async function main() {
  await page.screenshot({path:path.join(screenshots,'08-native-automation-pt-dark-tablet.png'),fullPage:true});
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),'tablet no horizontal overflow');
   await navigationCraft(page,'automation tablet');
+  if (!process.env.JELLYP_UI_SOURCE) {
+   const plugin = (await api('Plugins')).find(plugin => plugin.Id.replaceAll('-','') === '0928e33489714205a455f42a76527f9e');
+   check(plugin.HasImage === true,'native installed plugin advertises its packaged symbol');
+   const installedImage = await fetch(base + '/Plugins/' + plugin.Id + '/' + plugin.Version + '/Image');
+   check(installedImage.ok && installedImage.headers.get('content-type')?.startsWith('image/png') && Buffer.from(await installedImage.arrayBuffer()).equals(fs.readFileSync(path.join(__dirname,'../assets/branding/jellyp-plugin.png'))),'native anonymous plugin Image endpoint serves exact padded 16:9 symbol via meta.json imagePath');
+   for (const theme of ['light','dark']) {
+    await hostTheme(theme); await nativeReady(page);
+    await page.goto(base + '/web/#/dashboard/plugins');
+    const cardImage = page.locator('a[href*="/dashboard/plugins/' + plugin.Id + '"] .MuiCardMedia-root');
+    await cardImage.waitFor();
+    for (const [device,viewport] of [['desktop',{width:1600,height:1100}],['wide-tablet',{width:950,height:1024}],['tablet',{width:768,height:1024}],['mobile',{width:390,height:844}]]) {
+     await page.setViewportSize(viewport); await cardImage.scrollIntoViewIfNeeded();
+     const geometry = await cardImage.evaluate(async node => {
+      const style = getComputedStyle(node), rect = node.getBoundingClientRect(), source = style.backgroundImage.match(/^url\(["']?(.*?)["']?\)$/)[1];
+      const image = new Image(); image.src = source; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d'); context.drawImage(image,0,0);
+      const pixels = context.getImageData(0,0,canvas.width,canvas.height).data;
+      let left = canvas.width, top = canvas.height, right = 0, bottom = 0;
+      for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) if (pixels[(y * canvas.width + x) * 4 + 3]) { left = Math.min(left,x); top = Math.min(top,y); right = Math.max(right,x + 1); bottom = Math.max(bottom,y + 1); }
+      const scale = Math.max(rect.width / canvas.width,rect.height / canvas.height), offsetX = (rect.width - canvas.width * scale) / 2, offsetY = (rect.height - canvas.height * scale) / 2;
+      return {source:new URL(source).pathname,naturalWidth:canvas.width,naturalHeight:canvas.height,backgroundSize:style.backgroundSize,backgroundPosition:style.backgroundPosition,rect:rect.toJSON(),alphaBounds:{left,top,right,bottom},painted:{left:offsetX + left * scale,top:offsetY + top * scale,right:offsetX + right * scale,bottom:offsetY + bottom * scale}};
+     });
+     check(geometry.naturalWidth === 768 && geometry.naturalHeight === 432 && geometry.backgroundSize === 'cover' && geometry.backgroundPosition === '50% 50%' && geometry.painted.left > 1 && geometry.painted.top > 1 && geometry.painted.right < geometry.rect.width - 1 && geometry.painted.bottom < geometry.rect.height - 1,'real installed plugin card ' + theme + ' ' + device + ' keeps every nontransparent symbol pixel inside the native fixed-height cover surface, without stretching');
+     fs.writeFileSync(path.join(screenshots,'installed-card-' + theme + '-' + device + '.json'),JSON.stringify(geometry,null,2));
+     await page.screenshot({path:path.join(screenshots,'installed-card-' + theme + '-' + device + '.png')});
+     await cardImage.locator('..').screenshot({path:path.join(screenshots,'installed-card-' + theme + '-' + device + '-detail.png')});
+    }
+    await page.setViewportSize({width:1600,height:1100});
+    await page.goto(base + '/web/#/dashboard/plugins/' + plugin.Id + '?name=JellyP');
+    const detailImage = page.locator('img[src*="/Plugins/"]');
+    await detailImage.waitFor(); await detailImage.evaluate(image => image.decode());
+    check(await detailImage.evaluate(image => { const r = image.getBoundingClientRect(), box = image.parentElement.getBoundingClientRect(); return image.naturalWidth === 768 && image.naturalHeight === 432 && Math.abs(r.width / r.height - 16 / 9) < .01 && r.left >= box.left - 1 && r.right <= box.right + 1 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1; }),'native installed-plugin detail ' + theme + ' displays the complete 16:9 canvas without clipping');
+    await page.screenshot({path:path.join(screenshots,'installed-plugin-detail-' + theme + '-desktop.png')});
+    await page.setViewportSize({width:390,height:844});
+    check(!await detailImage.isVisible(),'native installed-plugin detail ' + theme + ' preserves host mobile layout, which intentionally hides its large image');
+    await page.screenshot({path:path.join(screenshots,'installed-plugin-detail-' + theme + '-mobile.png')});
+   }
+  }
  check(errors.length === 0,'zero browser page errors');
  check(outside.every(origin => origin === 'https://www.gstatic.com'),'all outbound attempts blocked; only official host Cast sender attempted gstatic, no JellyP external dependency');
   fs.writeFileSync(path.join(screenshots,'native-summary.json'),JSON.stringify({checks,errors,outside,failedLocalRequests},null,2));

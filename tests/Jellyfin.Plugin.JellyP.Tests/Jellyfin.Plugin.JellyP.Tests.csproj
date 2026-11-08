@@ -24,5 +24,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../../Jellyfin.Plugin.JellyP/Jellyfin.Plugin.JellyP.csproj" />
+    <None Include="../../assets/branding/jellyp-plugin.png" Link="branding/jellyp-plugin.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
