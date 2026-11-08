@@ -1,5 +1,29 @@
 # JellyP UX refactor: handoff and authorization boundary
 
+## Current delivery status (2026-11-08)
+
+**The main implementation is committed through `30401c5`; final acceptance and
+alpha preparation are not complete.** This status supersedes the historical
+implementation summaries below, not their recorded limitations.
+
+- P3 contracts and P4 backend implementation are delivered. P5/P6 native journeys
+  are implemented and iteratively reviewed by the maintainer, including selection,
+  operation-specific history, sticky panels, main-menu access and approved branding.
+- P7 has substantial service and real-host evidence, but the mandatory scenario
+  matrix is not universally accepted. P8 remains preparation, not a release.
+- The temporary host was lost after reboot. Its last successful runs are historical
+  evidence, not a currently running/revalidated instance. Selected screenshots and
+  filtered results were preserved privately outside Git; no credentials or database
+  were retained. Recreating the host is still necessary for remaining host gates.
+- Version `0.3.0.1` remains a development baseline; do not replace that published
+  version's assets. No push, publication or production installation follows here.
+
+See the [alpha closure checklist](ALPHA-CLOSURE.pt-BR.md) for the scenario-level
+status, remaining technical gates and ordered next actions. Historical test counts
+below describe separate runs and must not be added together as one final suite.
+
+### Historical native integration update
+
 Status (2026-11-07, native integration update): **P2 remains the accepted product
 direction. A subsequent bounded runtime instruction authorized backend work and
 the native UI in a marked disposable local Jellyfin. Backend DTOs and the native
@@ -73,12 +97,12 @@ requirements; they are not implemented in 0.3.0.1.
 | P0 | Context, baseline, constraints and this specification | Documentation recorded; no implementation started |
 | P1 | Resolve product/state decisions and map the existing behavior | Delivered: [UX-P1-CONTRACT.pt-BR.md](UX-P1-CONTRACT.pt-BR.md) |
 | P2 | Accepted product direction and synthetic prototype | Accepted for native implementation; 311 checks passed (20 axe); [evidence and limits](UX-P2-DESIGN.pt-BR.md); independent usability exercise deferred, not a gate |
-| P3 | Map existing backend capabilities to the next native journey; define necessary contracts and tests | P1 + maintainer acceptance of P2; design review is not runtime validation |
-| P4 | Minimal backend/API adaptations where the journey requires them | Per-journey P3 decisions; reuse existing services and integrity mechanisms |
-| P5 | Real Jellyfin components and end-to-end manual flow | P2 direction + per-journey P3; iterate with P4, not after all backend work is complete |
-| P6 | Native automation, history, restoration and explicit backup retirement | Per-journey P3/P4/P5 integration; not a separate rewrite |
-| P7 | Continuous functional, integrity, accessibility and usability checks; final regression consolidation | Starts with each implemented journey; independent user feedback continues when available |
-| P8 | Document and prepare an alpha after technical release gates pass | Required integrity/migration/host checks pass; disclose deferred usability evidence; publication remains separately authorized |
+| P3 | Capability map and contracts | Delivered in the integration document; remaining runtime proof tracked separately |
+| P4 | Backend/API adaptations | Implemented and unit-tested; host safety gates remain in P7 |
+| P5 | Native manual flow | Implemented and maintainer-reviewed; accessibility coverage has explicit limits |
+| P6 | Automation, history, restoration and retirement | Implemented; complete baseline upgrade demonstration still pending |
+| P7 | Final regression and scenario consolidation | In progress; see alpha closure checklist, not test counts alone |
+| P8 | Alpha documentation, package and migration | In preparation; no new version or publication authorized by this status |
 
 ### Subsequent bounded implementation evidence (2026-11-06)
 

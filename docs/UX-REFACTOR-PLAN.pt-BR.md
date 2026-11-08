@@ -5,6 +5,16 @@ Alvo atual: **Jellyfin 12.1 / .NET 10**.
 
 ## 1. Status, autoridade e leitura deste documento
 
+**Reconciliação de 08/11/2026:** a implementação principal foi commitada até
+`30401c5`, incluindo os refinamentos de UX e branding posteriores à primeira
+integração. P3/P4 estão entregues como contratos e implementação; P5/P6 estão
+implementadas e exercitadas, com aceite técnico final ainda parcial em P7.
+P8 está em preparação, sem release/produção. O acompanhamento atual e a matriz
+conservadora V01–V15 estão no [checklist de fechamento](ALPHA-CLOSURE.pt-BR.md).
+Os relatos e contagens datados abaixo são históricos; não representam testes
+executados depois do reboot nem uma única suíte final. A fixture em `/tmp` foi
+perdida; resta recriá-la para os gates de host pendentes.
+
 **Este é um plano de produto, arquitetura e validação. A integração nativa já foi
 implementada na árvore de trabalho e exercitada em Jellyfin descartável; não foi
 publicada nem implantada em produção.** Contratos e limites da evidência atual:
@@ -616,12 +626,12 @@ como existentes sem conferir o código e os contratos de API.
 - [ ] Mapear, para a próxima jornada nativa, serviços/endpoints existentes reutilizáveis,
   lacunas demonstradas e checagens necessárias; evitar reformular mecanismos funcionais.
 - [ ] Definir responsabilidades do quadro da seção 9 e resolver D5–D8.
-- [ ] Definir formato das solicitações/resultados, identidades e snapshots necessários.
-- [ ] Definir validade e revalidação de uma seleção revisada, incluindo múltiplos fundos.
-- [ ] Projetar isolamento de rascunho/padrões/automação e compatibilidade de configuração.
-- [ ] Definir idempotência, fila, concorrência, cancelamento e comportamento após desconexão/reinício.
-- [ ] Definir retenção e limites para planos e relatórios sem inflar armazenamento.
-- [ ] Projetar leitura de journals antigos e ausência de valores de política legíveis.
+- [x] Definir formato das solicitações/resultados, identidades e snapshots necessários.
+- [x] Definir validade e revalidação de uma seleção revisada, incluindo múltiplos fundos.
+- [x] Projetar isolamento de rascunho/padrões/automação e compatibilidade de configuração.
+- [x] Definir idempotência, fila, concorrência, cancelamento e comportamento após desconexão/reinício.
+- [x] Definir retenção e limites para planos e relatórios sem inflar armazenamento.
+- [x] Projetar leitura de journals antigos e ausência de valores de política legíveis.
 - [ ] Produzir matriz de migração e riscos, preservando contratos de integridade.
 
 **Aceite:** existe um desenho revisável de dados e estados que sustenta a UX sem
@@ -651,12 +661,12 @@ Dependência: decisões P3 necessárias à jornada e autorização de implementa
 Reaproveitar o backend atual; mudanças P4 só para lacunas comprovadas, em conjunto
 com a integração P5 e testes P7 daquela jornada.
 
-- [ ] Implementar análise identificada com ações por imagem e motivos explícitos.
-- [ ] Implementar a aplicação do conjunto exato autorizado com revalidação atual.
-- [ ] Separar estados salvos e relatórios por operação.
-- [ ] Reutilizar mecanismos seguros de conversão, regeneração e recuperação.
-- [ ] Adicionar testes significativos de isolamento, migração, concorrência e seleção obsoleta.
-- [ ] Preservar autorização administrativa e ausência de caminhos arbitrários no cliente.
+- [x] Implementar análise identificada com ações por imagem e motivos explícitos.
+- [x] Implementar a aplicação do conjunto exato autorizado com revalidação atual.
+- [x] Separar estados salvos e relatórios por operação.
+- [x] Reutilizar mecanismos seguros de conversão, regeneração e recuperação.
+- [x] Adicionar testes significativos de isolamento, migração, concorrência e seleção obsoleta.
+- [x] Preservar autorização administrativa e ausência de caminhos arbitrários no cliente.
 
 **Aceite:** cenários V01–V13 abaixo passam na camada de serviço/API correspondente;
 nenhum caminho escreve fora da seleção para compensar um descarte.
@@ -667,13 +677,13 @@ Dependências: direção aceita de P2, decisões P3 da jornada e autorização d
 implementação. Iterar com P4; não esperar a conclusão de todo o backend. Controles,
 tema e comportamento reais do Jellyfin são critérios desta implementação, não de P2.
 
-- [ ] Separar a página monolítica em responsabilidades de navegação, edição de
+- [x] Separar a página monolítica em responsabilidades de navegação, edição de
   rascunho, análise, execução e apresentação de resultados.
-- [ ] Utilizar componentes e estilo nativos do Jellyfin, evitando uma biblioteca
+- [x] Utilizar componentes e estilo nativos do Jellyfin, evitando uma biblioteca
   visual paralela para os mesmos controles.
-- [ ] Implementar Simular e Executar com ações explícitas e progresso contextual.
-- [ ] Preservar rascunhos e contexto ao navegar, atualizar progresso ou mudar idioma.
-- [ ] Implementar seleção por imagem, informação efetiva por tipo e revisão final.
+- [x] Implementar Simular e Executar com ações explícitas e progresso contextual.
+- [x] Preservar rascunhos e contexto ao navegar, atualizar progresso ou mudar idioma.
+- [x] Implementar seleção por imagem, informação efetiva por tipo e revisão final.
 - [ ] Tratar teclado, foco, leitores de tela, contraste e telas estreitas.
 
 **Aceite:** V01–V08 e V14 passam no navegador; uma execução não exige procurar
@@ -684,11 +694,11 @@ o status em outra área, e uma mudança de qualidade não exige descobrir um bot
 Dependências: contratos e suporte necessários à respectiva jornada em P3/P4/P5.
 Também se implementa e valida por fatias; não exige reescrever os serviços atuais.
 
-- [ ] Implementar configuração independente de automação e vínculo com o scheduler nativo.
-- [ ] Implementar histórico por operação com detalhes por imagem.
-- [ ] Apresentar evidências de restauração e dados do arquivo armazenado.
-- [ ] Implementar seleção/revisão explícita para exclusão de originais.
-- [ ] Exibir escopos de quotas, retenção e métricas sem misturar totais.
+- [x] Implementar configuração independente de automação e vínculo com o scheduler nativo.
+- [x] Implementar histórico por operação com detalhes por imagem.
+- [x] Apresentar evidências de restauração e dados do arquivo armazenado.
+- [x] Implementar seleção/revisão explícita para exclusão de originais.
+- [x] Exibir escopos de quotas, retenção e métricas sem misturar totais.
 - [ ] Validar compatibilidade de configuração, journals e agendamentos da baseline.
 
 **Aceite:** V09–V13 passam; restaurar permanece possível usando registros antigos,

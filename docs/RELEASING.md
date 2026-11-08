@@ -67,7 +67,8 @@ Commit source, synthetic tests, documentation and workflows. Exclude local
 operational notes, databases, backups, journals, original artwork, credentials,
 logs, build directories and test credentials. `.local/` and `artifacts/` are
 ignored. The release archive has an explicit four-file allowlist: plugin DLL,
-`meta.json`, GPL license and `jellyp-plugin.png` (the padded 16:9 native installed-plugin image).
+`meta.json`, GPL license and `jellyp-plugin.png` (the approved opaque 16:9
+symbol-and-wordmark composition, identical to the catalog artwork).
 The next release's catalog uses the opaque thumbnail pinned to its source tag;
 publication checks that the public PNG exactly matches source before changing
 the catalog. See [branding](../assets/branding/README.md) for assets and the
