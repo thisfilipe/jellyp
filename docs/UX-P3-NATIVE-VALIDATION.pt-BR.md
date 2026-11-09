@@ -739,3 +739,32 @@ Conferência read-only final: `Enabled=false`, `DryRun=true`,
 **zero recuperação pendente**; ambas as tarefas Idle e sem disparos. Socket
 somente `127.0.0.1:18096`. A fixture continua executando a DLL validada; HEAD
 continua `6623bec`, com alterações somente em UI, dois smokes e este documento.
+
+## Gates de host V08/V10/V15 — 09/11/2026
+
+Esta seção registra uma rodada **backend/host**, não uma nova jornada de UI. Em
+uma raiz nova e marcada (`/tmp/opencode/jellyp-host-gates-proof5-20261109`), com
+credenciais novas, Jellyfin 12.1 apenas em loopback e HEAD `e21328a`, passaram
+**80 checks de host** no candidato cuja DLL tem SHA256
+`3AE44BA2A35FAFC08EDF03D91D0BCF5E9FE0B3F981EC578089E0E5330FBC3D82`.
+
+- V08: cancelamento pelo endpoint real e `operationId` exato antes da primeira
+  mutação (plano `Ready`, zero journal) e entre transações depois de uma mutação
+  real (plano `Consumed`, `Changed=1`, `NotStarted=1`, segundo item intacto).
+- V10: `IntervalTrigger` real iniciou `OptimizeArtworkTask`; refresh relacionado
+  produziu `WaitingForMetadata` e retomou; refresh não relacionado permaneceu
+  `Active` durante a conversão do alvo e não bloqueou.
+- V15: `MutationStarted` e journal `Prepared` observados; SIGSTOP/SIGKILL via
+  pidfd somente do PID verificado por argv/cwd/uid/starttime/socket; reinício da
+  mesma DLL marcou `Interrupted`, `PendingRecovery=1`, sem replay; recuperação
+  explícita restaurou o PNG exato e deixou journal `RolledBack`. O caso observado
+  foi **Prepared-before-save, sem WebP antes do kill**; a remoção de saída não
+  foi alegada (`outputRemovalProven=false`).
+
+O provedor de metadata que mantém o refresh aberto é um auxiliar de teste em
+`tests/host-fixture/JellyP.TestSlowMetadata`, instalado somente na fixture; não
+faz parte do produto e não é endpoint de falha. Navegador/desconexão/foco, disco
+fisicamente cheio, erro de permissão de SO e falha de hardware não foram
+exercitados. Os números históricos **121/819/20** de UI/planning não foram
+reproduzidos nesta rodada. Detalhes e comandos estão na seção 7 do
+[fechamento](ALPHA-CLOSURE.pt-BR.md) e em [VALIDAÇÃO](VALIDATION.md).

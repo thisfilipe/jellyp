@@ -342,6 +342,29 @@ def read_host_pid(root):
         raise SystemExit("host.pid is not a PID; refusing to guess the fixture process.") from None
 
 
+def proc_uid(pid):
+    for line in Path(f"/proc/{pid}/status").read_text().splitlines():
+        if line.startswith("Uid:"):
+            return int(line.split()[1])
+    raise SystemExit(f"Cannot inspect the owner of fixture PID {pid}.")
+
+
+def proc_starttime(pid):
+    text = Path(f"/proc/{pid}/stat").read_text()
+    return text.rsplit(")", 1)[1].split()[19]
+
+
+def assert_process_identity(root, expected_starttime=None):
+    """Require exact argv/cwd, same user and (when supplied) the same starttime."""
+    pid = assert_owned_process(root)
+    if proc_uid(pid) != os.getuid():
+        raise SystemExit(f"Fixture PID {pid} is owned by another user.")
+    starttime = proc_starttime(pid)
+    if expected_starttime is not None and starttime != expected_starttime:
+        raise SystemExit(f"Fixture PID {pid} starttime changed; refusing process control.")
+    return pid, starttime
+
+
 def assert_owned_process(root):
     root = guard_root(root)
     pid = read_host_pid(root)
@@ -355,6 +378,8 @@ def assert_owned_process(root):
         raise SystemExit("Cannot inspect the fixture process working directory.") from None
     if Path(cwd).resolve() != root:
         raise SystemExit("Fixture process working directory does not match the marked root.")
+    if proc_uid(pid) != os.getuid():
+        raise SystemExit(f"Fixture PID {pid} is owned by another user.")
     return pid
 
 
@@ -432,12 +457,13 @@ def stop_host(root):
             raise SystemExit("Port 18096 is open but no managed fixture PID exists; refusing to stop an unknown process.")
         safe_path(root, "host.pid", base=root).unlink(missing_ok=True)
         return
-    pid = assert_owned_process(root)
+    pid, starttime = assert_process_identity(root)
     os.kill(pid, signal.SIGTERM)
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline and process_alive(pid):
         time.sleep(0.1)
     if process_alive(pid):
+        pid, starttime = assert_process_identity(root, starttime)
         os.kill(pid, signal.SIGKILL)
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline and process_alive(pid):

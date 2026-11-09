@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import signal
 import stat
 import tempfile
 import unittest
@@ -206,6 +207,42 @@ class UpgradeHarnessTests(unittest.TestCase):
         del bad['Globals']['MinimumSavingsRatio']
         with self.assertRaisesRegex(SystemExit, 'missing keys'):
             harness.current_automation(bad)
+
+
+    def test_stop_host_rejects_changed_identity_before_sigterm(self):
+        with mock.patch.object(harness, 'host_running', return_value=True), \
+             mock.patch.object(harness, 'port_open', return_value=False), \
+             mock.patch.object(harness, 'assert_process_identity', side_effect=SystemExit('changed')), \
+             mock.patch.object(harness.os, 'kill') as kill:
+            with self.assertRaisesRegex(SystemExit, 'changed'):
+                harness.stop_host(self.root)
+            kill.assert_not_called()
+
+    def test_stop_host_rechecks_starttime_before_sigkill_fallback(self):
+        with mock.patch.object(harness, 'host_running', return_value=True), \
+             mock.patch.object(harness, 'port_open', return_value=False), \
+             mock.patch.object(harness, 'assert_process_identity',
+                               side_effect=[(123, 'a'), SystemExit('changed')]) as identity, \
+             mock.patch.object(harness, 'process_alive', return_value=True), \
+             mock.patch.object(harness.time, 'monotonic', side_effect=[0, 21]), \
+             mock.patch.object(harness.os, 'kill') as kill:
+            with self.assertRaisesRegex(SystemExit, 'changed'):
+                harness.stop_host(self.root)
+            kill.assert_called_once_with(123, signal.SIGTERM)
+            identity.assert_called_with(self.root, 'a')
+
+    def test_stop_host_uses_same_starttime_for_sigkill_fallback(self):
+        with mock.patch.object(harness, 'host_running', return_value=True), \
+             mock.patch.object(harness, 'port_open', return_value=False), \
+             mock.patch.object(harness, 'assert_process_identity',
+                               side_effect=[(123, 'a'), (123, 'a')]) as identity, \
+             mock.patch.object(harness, 'process_alive', side_effect=[True, False]), \
+             mock.patch.object(harness.time, 'monotonic', side_effect=[0, 21, 22, 30]), \
+             mock.patch.object(harness, 'wait_for'), \
+             mock.patch.object(harness.os, 'kill') as kill:
+            harness.stop_host(self.root)
+            self.assertEqual([mock.call(123, signal.SIGTERM), mock.call(123, signal.SIGKILL)], kill.call_args_list)
+            identity.assert_called_with(self.root, 'a')
 
     def test_fixture_process_requires_exact_argv(self):
         expected = harness.fixture_argv(self.root)

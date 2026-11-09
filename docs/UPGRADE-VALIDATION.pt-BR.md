@@ -38,8 +38,9 @@ exigida para a alpha.
   serviço systemd, nenhum acesso ao alias de produção ou SSH.
 - O harness confere o processo exato (comando e `cwd`) e o socket público de
   loopback **antes** do wizard. `ProgramDataPath` é autenticado: só pode ser
-  conferido **depois** do login e é verificado antes da biblioteca, mídia e
-  mutações de plugin. Não se afirma que esse path foi validado antes do wizard.
+  conferido **depois** do login e é verificado antes da criação de bibliotecas
+  e das mutações de API; mídia e plugin já estão confinados à raiz marcada. Não
+  se afirma que esse path foi validado antes do wizard.
 - Credenciais, token e `test-password` são gerados por raiz, modo `0600`,
   nunca impressos ou commitados. A raiz nova não reutilizou credenciais.
 - Baseline: artefato local `artifacts/JellyP_0.3.0.1.zip`, SHA256
@@ -243,13 +244,20 @@ Logs e capturas sintéticas ficaram em `/tmp/opencode/jellyp-alpha-check/`,
   deve repetir o upgrade com a identidade candidata e o catálogo público.
 - As provas de bind/assembly usam `/proc` e `/proc/<pid>/maps` do Linux; não
   são portáveis para outros SOs.
-- V08, V10 e V15 têm agora provas determinísticas in-process registradas em
-  [VALIDAÇÃO](VALIDATION.md) e no [fechamento](ALPHA-CLOSURE.pt-BR.md): cancelamento
-  por `operationId`, espera por metadata relacionada versus refresh não
-  relacionado, orçamento por configuração e reinício simulado entre salvar/restaurar.
-  Não houve kill de processo real, disparo pelo scheduler Jellyfin, disco
-  fisicamente cheio ou alteração de permissões/serviço do sistema. Essas camadas de
-  host continuam explicitamente não exercitadas nesta rodada de upgrade.
+- V08, V10 e V15 têm provas determinísticas in-process registradas em
+  [VALIDAÇÃO](VALIDATION.md) e no [fechamento](ALPHA-CLOSURE.pt-BR.md). Em
+  09/11/2026, uma fixture nova e separada executou também **80 checks de host**
+  com scheduler por intervalo real, refresh de metadata real e SIGKILL do PID
+  verificado via pidfd; no caso V15 observado, o journal estava `Prepared`
+  antes do save, sem WebP antes do kill, e a remoção de saída não foi alegada.
+  O detalhamento está na seção 7 do fechamento e em
+  [VALIDAÇÃO](VALIDATION.md). Esta fixture de upgrade não repetiu esses gates;
+  os **33 checks do harness de upgrade** foram reexecutados separadamente após
+  o guard de `stop_host` e passaram, com a fixture encerrada.
+  Disco fisicamente cheio, erro de permissão de SO, falha de hardware e
+  navegação/desconexão do navegador continuam fora do escopo. O teste de host
+  usa um provedor de metadata auxiliar somente na fixture, não um endpoint de
+  falha do produto.
 - Axe não é certificação WCAG; Firefox, Safari, leitor de tela e aparelhos
   físicos não foram validados.
 - A fixture foi encerrada ao final pelo PID exato; a porta `18096` ficou livre.

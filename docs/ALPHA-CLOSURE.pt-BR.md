@@ -12,13 +12,21 @@ o cancelamento com snapshot obsoleto, a consumação precoce do plano e a ordem 
 persistência do marcador de mutação, além de registrar as provas de espera por
 metadata, refresh não relacionado, orçamento por configuração e recuperação
 conservadora. A suíte .NET passou com **204 testes** e a suíte de release com
-**32**. Nenhum processo Jellyfin foi iniciado nesta rodada; a camada exata de
-cada prova e o que continua não exercitado estão na seção 6. V08/V10/V15 estão
-fechados **somente nesse gate determinístico**, não no scheduler/SIGKILL reais do
-host.
+**32**. Nenhum processo Jellyfin foi iniciado nessa rodada histórica; a camada
+exata de cada prova está na seção 6.
 
-Atualizado em **08/11/2026**. Código base reconciliado até **`f0ee074`**; esta
-rodada mantém as correções e testes V08/V10/V15 na árvore de trabalho, sem commit.
+**Gates V08/V10/V15 no host real em 09/11/2026:** uma fixture nova e marcada
+(`/tmp/opencode/jellyp-host-gates-proof5-20261109`) executou **80 checks de host**
+com Jellyfin 12.1 real, scheduler por intervalo real, refresh de metadata real e
+SIGKILL do PID verificado após um journal `Prepared`. O caso V15 observado foi
+**Prepared-before-save, sem WebP antes do kill**; a remoção de saída não foi
+alegada. O candidato instalado e o build local têm SHA256
+`3AE44BA2A35FAFC08EDF03D91D0BCF5E9FE0B3F981EC578089E0E5330FBC3D82`.
+O produto não foi alterado nesta rodada; a camada exata e as limitações estão na
+seção 7.
+
+Atualizado em **09/11/2026**. Código base em **`e21328a`**; as correções e testes
+V08/V10/V15 permanecem na árvore de trabalho, sem commit.
 Este é o acompanhamento atual de entrega; o plano detalhado conserva também a
 história da proposta. Não transforma testes históricos em uma nova execução.
 
@@ -73,14 +81,14 @@ apresentada como observação de falha física no browser.
 | V05 — dimensões e restauração | Evidência de regeneração/restauração; combinação integral a conferir | Associar cenário específico a teste/resultado, sem inferir da soma de testes |
 | V06 — alpha/pixels em logo | Regras backend cobertas; aceite nativo integral a consolidar | Provar lossless/lossy e descarte com original protegido |
 | V07 — seleção obsoleta/subconjunto | Backend coberto; subset/paginação exercitados | Consolidar alteração entre revisão/aplicação e ausência de substituição |
-| V08 — desconexão/fila/cancelamento | Parcial: cancelamento por `operationId` em fila, espera de metadata, antes da primeira mutação e contra snapshot finalizado coberto deterministicamente; desconexão/navegação/foco não reexecutados | Repetir a jornada de navegador/desconexão na fixture final; não inferir foco estável do teste in-process |
+| V08 — desconexão/fila/cancelamento | Fechado no host real em 09/11/2026 para a API: `operationId` cancelado em `WaitingForMetadata` antes da mutação (plano `Ready`, zero journal) e entre transações depois de uma mutação real (plano `Consumed`, `Changed=1`, `NotStarted=1`, segundo byte-idêntico). Navegação/desconexão/foco do navegador não foram repetidos | O cancelamento por identidade está provado no host; uma jornada de navegador/desconexão continua sendo evidência separada, não inferida deste teste |
 | V09 — manual independente da automação | Exercitado com configuração preservada | Repetir regressão final |
-| V10 — scheduler e metadata | Parcial: espera por metadata relacionada, refresh não relacionado e serialização nativa cobertos no produto/adaptador real; disparo pelo scheduler Jellyfin não reexecutado | Disparar as tarefas pelo scheduler real na fixture final; o seam `EnsureIdle` já está provado |
+| V10 — scheduler e metadata | Fechado no host real em 09/11/2026: `IntervalTrigger` real iniciou `OptimizeArtworkTask`; refresh relacionado produziu `WaitingForMetadata` sem mutação e retomou após liberar; refresh não relacionado permaneceu `Active` durante a conversão do alvo e não bloqueou | O disparo pelo scheduler e o `EnsureIdle` real estão provados; a UI/planning não foi repetida nesta rodada |
 | V11 — restauração e journals novos/antigos | Exercitado no host 12.1 em 08/11/2026: journal antigo restaurado pela API atual com SHA256 exato | Fechado para o gate local; repetir com identidade candidata final |
 | V12 — remoção seletiva | Exercitado, inclusive 52 originais e fingerprint | Repetir conjunto exato e proteção de incertos na rodada final |
 | V13 — upgrade da baseline | Exercitado no host 12.1 em 08/11/2026: baseline `0.3.0.1` → build local, escopo/journal/triggers/modo seguro preservados | Gate local fechado; falta upgrade com nova identidade candidata e catálogo público |
 | V14 — teclado/idioma/mobile | Chromium e axe exercitados | Regressão final; leitor de tela/dispositivos físicos não validados |
-| V15 — espaço/persistência/interrupção | Parcial: reserva por configuração, falha de persistência, marcador pré/pós-publicação e reinício simulado entre salvar/restaurar cobertos; SIGKILL/processo real não executado | Repetir interrupção com processo real da fixture depois de observar o journal e o PID exato |
+| V15 — espaço/persistência/interrupção | Parcial no host real em 09/11/2026: `MutationStarted` e journal `Prepared` observados; SIGKILL somente do PID verificado (argv/cwd/uid/starttime/socket) via pidfd; reinício da mesma DLL marcou `Interrupted`, `PendingRecovery=1`, sem replay; recuperação explícita restaurou o PNG exato, com journal `RolledBack` e `BackupDeleted=true`. O caso observado foi `Prepared-before-save`: não havia WebP antes do kill, então a remoção de saída **não foi provada** | Repetir com output já existente (ou observer auxiliar que congele após o save) para fechar a remoção de WebP; disco físico/permissões/hardware continuam fora do escopo |
 
 Ver critérios integrais na seção 12 do [plano](UX-REFACTOR-PLAN.pt-BR.md).
 Ainda faltam também duas bibliotecas reais sintéticas, aplicação sem guardar
@@ -186,8 +194,9 @@ Nenhuma versão foi alterada nesta retomada.
 A fixture descartável foi recriada com os pacotes oficiais Jellyfin 12.1
 (server `b57edb75…`, web `618e9b9c…`), apenas em `127.0.0.1:18096`, com
 processo/cwd e bind loopback efetivo verificados antes do wizard e credenciais
-novas. `ProgramDataPath` foi conferido após o login, antes da biblioteca, mídia
-e mutações de plugin. O baseline local `0.3.0.1` foi instalado e gerou,
+novas. `ProgramDataPath` foi conferido após o login, antes da criação de
+bibliotecas e das mutações de API; mídia e plugin já estavam confinados à raiz
+marcada. O baseline local `0.3.0.1` foi instalado e gerou,
 por API real, uma configuração legada de escopo exato, um trigger de intervalo
 na tarefa de otimização, um trigger diário na sincronização, um journal e um
 backup. O build local foi instalado como candidato de teste (DLL
@@ -212,11 +221,12 @@ teste de catálogo público.
 
 O host foi encerrado ao final; não há host nativo ativo nesta documentação.
 UI/planning/axe, upgrade e as bibliotecas sintéticas foram reexecutados; V11 e
-V13 estão fechados apenas para o gate local. V08/V10/V15 estão fechados somente
-no gate determinístico in-process da seção 6; a camada de scheduler/SIGKILL real
-do host permanece pendente. A validação de instalação final deve usar a nova
-identidade candidata, sem sobrescrever a versão publicada. Este checklist não
-autoriza publicação ou produção.
+V13 estão fechados apenas para o gate local. V08/V10/V15 têm prova determinística
+in-process na seção 6 e, em 09/11/2026, prova no host real na seção 7
+(scheduler por intervalo, refresh de metadata e SIGKILL do PID verificado).
+A validação de instalação final deve usar a nova identidade candidata, sem
+sobrescrever a versão publicada. Este checklist não autoriza publicação ou
+produção.
 
 ## 6. Rodada determinística V08/V10/V15 (08/11/2026)
 
@@ -339,3 +349,142 @@ reproduzidos nesta rodada.
   adaptador `EnsureIdle` foram provados, mas a decisão do scheduler do host não.
 - V15 inclui falta de espaço física e erro de SO; a rodada usou quotas
   configuradas e falhas de persistência injetadas, sem tocar no disco do sistema.
+
+## 7. Gates V08/V10/V15 no host real (09/11/2026)
+
+Esta rodada foi executada em uma **raiz nova e marcada**,
+`/tmp/opencode/jellyp-host-gates-proof5-20261109`, com credenciais novas em
+`0600`, Jellyfin oficial 12.1 apenas em `127.0.0.1:18096` e o candidato local.
+Não houve produção, SSH, serviço systemd, instalação no SO, publicação ou
+alteração de `artifacts/`. O `ProgramDataPath` autenticado foi conferido após o
+login e antes da criação de bibliotecas e das mutações de API; mídia e plugin
+auxiliar já estavam confinados à raiz marcada. O host foi encerrado ao final e a
+porta ficou livre.
+
+**Identidade e base**
+
+- HEAD: `e21328af68d17e3df427ae7398125a21dee981aa` (`e21328a`).
+- Candidato local: ZIP SHA256
+  `840799124A26D9ECEADD4D1B28B0E1D3B9F8110ACD2684BC616080A0F63515F0`;
+  DLL SHA256
+  `3AE44BA2A35FAFC08EDF03D91D0BCF5E9FE0B3F981EC578089E0E5330FBC3D82`.
+- DLL instalada, DLL carregada em `/proc/<pid>/maps` e DLL do ZIP têm o mesmo
+  SHA256; o artefato publicado `0.3.0.1` não foi alterado.
+- Host: Jellyfin `12.1.0`, `ProgramDataPath` exatamente
+  `/tmp/opencode/jellyp-host-gates-proof5-20261109/data`.
+
+**Resultado:** **80 checks de host** aprovados. A evidência privada está em
+`host-gates-evidence.json` na raiz da fixture; os logs temporários são
+`/tmp/opencode/jellyp-host-gates-proof5-all.log` e
+`/tmp/opencode/jellyp-host-gates-proof5-bootstrap.log`. As execuções anteriores
+`proof2`/`proof3` tinham 58 checks e foram substituídas por esta rodada
+reforçada; os valores abaixo são da execução `proof5`. Nenhum token ou
+credencial foi impresso.
+
+**Camadas exatas**
+
+- **Produto real:** `OptimizationCoordinator`, `OptimizeArtworkTask`,
+  `JellyfinArtworkStore.EnsureIdle`, journal, `DurableFiles`, conversão WebP,
+  endpoints `/JellyP/Executions/{id}/Cancel` e `/JellyP/Rollback/{id}`.
+- **Jellyfin real:** scheduler por `IntervalTrigger`, `RefreshLibrary` real,
+  refresh de metadata de biblioteca pelo `ProviderManager`, bind loopback e
+  processo verificado.
+- **Borda auxiliar isolada:** o plugin de teste
+  [JellyP.TestSlowMetadata](../tests/host-fixture/JellyP.TestSlowMetadata/README.md)
+  registra um provedor local que atrasa somente itens cujo caminho contém
+  `Slow Refresh`. Ele mantém um refresh de metadata real aberto e é liberado
+  explicitamente por arquivo de controle; não é endpoint de falha, não altera o
+  produto, o build ou o pacote e não deve ser instalado fora da fixture.
+- **Dependências explícitas:** `ffmpeg` e `inotifywait` são exigidos por
+  preflight; o harness não executa gerenciador de pacotes nem instala nada.
+- **Não exercitado:** navegação/desconexão/foco do navegador, disco fisicamente
+  cheio, erro de permissão de SO, falha de hardware e UI/planning. Os números
+  históricos 121/819/20 não foram reproduzidos nesta rodada.
+
+**V08 — cancelamento por `operationId`**
+
+- Antes da primeira mutação: o plano foi reservado, a operação observou
+  `WaitingForMetadata` com `MutationStarted=false`, o endpoint cancelou o
+  `operationId` exato e o terminal foi `Cancelled`, `Changed=0`,
+  `NotStarted=1`, plano `Ready`, zero journal e o PNG sintético permaneceu
+  byte-idêntico (`FEB7DE07…`).
+- Entre transações: o primeiro item converteu (`Changed=1`, journal
+  `3964d4e9…` `Committed`, `OutputHash` igual ao WebP ativo, plano
+  `Consumed`), o segundo aguardou `WaitingForMetadata`, o cancelamento
+  terminou `Cancelled` com `NotStarted=1`, o plano continuou `Consumed`, o
+  segundo item permaneceu byte-idêntico e nenhum segundo journal foi escrito.
+
+**V10 — scheduler e metadata**
+
+- **Relacionado:** o refresh foi observado `Active` às
+  `2026-11-09T20:40:13.313984Z`, o `IntervalTrigger` foi instalado depois
+  (`20:40:13.329161Z`) e o scheduler iniciou em
+  `2026-11-09T20:41:14.3415031Z`. A tarefa entrou em `WaitingForMetadata` sem
+  mutação/journal; o provider foi liberado explicitamente, o refresh ficou
+  `Idle` e a mesma `ExecutionId` retomou, converteu 1 imagem e gravou journal
+  `Committed` `bbf36679…`.
+- **Não relacionado:** o refresh estava `Active` às
+  `2026-11-09T20:41:16.004048Z`, o trigger foi instalado depois
+  (`20:41:16.014492Z`) e o scheduler iniciou em
+  `2026-11-09T20:42:17.0115903Z`. O journal `ccf32ed0…` ficou `Committed`
+  enquanto o refresh ainda estava `Active`; só então o provider foi liberado.
+  A tarefa nunca observou `WaitingForMetadata`, o item testemunha permaneceu
+  intacto e o journal completou antes do refresh ficar `Idle`.
+
+**V15 — interrupção e recuperação**
+
+- `MutationStarted=true` e journal `Prepared` (`32a0e35f…`) foram observados
+  antes do SIGKILL. O PID `918666`, starttime `11031295`, argv, cwd, UID e socket
+  loopback foram verificados imediatamente antes do `SIGSTOP`/SIGKILL via
+  `pidfd`; somente esse processo foi interrompido.
+- O caso observado foi **Prepared-before-save, no output remains**: o PNG
+  original existia antes do kill (SHA256
+  `FE84D7D80047B1696D72D46EE606B5B711457DB9DCC1E5EB5B4E0D1EB6BD4C97`), o
+  backup retido tinha o mesmo hash, mas o WebP de saída ainda **não existia**.
+  `outputRemovalProven=false`; nenhuma remoção de WebP foi alegada.
+- Após reiniciar a mesma DLL, a operação ficou `Interrupted`,
+  `MutationStarted=true`, `PendingRecovery=1`, journal `Prepared`; não houve
+  replay: contagem de journals `1→1`, contagem de operações `3→3`.
+- A recuperação explícita por `/JellyP/Rollback/{id}` terminou `Completed`,
+  restaurou o PNG sintético com SHA256 exato
+  `FE84D7D80047B1696D72D46EE606B5B711457DB9DCC1E5EB5B4E0D1EB6BD4C97`,
+  deixou o journal `RolledBack`, `BackupDeleted=true`, `PendingRecovery=0` e
+  nenhuma saída no caminho registrado. A operação permaneceu `Interrupted`,
+  sem reescrita.
+- O processo reiniciado teve PID `922475`, starttime `11047067`, mesma DLL
+  `3AE44BA2…`, e o plugin auxiliar estava `Active`.
+
+**Reprodução**
+
+```sh
+# 1) Criar a raiz marcada e o host oficial 12.1; o bootstrap instala a baseline.
+python3 scripts/smoke-upgrade.py \
+  --root /tmp/opencode/jellyp-host-gates-proof \
+  --phase bootstrap
+
+# 2) Construir o plugin auxiliar de teste e o candidato local em saída separada.
+#    Dependências de fixture: ffmpeg e inotifywait; o harness faz preflight e
+#    nunca executa gerenciador de pacotes.
+dotnet restore tests/host-fixture/JellyP.TestSlowMetadata/JellyP.TestSlowMetadata.csproj --locked-mode
+dotnet build tests/host-fixture/JellyP.TestSlowMetadata/JellyP.TestSlowMetadata.csproj -c Release --no-restore
+dotnet build Jellyfin.Plugin.JellyP/Jellyfin.Plugin.JellyP.csproj -c Release
+
+# 3) Executar os gates e encerrar a fixture ao final.
+python3 scripts/smoke-host-gates.py \
+  --root /tmp/opencode/jellyp-host-gates-proof \
+  --phase all \
+  --candidate /tmp/opencode/jellyp-host-gates-candidate/JellyP_0.3.0.1.zip \
+  --expected-dll-sha256 3AE44BA2A35FAFC08EDF03D91D0BCF5E9FE0B3F981EC578089E0E5330FBC3D82 \
+  --test-plugin-dll tests/host-fixture/JellyP.TestSlowMetadata/bin/Release/net10.0/JellyP.TestSlowMetadata.dll
+```
+
+O helper exige raiz marcada, ZIP com a identidade esperada, `ProgramDataPath`
+autenticado após o login e antes da criação de bibliotecas/mutações de API, e só
+controla o PID exato daquela raiz. No final, a automação foi devolvida a
+`Enabled=false`, `DryRun=true`, `PreserveOriginals=true`, `ScopeMode=legacy` e
+sem triggers; o XML da fixture foi conferido. Os testes novos de helpers de host
+e de guardas de stop passaram junto com os anteriores (**56 testes de release**
+na árvore atual). Os **33 checks do harness de upgrade** foram reexecutados em
+raiz nova após o guard de `stop_host` e passaram; a fixture foi encerrada. O
+build Release do produto teve zero avisos e zero erros; a suíte .NET de 204
+testes não foi repetida porque o produto não mudou nesta rodada.

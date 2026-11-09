@@ -295,10 +295,81 @@ V15 budget/persistence/interruption evidence:
 - Existing prepared-journal, partial-output, orphan-cleanup and rolled-back
   deletion-intent regressions remain.
 
-Remaining host-level gap: real scheduler dispatch and a real fixture-process
-SIGKILL were not executed. The in-process restart constructs a new coordinator
-over the real journal files; it is not an OS kill. To close that layer, run the
-marked fixture, observe `WaitingForMetadata` or `MutationStarted` in the journal,
-terminate only the verified PID, restart and verify `Interrupted`, no automatic
-replay and explicit recovery. V08 browser disconnect/navigation/focus also
-remains outside this backend round.
+The real-host layer for V08/V10/V15 was exercised separately on 09/11/2026; see
+the next section. Browser disconnect/navigation/focus remains outside this
+backend round.
+
+## Real-host V08/V10/V15 gates (09/11/2026)
+
+A new marked disposable fixture (`/tmp/opencode/jellyp-host-gates-proof5-20261109`)
+ran **80 host checks** against official Jellyfin 12.1 on `127.0.0.1:18096`.
+The fixture used new credentials, verified the authenticated `ProgramDataPath`
+after login and before library creation/API mutations (synthetic media and the
+test plugin were already confined to the marked root), and stopped at the end
+with the port free. The source revision was
+`e21328af68d17e3df427ae7398125a21dee981aa`; the installed candidate and local
+build DLL SHA256 was
+`3AE44BA2A35FAFC08EDF03D91D0BCF5E9FE0B3F981EC578089E0E5330FBC3D82`.
+No production, SSH, system service, package installation, publication or
+`artifacts/` change was involved. `ffmpeg` and `inotifywait` are explicit
+fixture dependencies; the harness preflights them and never runs a package
+manager.
+
+Reproduce with `scripts/smoke-host-gates.py`; it reuses the guards from
+`scripts/smoke-upgrade.py` and installs the test-only
+`tests/host-fixture/JellyP.TestSlowMetadata` provider under the fixture. The
+provider delays only paths containing `Slow Refresh`; it is not a product fault
+endpoint and is not packaged with JellyP.
+
+Exact layers:
+
+- Real product: `OptimizationCoordinator`, `OptimizeArtworkTask`,
+  `JellyfinArtworkStore.EnsureIdle`, durable journal, WebP conversion, the
+  `Executions/{id}/Cancel` and `Rollback/{id}` endpoints.
+- Real host: Jellyfin interval scheduler, `RefreshLibrary`, real metadata refresh
+  through `ProviderManager`, loopback bind and verified PID.
+- Test-only edge: the slow local metadata provider holds a real library refresh
+  open. No HTTP responses are mocked.
+- Not exercised: browser navigation/disconnect/focus, a physically full disk,
+  OS permission failures, hardware faults, and the historical 121/819/20 UI and
+  planning runs.
+
+Results:
+
+- V08 before mutation: `WaitingForMetadata`, `MutationStarted=false`, exact
+  `operationId` cancelled, terminal `Cancelled`, `Changed=0`, `NotStarted=1`,
+  plan back to `Ready`, zero journal and byte-identical synthetic PNG.
+- V08 between transactions: first item `Changed=1` with a `Committed` journal
+  and plan `Consumed`; second waited in `WaitingForMetadata`; cancellation
+  produced `Cancelled`, `NotStarted=1`, no second journal, plan stayed
+  `Consumed`, second image byte-identical.
+- V10 related: refresh was observed `Active` at
+  `2026-11-09T20:40:13.313984Z`, the interval trigger was installed after it
+  (`20:40:13.329161Z`), and the scheduler started at
+  `2026-11-09T20:41:14.3415031Z`. The task observed `WaitingForMetadata` with no
+  mutation/journal while the related library refresh was active; after explicit
+  provider release and observed Idle, the same execution resumed, converted one
+  image and wrote a `Committed` journal.
+- V10 unrelated: refresh was `Active` at `2026-11-09T20:41:16.004048Z`, the
+  trigger was installed after it, and the scheduler started at
+  `2026-11-09T20:42:17.0115903Z`. The committed journal was observed while the
+  unrelated refresh was still `Active`; only then was the provider released. It
+  never observed `WaitingForMetadata`, and the witness item stayed untouched.
+- V15: `MutationStarted=true` and a `Prepared` journal were observed; only the
+  verified PID (argv, cwd, UID, starttime and loopback socket) received
+  `SIGSTOP`/SIGKILL through a Linux pidfd. Restart of the same DLL produced
+  `Interrupted`, `MutationStarted=true`, `PendingRecovery=1`, journal count
+  `1→1` and operation count `3→3` (no replay). The observed case was
+  **Prepared-before-save, no output remains**: the source PNG and retained
+  backup existed before kill, but no WebP output existed yet, so
+  `outputRemovalProven=false` and output removal was not claimed. Explicit
+  recovery restored the exact synthetic PNG
+  (`FE84D7D80047B1696D72D46EE606B5B711457DB9DCC1E5EB5B4E0D1EB6BD4C97`),
+  left the journal `RolledBack`, `BackupDeleted=true`, `PendingRecovery=0`, and
+  no output at the recorded path.
+
+The release suite gained host-gate helper and stop-guard tests; **56 release
+tests** passed. The product Release build had zero warnings/errors. The 204-test
+.NET suite was not repeated because product code did not change in this round.
+See [ALPHA-CLOSURE.pt-BR.md](ALPHA-CLOSURE.pt-BR.md) section 7 for the Portuguese
+evidence and exact commands.
