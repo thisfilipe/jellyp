@@ -229,7 +229,8 @@ de `www.gstatic.com`; essa tentativa foi bloqueada. JellyP não depende dele.
 
 ### Jornada realmente exercitada
 
-- Marcador e `System/Info.ProgramDataPath` conferidos antes de qualquer mutação.
+- Com o host já inicializado, marcador e `System/Info.ProgramDataPath` conferidos
+  antes das mutações da jornada.
   Quatorze PNGs gerados em treze filmes descartáveis, sendo capa + miniatura no
   Canary. MP4s extras são cópias do vídeo sintético já existente dentro do root.
 - Análise real, SSIM/bytes reais, nenhuma seleção inicial, dez linhas, página 2,

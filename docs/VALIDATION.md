@@ -126,3 +126,38 @@ the embedded library/automation UI loaded and recovery status was clear.
 Reproduce with [smoke-catalog.py](../scripts/smoke-catalog.py), following the
 marked-root and two-phase instructions in its docstring and
 [RELEASING.md](RELEASING.md).
+
+## Baseline upgrade harness (12.1)
+
+[smoke-upgrade.py](../scripts/smoke-upgrade.py) recreates and manages only a
+marked disposable fixture on `127.0.0.1:18096`. It completes the 12.1 wizard,
+then checks the authenticated `ProgramDataPath` after login before media/library
+creation, creates a synthetic library, installs the local baseline, saves an exact
+legacy item scope with real interval/daily task triggers, and generates a
+journal and retained original through the baseline API. After the candidate is
+installed, it verifies byte-identical XML/journal/backup/output, unchanged
+scope/safe mode/triggers, and restores the old journal through the current API
+with an exact SHA256 check. It also refuses unmarked/symlinked roots, checks the
+authenticated `ProgramDataPath` after login, and stops only the exact process it
+started.
+
+```sh
+python3 scripts/smoke-upgrade.py \
+  --root /tmp/opencode/jellyp-upgrade-harness \
+  --phase all \
+  --candidate /tmp/opencode/jellyp-alpha-check/upgrade-candidate/JellyP_0.3.0.1.zip \
+  --expected-dll-sha256 <candidate-dll-sha256>
+```
+
+The hardened 08/11/2026 run passed 33 harness checks. In the same validation
+round, separate disposable fixtures passed 121 native UI checks without the
+journey, 819 with the journey, and 20 planning checks; the installed DLL
+matched the local build and differed from the baseline. The harness now
+requires `--expected-dll-sha256` for `upgrade`/`all`/`verify`, checks the effective
+loopback socket and process owner, refuses an unmarked/symlinked root before
+stop/install, proves the loaded assembly path and current embedded page, and
+refuses a second restore of a consumed backup. The release suite gained 13
+harness tests (30 total in this round). This is a local compatibility gate, not
+a new release identity. See
+[UPGRADE-VALIDATION.pt-BR.md](UPGRADE-VALIDATION.pt-BR.md) for the fixture
+layout, official package hashes, exact observed hashes and limitations.

@@ -1,5 +1,12 @@
 # Fechamento técnico e preparação da alpha
 
+**Conferência final do harness em 08/11:** após revisão independente, corrigidos
+cleanup do startup e checagens ausentes do upgrade isolado. **32 testes de release**
+e **33 checks de upgrade/restauração reais** passaram em nova raiz marcada, com
+credenciais novas e processo encerrado ao final. A evidência detalhada está em
+[validação de upgrade](UPGRADE-VALIDATION.pt-BR.md). Isso não fecha V08/V10/V15,
+não repete os testes de UI/planning anteriores e não cria uma identidade de release.
+
 Atualizado em **08/11/2026**. Código reconciliado até **`30401c5`**.
 Este é o acompanhamento atual de entrega; o plano detalhado conserva também a
 história da proposta. Não transforma testes históricos em uma nova execução.
@@ -25,16 +32,20 @@ história da proposta. Não transforma testes históricos em uma nova execução
 | Refinamento de seleção/aside/histórico | 743 checks (742 host + 1 unitário), 23 axe; 20 planning | Jornada nativa na fixture anterior à integração de branding |
 | Branding | 186 .NET, 16 release, 122 checks nativos (7 axe) | Recursos, cabeçalhos, endpoint e geometria dos cartões; não repetiu jornadas mutantes |
 | Correção final da imagem | 5 testes .NET de branding, 17 release, 122 checks nativos | Arte opaca correta; captura real do cartão conferida |
+| Upgrade V13/V11 em fixture recriada (08/11/2026) | 33 checks do harness endurecido, 121 UI sem jornada, 819 UI com jornada, 20 planning, 186 .NET (rodada anterior), 30 release | Host 12.1 recriado com credenciais novas; XML/journal/backup/triggers preservados; journal antigo restaurado byte-exact pela API atual; candidato local ainda `0.3.0.1` |
 
 Os números não se somam e não significam uma execução única sobre a revisão
 final. Axe não é certificação WCAG nem substitui leitor de tela. Resultados
 históricos e limitações estão em [validação nativa](UX-P3-NATIVE-VALIDATION.pt-BR.md)
-e [branding](../assets/branding/README.md).
+e [branding](../assets/branding/README.md). A rodada de upgrade desta retomada,
+com comandos e hashes, está em [validação de upgrade](UPGRADE-VALIDATION.pt-BR.md).
 
-A fixture em `/tmp` não sobreviveu ao reboot. Capturas finais, resumos filtrados
-e instruções manuais foram preservados em um arquivo privado fora do repositório.
-Não há backup executável, credenciais, banco ou instalação de host preservados.
-Não publicar esse arquivo como evidência de release sem revisão de privacidade.
+A fixture antiga em `/tmp` não sobreviveu ao reboot; a rodada de 08/11/2026
+recriou uma nova fixture descartável. Capturas finais, resumos filtrados e
+instruções manuais da rodada antiga foram preservados em um arquivo privado fora
+do repositório. Não há backup executável, credenciais, banco ou instalação de
+host antigos preservados. Não publicar esse arquivo como evidência de release
+sem revisão de privacidade.
 
 ## 3. Matriz V01–V15: aceite conservador
 
@@ -54,9 +65,9 @@ apresentada como observação de falha física no browser.
 | V08 — desconexão/fila/cancelamento | Parcial: HTTP de análise e contexto testados | Cancelar operação identificada em espera/intertransação de forma determinística |
 | V09 — manual independente da automação | Exercitado com configuração preservada | Repetir regressão final |
 | V10 — scheduler e metadata | Parcial: contratos/testes backend | Disparo nativo com espera real controlada e tarefa não relacionada |
-| V11 — restauração e journals novos/antigos | Restauração real e compatibilidade backend | Exercitar journal antigo em instalação atualizada |
+| V11 — restauração e journals novos/antigos | Exercitado no host 12.1 em 08/11/2026: journal antigo restaurado pela API atual com SHA256 exato | Fechado para o gate local; repetir com identidade candidata final |
 | V12 — remoção seletiva | Exercitado, inclusive 52 originais e fingerprint | Repetir conjunto exato e proteção de incertos na rodada final |
-| V13 — upgrade da baseline | Compatibilidade testada no backend; host completo pendente | Upgrade real preservando escopo, journals, horários e modo seguro |
+| V13 — upgrade da baseline | Exercitado no host 12.1 em 08/11/2026: baseline `0.3.0.1` → build local, escopo/journal/triggers/modo seguro preservados | Gate local fechado; falta upgrade com nova identidade candidata e catálogo público |
 | V14 — teclado/idioma/mobile | Chromium e axe exercitados | Regressão final; leitor de tela/dispositivos físicos não validados |
 | V15 — espaço/persistência/interrupção | Regras e falhas cobertas no backend | Prova no host de interrupção/recuperação conservadora, sem produção |
 
@@ -70,8 +81,9 @@ originais e regeneração protegida sob retenção não-zero no host. Os caps de
 1. **Revalidar checkout:** restore travado, build sem avisos, suíte .NET, release,
    sintaxe, auditoria e pacote local em saída separada. Registrar revisão exata.
 2. **Recriar fixture:** Jellyfin/web 12.1, loopback, marcador, credenciais novas,
-   dados sintéticos, providers remotos desabilitados; verificar ProgramDataPath
-   antes de mutações. Não restaurar nem copiar dados de produção.
+   dados sintéticos, providers remotos desabilitados; verificar processo/bind
+   antes do wizard e o `ProgramDataPath` autenticado após o login, antes de
+   biblioteca/mídia/plugin. Não restaurar nem copiar dados de produção.
 3. **Migração primeiro:** instalar baseline em fixture e criar configuração,
    disparos e journals sintéticos; atualizar com o pacote candidato. Comparar
    configuração/horários e provar recuperação/restauração de dados antigos.
@@ -81,6 +93,14 @@ originais e regeneração protegida sob retenção não-zero no host. Os caps de
 5. **Rodada integrada final:** `smoke-native-ui.cjs --journey`, planning, temas,
    imagens, seleção entre páginas, histórico por operação e segurança dos dados.
    Guardar resultado e capturas correspondentes à DLL realmente instalada.
+
+**Execução de 08/11/2026:** os passos 1–3 e 5 foram executados na fixture
+recriada. O gate de migração V13 e a restauração V11 foram aprovados com
+journal, backup e triggers reais; a DLL instalada era idêntica ao build local
+(`CA0CDBC7…`). UI sem jornada (121), jornada (819) e planning (20) também
+passaram. Detalhes e hashes em
+[validação de upgrade](UPGRADE-VALIDATION.pt-BR.md). O passo 4 (V08/V10/V15)
+continua aberto e não foi substituído por esta rodada.
 
 Interrupções são somente do processo verificado da fixture. Falta de espaço ou
 falha de persistência deve ser simulada isoladamente, nunca enchendo disco do
@@ -134,27 +154,52 @@ com fonte em `30401c511b70ff24577b6af7ec1edcacf8bf9dc5`:
 
 - Restore com `--locked-mode` aprovado, usando o cache existente.
 - Build Release: zero avisos e zero erros; **186 testes .NET** aprovados.
-- **17 testes de release**, sintaxe Python e dos quatro scripts CJS aprovados.
+- **30 testes de release** nesta rodada de hardening, sintaxe Python e dos quatro scripts CJS aprovados.
 - `git diff --check` e auditorias do index/working tree aprovados; auditoria
   automatizada não substitui revisão manual.
 - Pacote criado e validado em saída descartável separada, sem substituir
-  `artifacts/`: quatro membros, 635.828 bytes, SHA256
-  `c5c5fb199557297ce90552781d726b7dea1e0857ae603738b429cf6bc936d74d`.
+  `artifacts/`: quatro membros, 950.493 bytes, SHA256
+  `56975d308f763171056b8cd281d589cc3db1432d332857d4ccfa92a1bc3de7df`.
 
 **Bloqueio de identidade de release:** o pacote ainda informa `0.3.0.1`, mas o
-código está 16 commits após a tag dessa versão e os bytes diferem do artefato
-antigo. O ZIP local é apenas um teste de empacotamento, não uma candidata
-publicável. É necessário definir nova versão de quatro partes, alinhar projeto,
-`build.yaml` e changelog e repetir as validações sobre a candidata. Nenhuma versão
-foi alterada nesta retomada.
+código está 17 commits após a tag dessa versão e os bytes diferem do artefato
+antigo (`9eb58165…`). O ZIP local é apenas um teste de empacotamento, não uma
+candidata publicável. É necessário definir nova versão de quatro partes, alinhar
+projeto, `build.yaml` e changelog e repetir as validações sobre a candidata.
+Nenhuma versão foi alterada nesta retomada.
 
-Ambiente da revalidação: .NET SDK 10.0.114, Python 3.12.3 e Node 24.21.0,
-Linux x64. Logs locais desta rodada em `/tmp/opencode/jellyp-alpha-check/` são
-temporários e não estão no Git. Não houve instalação de dependências nem testes
-de URLs públicas/catálogo remoto.
+### Rodada de host em 08/11/2026
 
-Não há host nativo ativo. UI/planning/axe, upgrade, bibliotecas sintéticas e
-V08/V10/V15 **não foram reexecutados**; os gates de migração/falhas continuam
-abertos. Próxima execução: recriar a fixture e fechar esses cenários; a validação
-de instalação final deve usar a nova identidade candidata, sem sobrescrever a
-versão publicada. Este checklist não autoriza publicação ou produção.
+A fixture descartável foi recriada com os pacotes oficiais Jellyfin 12.1
+(server `b57edb75…`, web `618e9b9c…`), apenas em `127.0.0.1:18096`, com
+processo/cwd e bind loopback efetivo verificados antes do wizard e credenciais
+novas. `ProgramDataPath` foi conferido após o login, antes da biblioteca, mídia
+e mutações de plugin. O baseline local `0.3.0.1` foi instalado e gerou,
+por API real, uma configuração legada de escopo exato, um trigger de intervalo
+na tarefa de otimização, um trigger diário na sincronização, um journal e um
+backup. O build local foi instalado como candidato de teste (DLL
+`ca0cdbc7…`, idêntica à DLL do pacote). XML, journal, backup e saída WebP
+permaneceram byte a byte; escopo, modo seguro e triggers não mudaram; o journal
+antigo foi restaurado pela API atual com SHA256 exato. O harness reproduzível
+está em [scripts/smoke-upgrade.py](../scripts/smoke-upgrade.py) e o detalhamento
+em [validação de upgrade](UPGRADE-VALIDATION.pt-BR.md).
+
+Nesta rodada de hardening passaram **33** checks do harness endurecido em raiz
+nova e **30** testes de release (17 anteriores + 13 novos). Em fixtures
+separadas, a rodada funcional registrou **121** checks de UI nativa sem jornada,
+**819** com jornada e **20** de planning. Os **186** testes .NET já haviam
+passado antes do hardening; o produto não mudou e a suíte geral não foi repetida
+por instrução. O build Release teve zero avisos e zero erros.
+
+Ambiente: .NET SDK 10.0.114, Python 3.12.3, Node 24.21.0, Linux x64,
+Chromium 1248, Playwright 1.64.1 e `@axe-core/playwright` 4.14.0. Logs e
+capturas sintéticas ficaram em `/tmp/opencode/` e não estão no Git. Não houve
+instalação de pacote no SO, serviço systemd, acesso ao alias de produção ou
+teste de catálogo público.
+
+O host foi encerrado ao final; não há host nativo ativo nesta documentação.
+UI/planning/axe, upgrade e as bibliotecas sintéticas foram reexecutados; V11 e
+V13 estão fechados apenas para o gate local. V08/V10/V15 **continuam abertos**.
+A validação de instalação final deve usar a nova identidade candidata, sem
+sobrescrever a versão publicada. Este checklist não autoriza publicação ou
+produção.
