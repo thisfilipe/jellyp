@@ -418,3 +418,117 @@ tests** passed. The product Release build had zero warnings/errors. The 204-test
 .NET suite was not repeated because product code did not change in this round.
 See [ALPHA-CLOSURE.pt-BR.md](ALPHA-CLOSURE.pt-BR.md) section 7 for the Portuguese
 evidence and exact commands.
+
+## Integrated alpha final round (09/11/2026)
+
+This round ran only on a new marked disposable fixture
+(`/tmp/opencode/jellyp-alpha-final-20261109`) with new credentials, Jellyfin
+12.1 bound to `127.0.0.1:18096`, the authenticated `ProgramDataPath` checked
+before libraries/API mutations, and the exact fixture process stopped at the
+end. The host directory was reused from the stopped `proof5` binary cache; no
+database, configuration, token or credential from that fixture was reused.
+
+The checkout HEAD was `a42f017`; product source was `e21328a` (the product diff
+`e21328a..HEAD` is empty). A fresh candidate was built and packaged only under
+`/tmp/opencode/jellyp-alpha-final-candidate`:
+
+- ZIP SHA256 `56FA9C122A269B21A5323BE1E7564D52F1E3B429EC51216321C374990856D390`
+- DLL SHA256 `5AC864C3A5EAF3990E83C6F103CF997C2A0BB0AC0FC2D8E71DDDA01BA1957683`
+- installed DLL, loaded assembly path and ZIP member matched this hash.
+
+The historical DLL `3AE44BA2A35FAFC08EDF03D91D0BCF5E9FE0B3F981EC578089E0E5330FBC3D82`
+was the `e21328a` build. A canonical build at `a42f017` embeds the current
+source revision in the assembly informational version, so it is not
+byte-identical; no bit-for-bit reproduction of `3AE44BA2…` is claimed. The
+published `0.3.0.1` artifact was not modified.
+
+### Layers and browser-only disconnect
+
+The UI and planning scripts ran against the installed candidate and the real
+Jellyfin API. No API response was intercepted and no HTML was replaced. The
+`installed DLL serves exact current embedded page` check compared the served
+page with `Jellyfin.Plugin.JellyP/Web/config.html`, and the branding PNGs were
+compared byte-for-byte. The test-only `JellyP.TestSlowMetadata` plugin provided
+a real slow local metadata provider; it is fixture-only and not product code.
+
+For the browser resilience case, the operation was started through the native
+UI, reached `WaitingForMetadata` after a real first mutation, and the browser
+context then navigated to History, used browser Back, reloaded, called
+`context.setOffline(true)`/`false`, and reloaded again. Playwright offline mode
+changes only the browser context; the host, its network and the server-side
+operation stayed up. The same `operationId` remained `Running` in
+`WaitingForMetadata`, the plan remained `Consumed`, the consumed selection did
+not reappear, and there was exactly one operation and one Apply POST. After the
+test provider was released, the same operation completed both transactions and
+the two retained originals were restored in cleanup.
+
+### Results
+
+| Exercise | Result |
+|---|---|
+| `scripts/smoke-native-ui.cjs --journey` | 818 checks; 23 axe analyses with zero violations; 244 PNG captures; zero browser page errors |
+| `scripts/smoke-native-planning.cjs` | 20 real checks; 52 Backdrops converted, retention paged to 52, 52 reviewed originals expired, active WebP retained |
+| `scripts/smoke-native-alpha-cases.cjs` | 25 checks; two real synthetic libraries and scope arrays; real apply without retained originals; protected regeneration under `BackupRetentionDays=1` |
+| `scripts/smoke-native-browser-resilience.cjs` | 48 checks; same `operationId`/state/plan across navigation, Back, reload, browser offline and reconnect; one dispatch; completion `Changed=2`, `Failed=0` |
+| .NET suite | 204 passed |
+| Release suite | 59 passed |
+
+The alpha cases specifically recorded: automation widening from exactly one
+real library ID to the exact array of two library IDs with no item IDs and no
+operation start; a real apply with `PreserveOriginals=false` that changed one
+image, created no backup, removed the verified source PNG and left
+`PendingRecovery=0`; and a real regeneration with `BackupRetentionDays=1` whose
+review reported `ProtectedCount=1`/`EligibleCount=0`, purged no original, kept
+the exact source hash for restoration and restored the original PNG.
+
+### Commands
+
+```sh
+python3 scripts/smoke-upgrade.py --root /tmp/opencode/jellyp-alpha-final-20261109 --phase bootstrap
+python3 - <<'PY'
+import importlib.util
+from pathlib import Path
+spec = importlib.util.spec_from_file_location('h', 'scripts/smoke-upgrade.py')
+h = importlib.util.module_from_spec(spec); spec.loader.exec_module(h)
+root = Path('/tmp/opencode/jellyp-alpha-final-20261109').resolve()
+candidate = Path('/tmp/opencode/jellyp-alpha-final-candidate/JellyP_0.3.0.1.zip')
+h.stop_host(root); h.install_plugin(root, candidate, '0.3.0.1'); h.start_host(root)
+token = h.login(root); h.verify_program_data(root, token); h.assert_candidate_page(root, token)
+PY
+JELLYP_PLAYWRIGHT_MODULE=/tmp/opencode/jellyp-native/browser/node_modules/playwright \
+JELLYP_AXE_MODULE=/tmp/opencode/jellyp-native/browser/node_modules/@axe-core/playwright \
+node scripts/smoke-native-ui.cjs --root /tmp/opencode/jellyp-alpha-final-20261109 \
+  --screenshots /tmp/opencode/jellyp-alpha-final-20261109/ui-evidence --journey
+JELLYP_PLAYWRIGHT_MODULE=/tmp/opencode/jellyp-native/browser/node_modules/playwright \
+node scripts/smoke-native-planning.cjs --root /tmp/opencode/jellyp-alpha-final-20261109 \
+  --screenshots /tmp/opencode/jellyp-alpha-final-20261109/planning-evidence
+JELLYP_PLAYWRIGHT_MODULE=/tmp/opencode/jellyp-native/browser/node_modules/playwright \
+node scripts/smoke-native-alpha-cases.cjs --root /tmp/opencode/jellyp-alpha-final-20261109 \
+  --screenshots /tmp/opencode/jellyp-alpha-final-20261109/alpha-cases-evidence
+python3 scripts/smoke-host-gates.py --root /tmp/opencode/jellyp-alpha-final-20261109 \
+  --phase setup --candidate /tmp/opencode/jellyp-alpha-final-candidate/JellyP_0.3.0.1.zip \
+  --expected-dll-sha256 5AC864C3A5EAF3990E83C6F103CF997C2A0BB0AC0FC2D8E71DDDA01BA1957683 \
+  --test-plugin-dll tests/host-fixture/JellyP.TestSlowMetadata/bin/Release/net10.0/JellyP.TestSlowMetadata.dll
+JELLYP_PLAYWRIGHT_MODULE=/tmp/opencode/jellyp-native/browser/node_modules/playwright \
+node scripts/smoke-native-browser-resilience.cjs --root /tmp/opencode/jellyp-alpha-final-20261109 \
+  --screenshots /tmp/opencode/jellyp-alpha-final-20261109/browser-resilience-evidence
+python3 scripts/smoke-host-gates.py --root /tmp/opencode/jellyp-alpha-final-20261109 --phase stop
+```
+
+### Remaining limits
+
+The backend caps remain **5000** plan images, **1000** images/keys per
+analysis-selection and **200** records per restore/retire operation. They were
+not stress-tested: this round used 14 journey images and 52 Backdrops. Chromium
+is the only browser exercised; Firefox, Safari, a physical device, a screen
+reader and an uncontextual evaluator remain deferred and do not block the
+declared alpha. No physical full disk, OS permission failure, hardware failure,
+production access, V15 SIGKILL rerun or complete V13 upgrade was performed in
+this round. The fixture ended with `Enabled=false`, `DryRun=true`,
+`PreserveOriginals=true`, no JellyP triggers, `PendingRecovery=0`, zero active
+backups and no active operation; the exact process was stopped and the loopback
+port was free. P7 is technically closed for this declared alpha scope only; P8
+still needs a new four-part release identity, changelog/limitations, package and
+installation/upgrade validation with that identity, rollback planning and
+publication authorization. The alpha identity remains the old `0.3.0.1`; it
+must not be published or treated as a release.

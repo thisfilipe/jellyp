@@ -407,6 +407,16 @@ verbo; cópia real de Padrões globais em en/pt preservando alcance/tipos/origin
 sem qualquer gravação; leitura de escopo antigo com nomes reais sem migração e
 salvar ambíguo bloqueado; ausência de jargão na microcopy principal.
 
+**Atualização 09/11/2026:** os limites acima são históricos desta seção. A
+rodada integrada final fechou no host real, em Chromium, a espera determinística
+por metadata com navegação/volta/reload/offline/reconexão sem cancelamento
+implícito, a seleção de duas bibliotecas reais, a aplicação sem guardar originais
+e a regeneração protegida sob retenção não-zero. Os números e as camadas exatas
+estão em [ALPHA-CLOSURE.pt-BR.md](ALPHA-CLOSURE.pt-BR.md) seção 8; a ressalva de
+que axe não é certificação WCAG e que Firefox/Safari/leitor de tela/dispositivos
+físicos continuam não validados permanece. Os caps 5000/1000/200 continuam sem
+stress e não bloqueiam a alpha declarada.
+
 ### Limites e estado final
 
 Não foi forçado um slot remoto/ausente no host nesta correção: a barreira desses

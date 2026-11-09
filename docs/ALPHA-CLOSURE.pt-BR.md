@@ -30,9 +30,22 @@ o build local têm SHA256
 O produto não foi alterado nesta rodada; a camada exata e as limitações estão na
 seção 7.
 
-Atualizado em **09/11/2026**. Código base em **`d097fb6`**; o rerun targeted de
-V15 usou essa árvore. As correções e testes V08/V10/V15 permanecem na árvore de
-trabalho, sem commit.
+**Rodada integrada final em 09/11/2026:** uma raiz nova e marcada
+(`/tmp/opencode/jellyp-alpha-final-20261109`) executou a jornada nativa completa
+(**818 checks de UI**, com **23 análises axe sem violações**), planning (**20**),
+os três casos alpha pendentes (**25**) e a resiliência de navegador/desconexão
+(**48**). A suíte .NET passou com **204 testes**, a de release com **59**, e o
+build Release teve zero avisos/erros. O candidato fresco instalado e carregado
+tem DLL SHA256
+`5AC864C3A5EAF3990E83C6F103CF997C2A0BB0AC0FC2D8E71DDDA01BA1957683`.
+O hash histórico `3AE44BA2…` era o build de `e21328a`; ele **não** foi
+reproduzido no HEAD `a42f017` porque o SDK embute a revisão no informational
+version, embora o diff de produto `e21328a..HEAD` seja vazio. Nenhuma identidade
+de release foi criada. Detalhes na seção 8.
+
+Atualizado em **09/11/2026**. Código base em **`a42f017`**; o produto permanece
+em **`e21328a`** e o harness desta rodada está em `a42f017`. As correções e
+testes V08/V10/V15 permanecem na árvore de trabalho, sem commit.
 Este é o acompanhamento atual de entrega; o plano detalhado conserva também a
 história da proposta. Não transforma testes históricos em uma nova execução.
 
@@ -87,19 +100,23 @@ apresentada como observação de falha física no browser.
 | V05 — dimensões e restauração | Evidência de regeneração/restauração; combinação integral a conferir | Associar cenário específico a teste/resultado, sem inferir da soma de testes |
 | V06 — alpha/pixels em logo | Regras backend cobertas; aceite nativo integral a consolidar | Provar lossless/lossy e descarte com original protegido |
 | V07 — seleção obsoleta/subconjunto | Backend coberto; subset/paginação exercitados | Consolidar alteração entre revisão/aplicação e ausência de substituição |
-| V08 — desconexão/fila/cancelamento | Fechado no host real em 09/11/2026 para a API: `operationId` cancelado em `WaitingForMetadata` antes da mutação (plano `Ready`, zero journal) e entre transações depois de uma mutação real (plano `Consumed`, `Changed=1`, `NotStarted=1`, segundo byte-idêntico). Navegação/desconexão/foco do navegador não foram repetidos | O cancelamento por identidade está provado no host; uma jornada de navegador/desconexão continua sendo evidência separada, não inferida deste teste |
+| V08 — desconexão/fila/cancelamento | Fechado no host real em 09/11/2026: a API cancelou o `operationId` exato em `WaitingForMetadata` antes da mutação (plano `Ready`, zero journal) e entre transações depois de uma mutação real (plano `Consumed`, `Changed=1`, `NotStarted=1`, segundo byte-idêntico). A rodada final repetiu a parcela de navegador: durante uma operação real em `WaitingForMetadata`, navegar, voltar, recarregar, ficar offline no contexto Playwright e reconectar preservou o mesmo `operationId`/estado e o plano `Consumed`, sem cancelamento implícito nem segundo dispatch | Parcela de navegador/desconexão/foco fechada para Chromium na fixture; a desconexão foi somente do contexto do navegador, não da rede do SO. Cancelamento por identidade e limites de foco/leitor de tela continuam distintos |
 | V09 — manual independente da automação | Exercitado com configuração preservada | Repetir regressão final |
 | V10 — scheduler e metadata | Fechado no host real em 09/11/2026: `IntervalTrigger` real iniciou `OptimizeArtworkTask`; refresh relacionado produziu `WaitingForMetadata` sem mutação e retomou após liberar; refresh não relacionado permaneceu `Active` durante a conversão do alvo e não bloqueou | O disparo pelo scheduler e o `EnsureIdle` real estão provados; a UI/planning não foi repetida nesta rodada |
 | V11 — restauração e journals novos/antigos | Exercitado no host 12.1 em 08/11/2026: journal antigo restaurado pela API atual com SHA256 exato | Fechado para o gate local; repetir com identidade candidata final |
-| V12 — remoção seletiva | Exercitado, inclusive 52 originais e fingerprint | Repetir conjunto exato e proteção de incertos na rodada final |
+| V12 — remoção seletiva | Reexecutado na rodada final: 52 Backdrops reais, fingerprint estável, aplicação e expiração dos 52 originais revisados; aposentadoria individual e restauração também passaram na jornada | Conjunto real de 52, não o cap de 200; proteção de incertos permanece coberta pela suíte de backend, não por novo caso físico |
 | V13 — upgrade da baseline | Exercitado no host 12.1 em 08/11/2026: baseline `0.3.0.1` → build local, escopo/journal/triggers/modo seguro preservados | Gate local fechado; falta upgrade com nova identidade candidata e catálogo público |
-| V14 — teclado/idioma/mobile | Chromium e axe exercitados | Regressão final; leitor de tela/dispositivos físicos não validados |
+| V14 — teclado/idioma/mobile | Reexecutado em 09/11/2026: Chromium, pt/en, Dark/Light, desktop/mobile/tablet, teclado e 23 análises axe sem violações | Regressão final aprovada para Chromium; leitor de tela, Firefox/Safari e dispositivos físicos continuam não validados e não bloqueiam a alpha declarada |
 | V15 — espaço/persistência/interrupção | Fechado no host real em 09/11/2026 (rerun targeted, HEAD `d097fb6`): o WebP já existia antes do SIGKILL com hash igual ao `OutputHash` do journal `Prepared`; SIGKILL somente do PID verificado (argv/cwd/uid/starttime/socket) via pidfd; reinício da mesma DLL marcou `Interrupted`, `PendingRecovery=1`, sem replay; recuperação explícita removeu a saída existente (`outputRemovalProven=true`), restaurou o PNG exato, deixou journal `RolledBack` e `BackupDeleted=true`. A rodada histórica de 80 checks havia observado `Prepared-before-save` e não alegou remoção | Disco físico/permissões/hardware continuam fora do escopo; V08/V10 não foram reexecutados no rerun targeted porque o produto e seus caminhos de harness não mudaram |
 
 Ver critérios integrais na seção 12 do [plano](UX-REFACTOR-PLAN.pt-BR.md).
-Ainda faltam também duas bibliotecas reais sintéticas, aplicação sem guardar
-originais e regeneração protegida sob retenção não-zero no host. Os caps de
-5000/1000/200 não foram submetidos a stress na fixture anterior.
+A rodada de 09/11/2026 fechou no host as duas bibliotecas reais sintéticas, a
+aplicação sem guardar originais e a regeneração protegida sob retenção não-zero
+(seção 8). Os caps de **5000** imagens por plano, **1000** por lote/seleção e
+**200** por operação de restauração/aposentadoria continuam declarados no
+backend, mas **não foram submetidos a stress**: a maior fixture desta rodada
+usou 14 imagens na jornada e 52 Backdrops no teste de retenção. O stress desses
+limites permanece adiado e não bloqueia a alpha declarada.
 
 ## 4. Ordem dos gates para fechar P7
 
@@ -129,14 +146,25 @@ executado depois, no nível determinístico in-process descrito na seção 6; n�
 houve novo processo de host, disparo pelo scheduler real nem SIGKILL nesta
 retomada. A camada restante está explicitada naquela seção.
 
+**Execução de 09/11/2026:** a rodada integrada final foi executada em raiz nova,
+com credenciais novas, host oficial 12.1 apenas em `127.0.0.1:18096` e o
+candidato fresco descrito na seção 8. A UI `--journey` passou com **818 checks**
+(23 axe, zero violações), o planning com **20**, os casos alpha com **25** e a
+resiliência de navegador/desconexão com **48**. Não houve novo SIGKILL de V15
+nem upgrade V13 completo; esses gates históricos não foram reabertos. A
+automação terminou segura, sem backups pendentes, e o processo exato foi
+encerrado com a porta livre.
+
 Interrupções são somente do processo verificado da fixture. Falta de espaço ou
 falha de persistência deve ser simulada isoladamente, nunca enchendo disco do
 computador nem alterando permissões/serviços do sistema ou produção.
 
 ## 5. Alpha / P8
 
-- [ ] Fechar gates técnicos acima ou documentar restrição de escopo explícita;
-  não dispensar integridade/migração por chamar o pacote de alpha.
+- [x] Fechar gates técnicos acima ou documentar restrição de escopo explícita;
+  não dispensar integridade/migração por chamar o pacote de alpha. Fechado para
+  o escopo alpha declarado (seção 8), com as limitações não bloqueantes listadas;
+  não é aceite universal de P7 nem de produção.
 - [ ] Atualizar guias de uso, recuperação e notas de migração para o fluxo atual.
 - [ ] Preparar changelog e limitações com referência aos testes da revisão candidata.
 - [ ] Definir nova versão de quatro partes e a identificação de alpha compatível
@@ -147,6 +175,15 @@ computador nem alterando permissões/serviços do sistema ou produção.
   anterior à atualização e restauração controlada, não só trocar a DLL.
 - [ ] Somente com autorização específica: commit/push, tag, publicação e teste do
   catálogo público. Produção permanece uma decisão separada.
+
+**Recomendação P7/P8:** para o escopo alpha declarado, P7 está tecnicamente
+fechado com as limitações abaixo; isso não é aceite universal da matriz V01–V15
+nem autorização de produção. P8 continua em preparação e bloqueado por uma nova
+identidade de versão de quatro partes, changelog/limitações da candidata,
+validação de pacote/instalação/upgrade com essa identidade, caminho de rollback e
+autorização específica de publicação. A identidade alpha continua sendo a antiga
+`0.3.0.1`; não publicar, não sobrescrever assets publicados e não promover a
+fixture a release.
 
 ### Limitações não bloqueantes de uma alpha declarada
 
@@ -540,3 +577,118 @@ Os **33 checks do harness de upgrade** foram reexecutados em raiz nova após o
 guard de `stop_host` e passaram; a fixture foi encerrada. O build Release do
 produto teve zero avisos e zero erros; a suíte .NET de 204 testes não foi
 repetida porque o produto não mudou nesta rodada.
+
+## 8. Rodada integrada final (09/11/2026)
+
+Esta rodada é a execução mais recente e **não reclassifica** os números
+históricos como se tivessem sido produzidos agora. Ela foi feita somente em
+fixture descartável, com autorização específica para o ciclo do host, novas
+credenciais e desconexão apenas no contexto do navegador de teste. Não houve
+produção, SSH de produção, serviço systemd, instalação no SO, alteração de
+`artifacts/`, commit, push, tag, version bump ou publicação.
+
+**Raiz, processo e identidade**
+
+- Raiz nova marcada: `/tmp/opencode/jellyp-alpha-final-20261109`, com
+  `.jellyp-smoke-root`, permissões privadas e credenciais novas em `0600`. O
+  diretório `host/` foi copiado apenas do cache da fixture `proof5`; dados,
+  configuração, banco, tokens e credenciais antigas não foram reutilizados.
+- Jellyfin oficial 12.1, apenas em `127.0.0.1:18096`. O `ProgramDataPath`
+  autenticado foi conferido após o login e antes de bibliotecas/mutações de API.
+  O processo foi guardado por UID, argv, cwd, starttime e socket loopback; o
+  encerramento final usou o PID exato `1070603`/starttime `11829787`, removeu o
+  `host.pid` e deixou a porta livre.
+- Candidato fresco em `/tmp/opencode/jellyp-alpha-final-candidate`, sem tocar
+  `artifacts/`: ZIP SHA256
+  `56FA9C122A269B21A5323BE1E7564D52F1E3B429EC51216321C374990856D390`;
+  DLL SHA256
+  `5AC864C3A5EAF3990E83C6F103CF997C2A0BB0AC0FC2D8E71DDDA01BA1957683`.
+  A DLL instalada, a carregada em `/proc/<pid>/maps` e a do ZIP foram a mesma.
+- **Nota de identidade:** o hash histórico
+  `3AE44BA2A35FAFC08EDF03D91D0BCF5E9FE0B3F981EC578089E0E5330FBC3D82`
+  corresponde ao build de `e21328a`. O build canônico no HEAD `a42f017` embute
+  a revisão `a42f017` no informational version do assembly e, por isso, não é
+  byte-idêntico ao anterior, embora `git diff e21328a..HEAD -- Jellyfin.Plugin.JellyP`
+  esteja vazio. Não se alega reprodução bit a bit de `3AE44BA2…`; a identidade
+  exata desta rodada é `5AC864…`. O artefato publicado `0.3.0.1` não foi alterado.
+- O plugin auxiliar de teste `JellyP.TestSlowMetadata` foi instalado somente na
+  fixture. Ele fornece um provider local lento e um decorator pass-through de
+  `ILibraryMonitor`; não é código de produto, não é endpoint de falha e não deve
+  ser instalado fora de uma fixture descartável.
+
+**Camadas exatas**
+
+- **Produto real:** DLL e página embutida instaladas, `OptimizationCoordinator`,
+  endpoints `/JellyP/*`, journal, `DurableFiles`, conversão WebP, restauração,
+  retenção e as telas nativas servidas pelo Jellyfin.
+- **Jellyfin real:** 12.1, autenticação, bibliotecas sintéticas, itens reais,
+  varredura de biblioteca, refresh de metadata e arquivos em disco.
+- **Borda de teste isolada:** provider lento para itens `Slow Refresh` e
+  decorator de `ILibraryMonitor`; a desconexão usou `context.setOffline()` do
+  Playwright, sem alterar rede, firewall, DNS ou serviços do SO.
+- **Sem mocks:** nenhuma resposta de API foi interceptada e nenhum HTML foi
+  substituído. A checagem `installed DLL serves exact current embedded page`
+  comparou a página servida com `Jellyfin.Plugin.JellyP/Web/config.html`; as
+  imagens de branding também foram comparadas byte a byte.
+
+**Resultados por execução**
+
+- `smoke-native-ui.cjs --journey`: **818 checks**, zero erros de página, **23
+  análises axe** com **zero violações** e **244 capturas PNG**. Cobriu Dark/Light,
+  inglês/português, desktop 1600×1100, mobile 390×844 e tablet 768×1024; a
+  página embutida exata; 14 PNGs reais em 13 itens; análise, seleção entre
+  páginas, revisão, aplicação, regeneração a partir do original, restauração,
+  histórico por operação, aposentadoria seletiva, 401 real, cancelamento da
+  requisição de análise e os controles nativos do host. Uma verificação é uma
+  guarda de renderer separadamente rotulada; as demais são host real.
+- `smoke-native-planning.cjs`: **20 checks** reais. Criou 52 Backdrops, converteu
+  os 52, paginou a retenção até `51–52 de 52`, aplicou com fingerprint real e
+  expirou exatamente os 52 originais revisados, mantendo os WebP ativos.
+- `smoke-native-alpha-cases.cjs`: **25 checks**. Duas bibliotecas reais
+  sintéticas; escopo de automação salvo primeiro com uma biblioteca e depois com
+  o array exato de duas, sem IDs de item e sem iniciar operação; análise real
+  com o array das duas bibliotecas; aplicação real sem guardar originais
+  (`Changed=1`, zero backup, PNG de origem removido, `PendingRecovery=0`);
+  regeneração protegida com `BackupRetentionDays=1`, `ProtectedCount=1`,
+  `EligibleCount=0`, sem purga e com o original exato ainda restaurável. O PNG
+  sintético da canária foi reposto após o caso destrutivo e a fixture terminou
+  sem backups.
+- `smoke-native-browser-resilience.cjs`: **48 checks**. Uma operação real
+  (`operationId cab0abac1bc54ed58ca4fbe4035261e1`, plano
+  `628f109e3bcd4a038f597dcff312bbc0`) foi levada a `WaitingForMetadata` após a
+  primeira mutação. Navegar para o histórico, voltar, recarregar, ficar offline
+  no contexto Playwright e reconectar preservou o mesmo `operationId`, o estado
+  `Running/WaitingForMetadata`, `Changed=1`, o plano `Consumed` e uma única
+  operação/um único POST de Apply. A seleção consumida não ressuscitou e não
+  houve segundo dispatch. Após liberar o provider, a mesma operação concluiu
+  `Changed=2`, `Failed=0`; os dois originais foram restaurados no cleanup.
+- `dotnet test`: **204 testes** aprovados; `unittest discover -s tests/release`:
+  **59 testes** aprovados; build Release com **zero avisos/erros**; sintaxe
+  Python/CJS e auditoria de publicação aprovadas.
+
+**Limites e riscos remanescentes**
+
+- Os caps de **5000** imagens por plano, **1000** por lote/seleção e **200** por
+  operação de restauração/aposentadoria estão declarados no backend e não foram
+  submetidos a stress. A maior fixture desta rodada teve 14 imagens de jornada e
+  52 Backdrops; não se declara desempenho ou aceite nesses limites.
+- Chromium 1248/Playwright 1.64.1 e `@axe-core/playwright` 4.14.0 foram os únicos
+  navegadores/ferramentas exercitados. Firefox, Safari, leitor de tela,
+  dispositivos físicos e avaliação por pessoa sem contexto continuam adiados e
+  não bloqueiam a alpha declarada; axe não é certificação WCAG.
+- Não houve disco fisicamente cheio, erro de permissão de SO, falha de hardware
+  ou produção. V15 SIGKILL e o upgrade V13 completo não foram reabertos nesta
+  rodada; a evidência histórica da seção 7 continua sendo a referência para eles.
+- A diferença de hash entre o build atual e `3AE44BA2…` é uma questão de
+  identidade/reprodutibilidade de build para P8, não uma mudança de produto.
+
+**Estado final da fixture**
+
+Conferência read-only antes do encerramento: `Automation.Enabled=false`,
+`DryRun=true`, `PreserveOriginals=true`, `ScopeMode=legacy`, `ItemIds=[]`,
+`LibraryIds=[]`, zero triggers nas tarefas JellyP, `PendingRecovery=0`, zero backups ativos e
+nenhuma operação ativa. O processo exato `1070603`/starttime `11829787` foi
+encerrado; `host.pid` foi removido e `127.0.0.1:18096` ficou livre. Um rerun
+final do script alpha, após a revisão textual, reiniciou a mesma fixture com PID
+`1110119`, repetiu os 25 checks e também foi encerrado com a porta livre.
+Nenhum segredo, token ou URL autenticada foi impresso na evidência.
