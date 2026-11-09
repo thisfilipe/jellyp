@@ -18,15 +18,21 @@ exata de cada prova está na seção 6.
 **Gates V08/V10/V15 no host real em 09/11/2026:** uma fixture nova e marcada
 (`/tmp/opencode/jellyp-host-gates-proof5-20261109`) executou **80 checks de host**
 com Jellyfin 12.1 real, scheduler por intervalo real, refresh de metadata real e
-SIGKILL do PID verificado após um journal `Prepared`. O caso V15 observado foi
-**Prepared-before-save, sem WebP antes do kill**; a remoção de saída não foi
-alegada. O candidato instalado e o build local têm SHA256
+SIGKILL do PID verificado. Na rodada histórica de 80 checks o caso V15 observado
+foi **Prepared-before-save, sem WebP antes do kill**; a remoção de saída não foi
+alegada. Um **rerun targeted de V15** na mesma fixture, com HEAD `d097fb6`,
+fechou essa lacuna: o WebP já existia com o hash do journal `Prepared` antes do
+SIGKILL, e a recuperação explícita removeu essa saída existente
+(`outputRemovalProven=true`), restaurou o PNG exato, deixou o journal
+`RolledBack`, `BackupDeleted=true` e `PendingRecovery=0`. O candidato instalado e
+o build local têm SHA256
 `3AE44BA2A35FAFC08EDF03D91D0BCF5E9FE0B3F981EC578089E0E5330FBC3D82`.
 O produto não foi alterado nesta rodada; a camada exata e as limitações estão na
 seção 7.
 
-Atualizado em **09/11/2026**. Código base em **`e21328a`**; as correções e testes
-V08/V10/V15 permanecem na árvore de trabalho, sem commit.
+Atualizado em **09/11/2026**. Código base em **`d097fb6`**; o rerun targeted de
+V15 usou essa árvore. As correções e testes V08/V10/V15 permanecem na árvore de
+trabalho, sem commit.
 Este é o acompanhamento atual de entrega; o plano detalhado conserva também a
 história da proposta. Não transforma testes históricos em uma nova execução.
 
@@ -88,7 +94,7 @@ apresentada como observação de falha física no browser.
 | V12 — remoção seletiva | Exercitado, inclusive 52 originais e fingerprint | Repetir conjunto exato e proteção de incertos na rodada final |
 | V13 — upgrade da baseline | Exercitado no host 12.1 em 08/11/2026: baseline `0.3.0.1` → build local, escopo/journal/triggers/modo seguro preservados | Gate local fechado; falta upgrade com nova identidade candidata e catálogo público |
 | V14 — teclado/idioma/mobile | Chromium e axe exercitados | Regressão final; leitor de tela/dispositivos físicos não validados |
-| V15 — espaço/persistência/interrupção | Parcial no host real em 09/11/2026: `MutationStarted` e journal `Prepared` observados; SIGKILL somente do PID verificado (argv/cwd/uid/starttime/socket) via pidfd; reinício da mesma DLL marcou `Interrupted`, `PendingRecovery=1`, sem replay; recuperação explícita restaurou o PNG exato, com journal `RolledBack` e `BackupDeleted=true`. O caso observado foi `Prepared-before-save`: não havia WebP antes do kill, então a remoção de saída **não foi provada** | Repetir com output já existente (ou observer auxiliar que congele após o save) para fechar a remoção de WebP; disco físico/permissões/hardware continuam fora do escopo |
+| V15 — espaço/persistência/interrupção | Fechado no host real em 09/11/2026 (rerun targeted, HEAD `d097fb6`): o WebP já existia antes do SIGKILL com hash igual ao `OutputHash` do journal `Prepared`; SIGKILL somente do PID verificado (argv/cwd/uid/starttime/socket) via pidfd; reinício da mesma DLL marcou `Interrupted`, `PendingRecovery=1`, sem replay; recuperação explícita removeu a saída existente (`outputRemovalProven=true`), restaurou o PNG exato, deixou journal `RolledBack` e `BackupDeleted=true`. A rodada histórica de 80 checks havia observado `Prepared-before-save` e não alegou remoção | Disco físico/permissões/hardware continuam fora do escopo; V08/V10 não foram reexecutados no rerun targeted porque o produto e seus caminhos de harness não mudaram |
 
 Ver critérios integrais na seção 12 do [plano](UX-REFACTOR-PLAN.pt-BR.md).
 Ainda faltam também duas bibliotecas reais sintéticas, aplicação sem guardar
@@ -373,12 +379,14 @@ porta ficou livre.
 - Host: Jellyfin `12.1.0`, `ProgramDataPath` exatamente
   `/tmp/opencode/jellyp-host-gates-proof5-20261109/data`.
 
-**Resultado:** **80 checks de host** aprovados. A evidência privada está em
-`host-gates-evidence.json` na raiz da fixture; os logs temporários são
-`/tmp/opencode/jellyp-host-gates-proof5-all.log` e
+**Resultado:** **80 checks de host** aprovados na rodada histórica. A evidência
+privada está em `host-gates-evidence.json` na raiz da fixture; os logs temporários
+são `/tmp/opencode/jellyp-host-gates-proof5-all.log` e
 `/tmp/opencode/jellyp-host-gates-proof5-bootstrap.log`. As execuções anteriores
 `proof2`/`proof3` tinham 58 checks e foram substituídas por esta rodada
-reforçada; os valores abaixo são da execução `proof5`. Nenhum token ou
+reforçada; os valores de V08/V10 e o caso V15 `Prepared-before-save` abaixo são
+dessa execução. A subseção **V15 targeted rerun** é uma execução posterior na
+mesma raiz e não altera os números históricos de V08/V10. Nenhum token ou
 credencial foi impresso.
 
 **Camadas exatas**
@@ -454,6 +462,40 @@ credencial foi impresso.
 - O processo reiniciado teve PID `922475`, starttime `11047067`, mesma DLL
   `3AE44BA2…`, e o plugin auxiliar estava `Active`.
 
+**V15 targeted rerun — output existente antes do kill (HEAD `d097fb6`)**
+
+- O produto não mudou; o candidato instalado continuou com DLL SHA256
+  `3AE44BA2A35FAFC08EDF03D91D0BCF5E9FE0B3F981EC578089E0E5330FBC3D82`. O plugin
+  auxiliar de teste ganhou um decorator pass-through de `ILibraryMonitor`: com
+  `JELLYP_TEST_IMAGE_BARRIER` armado, ele bloqueia o save real em
+  `ReportFileSystemChangeComplete` logo após a escrita dos bytes WebP, grava o
+  caminho concluído atomicamente em `test-image-barrier.reached` e espera
+  `test-image-barrier.release`. Sem arquivo de barreira ele apenas repassa as
+  chamadas; não é endpoint de falha do produto.
+- Antes do SIGKILL, o journal `4d96a819ace94d6ab410d26c3b2b8228` estava
+  `Prepared`, `MutationStarted=true`, o PNG original e o backup retido tinham
+  SHA256 `FE84D7D80047B1696D72D46EE606B5B711457DB9DCC1E5EB5B4E0D1EB6BD4C97`,
+  e o WebP **já existia** em
+  `.../metadata/library/62/62a4947a71a685717abcdc7db1b4382d/poster.webp`, com
+  SHA256 `66E7862D125ABB0FE527A3186960F3463D010176D8DAD513135B8AEBA6AF127B`
+  (81.016 bytes), exatamente o `OutputHash` do journal.
+- O PID `994224`/starttime `11405136` foi congelado e morto via `pidfd` somente
+  após os guards de argv/cwd/uid/starttime/socket. O watcher inotify também
+  observou o rename do journal `Prepared`.
+- O reinício da mesma DLL produziu PID `994926`/starttime `11407519`, marcou a
+  operação `Interrupted`, manteve o WebP intacto, reportou `PendingRecovery=1` e
+  não fez replay: journals `1→1`, operações `6→6`.
+- A recuperação explícita removeu o WebP que existia antes do kill
+  (`outputRemovalProven=true`), restaurou o PNG sintético exato, deixou o journal
+  `RolledBack`, `BackupDeleted=true`, `PendingRecovery=0` e não reescreveu a
+  operação interrompida. A automação terminou segura (`Enabled=false`,
+  `DryRun=true`, sem triggers) e a fixture foi encerrada com a porta livre.
+- O rerun targeted passou **37 checks V15**. A suíte de release ganhou três
+  testes de helper (barreira e condição de prova) e passou com **59 testes**.
+  V08/V10 não foram reexecutados porque o produto e os caminhos comuns do
+  harness não mudaram; a rodada histórica de 80 checks continua sendo a
+  referência para esses cenários.
+
 **Reprodução**
 
 ```sh
@@ -476,6 +518,14 @@ python3 scripts/smoke-host-gates.py \
   --candidate /tmp/opencode/jellyp-host-gates-candidate/JellyP_0.3.0.1.zip \
   --expected-dll-sha256 3AE44BA2A35FAFC08EDF03D91D0BCF5E9FE0B3F981EC578089E0E5330FBC3D82 \
   --test-plugin-dll tests/host-fixture/JellyP.TestSlowMetadata/bin/Release/net10.0/JellyP.TestSlowMetadata.dll
+
+# 4) Rerun targeted de V15 após reconstruir o plugin auxiliar: reinstala a DLL
+#    de teste, reinicia o host e usa a barreira pós-save. Encerre com --phase stop.
+python3 scripts/smoke-host-gates.py \
+  --root /tmp/opencode/jellyp-host-gates-proof5-20261109 \
+  --phase v15 --install-test-plugin \
+  --test-plugin-dll tests/host-fixture/JellyP.TestSlowMetadata/bin/Release/net10.0/JellyP.TestSlowMetadata.dll \
+  --expected-dll-sha256 3AE44BA2A35FAFC08EDF03D91D0BCF5E9FE0B3F981EC578089E0E5330FBC3D82
 ```
 
 O helper exige raiz marcada, ZIP com a identidade esperada, `ProgramDataPath`
@@ -484,7 +534,9 @@ controla o PID exato daquela raiz. No final, a automação foi devolvida a
 `Enabled=false`, `DryRun=true`, `PreserveOriginals=true`, `ScopeMode=legacy` e
 sem triggers; o XML da fixture foi conferido. Os testes novos de helpers de host
 e de guardas de stop passaram junto com os anteriores (**56 testes de release**
-na árvore atual). Os **33 checks do harness de upgrade** foram reexecutados em
-raiz nova após o guard de `stop_host` e passaram; a fixture foi encerrada. O
-build Release do produto teve zero avisos e zero erros; a suíte .NET de 204
-testes não foi repetida porque o produto não mudou nesta rodada.
+na rodada histórica). O rerun targeted adicionou três testes de helper da
+barreira/condição de prova e a árvore atual passou com **59 testes de release**.
+Os **33 checks do harness de upgrade** foram reexecutados em raiz nova após o
+guard de `stop_host` e passaram; a fixture foi encerrada. O build Release do
+produto teve zero avisos e zero erros; a suíte .NET de 204 testes não foi
+repetida porque o produto não mudou nesta rodada.

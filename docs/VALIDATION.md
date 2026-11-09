@@ -368,6 +368,51 @@ Results:
   left the journal `RolledBack`, `BackupDeleted=true`, `PendingRecovery=0`, and
   no output at the recorded path.
 
+## Targeted V15 output-exists rerun (09/11/2026)
+
+The earlier host round could only interrupt before the WebP save. A targeted
+rerun on the same marked disposable fixture
+(`/tmp/opencode/jellyp-host-gates-proof5-20261109`) closed that gap without
+changing product code. The source revision was
+`d097fb69f5a88e6d3dac89c80d6dd322c29e13de`; the installed candidate DLL remained
+`3AE44BA2A35FAFC08EDF03D91D0BCF5E9FE0B3F981EC578089E0E5330FBC3D82` and the
+host was official Jellyfin 12.1 on `127.0.0.1:18096`.
+
+The test-only fixture plugin gained a pass-through `ILibraryMonitor` decorator.
+The harness arms it with the exact item metadata folders; the decorator blocks
+the real image save in `ReportFileSystemChangeComplete` immediately after the
+WebP bytes are written, records the completed path atomically in
+`test-image-barrier.reached`, and waits for `test-image-barrier.release`. With
+no barrier file the decorator only forwards calls. This is a fixture seam, not
+a product fault endpoint; no JellyP code was added or changed.
+
+Observed V15 state before `SIGKILL`:
+
+- Journal `4d96a819ace94d6ab410d26c3b2b8228` was `Prepared`; the operation had
+  `MutationStarted=true`; the retained original and the still-present source PNG
+  both had SHA256
+  `FE84D7D80047B1696D72D46EE606B5B711457DB9DCC1E5EB5B4E0D1EB6BD4C97`.
+- The output WebP already existed at
+  `.../metadata/library/62/62a4947a71a685717abcdc7db1b4382d/poster.webp` with
+  SHA256 `66E7862D125ABB0FE527A3186960F3463D010176D8DAD513135B8AEBA6AF127B`
+  (81,016 bytes), exactly the journal `OutputHash`, before the verified PID
+  `994224`/starttime `11405136` was frozen and killed through `pidfd`. The
+  inotify watcher also observed the `Prepared` journal rename.
+- Restart of the same DLL produced PID `994926`/starttime `11407519`, marked the
+  operation `Interrupted` with `PendingRecovery=1`, left the WebP untouched, and
+  did not replay: journal count `1→1`, operation count `6→6`.
+- Explicit recovery removed the WebP that existed before kill
+  (`outputRemovalProven=true`), restored the exact synthetic PNG, left the
+  journal `RolledBack`, `BackupDeleted=true`, `PendingRecovery=0`, and did not
+  rewrite the interrupted operation. The harness ended with safe automation
+  (`Enabled=false`, `DryRun=true`, no triggers) and the fixture stopped with the
+  port free.
+
+The targeted rerun passed **37 V15 checks**. The release suite gained three
+proof-condition/barrier helper tests; **59 release tests** passed. V08/V10 were
+not rerun because product code and their harness paths were unchanged; the
+historical 80-check round remains the reference for those scenarios.
+
 The release suite gained host-gate helper and stop-guard tests; **56 release
 tests** passed. The product Release build had zero warnings/errors. The 204-test
 .NET suite was not repeated because product code did not change in this round.

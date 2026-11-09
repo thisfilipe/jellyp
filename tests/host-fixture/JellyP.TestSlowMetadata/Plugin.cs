@@ -2,6 +2,7 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Entities.Movies;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Plugins;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Plugins;
@@ -38,6 +39,138 @@ public sealed class ServiceRegistrator : IPluginServiceRegistrator
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
         serviceCollection.AddSingleton<ILocalMetadataProvider<Movie>, SlowMovieMetadataProvider>();
+        RegisterImageSaveBarrier(serviceCollection);
+    }
+
+    /// <summary>
+    /// Replaces the host library monitor with a pass-through decorator. The
+    /// decorator can block one real image save after its bytes are written, which
+    /// gives the host gate a deterministic post-save/pre-commit interruption
+    /// window without a product fault endpoint. With no barrier file armed it
+    /// only forwards calls.
+    /// </summary>
+    private static void RegisterImageSaveBarrier(IServiceCollection serviceCollection)
+    {
+        var registration = serviceCollection.LastOrDefault(
+            descriptor => descriptor.ServiceType == typeof(ILibraryMonitor) && descriptor.ImplementationType is not null);
+        if (registration?.ImplementationType is null)
+        {
+            throw new InvalidOperationException("Jellyfin ILibraryMonitor registration is unavailable.");
+        }
+
+        serviceCollection.AddSingleton<ILibraryMonitor>(provider =>
+        {
+            var inner = (ILibraryMonitor)ActivatorUtilities.CreateInstance(provider, registration.ImplementationType);
+            var logger = provider.GetRequiredService<ILogger<ImageSaveBarrierLibraryMonitor>>();
+            return new ImageSaveBarrierLibraryMonitor(inner, logger);
+        });
+    }
+}
+
+/// <summary>
+/// Test-only pass-through library monitor. When JELLYP_TEST_IMAGE_BARRIER names a
+/// file whose lines are image folders, a completion for a file in one of those
+/// folders writes a reached marker and waits for a release file. The real host
+/// monitor still performs every operation first.
+/// </summary>
+public sealed class ImageSaveBarrierLibraryMonitor(ILibraryMonitor inner, ILogger<ImageSaveBarrierLibraryMonitor> logger) : ILibraryMonitor
+{
+    private const string BarrierVariable = "JELLYP_TEST_IMAGE_BARRIER";
+
+    public void Start() => inner.Start();
+
+    public void Stop() => inner.Stop();
+
+    public void ReportFileSystemChangeBeginning(string path) => inner.ReportFileSystemChangeBeginning(path);
+
+    public void ReportFileSystemChangeComplete(string path, bool refreshPath)
+    {
+        inner.ReportFileSystemChangeComplete(path, refreshPath);
+        WaitIfArmed(path, logger);
+    }
+
+    public void ReportFileSystemChanged(string path) => inner.ReportFileSystemChanged(path);
+
+    private static void WaitIfArmed(string path, ILogger logger)
+    {
+        var barrierFile = Environment.GetEnvironmentVariable(BarrierVariable);
+        if (string.IsNullOrWhiteSpace(barrierFile) || !File.Exists(barrierFile))
+        {
+            return;
+        }
+
+        string[] armed;
+        try
+        {
+            armed = File.ReadAllLines(barrierFile);
+        }
+        catch (IOException)
+        {
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(path);
+        var parent = Path.GetDirectoryName(fullPath);
+        var matches = armed.Any(line =>
+        {
+            var candidate = line.Trim();
+            if (candidate.Length == 0)
+            {
+                return false;
+            }
+
+            var fullCandidate = Path.GetFullPath(candidate);
+            return string.Equals(fullPath, fullCandidate, StringComparison.Ordinal)
+                || string.Equals(parent, fullCandidate, StringComparison.Ordinal);
+        });
+        if (!matches)
+        {
+            return;
+        }
+
+        var reached = barrierFile + ".reached";
+        try
+        {
+            var options = new FileStreamOptions
+            {
+                Mode = FileMode.Create,
+                Access = FileAccess.Write,
+                Share = FileShare.Read,
+            };
+            if (!OperatingSystem.IsWindows())
+            {
+                options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            }
+
+            var temporary = reached + ".tmp";
+            using (var stream = new FileStream(temporary, options))
+            using (var writer = new StreamWriter(stream))
+            {
+                writer.WriteLine(fullPath);
+            }
+
+            File.Move(temporary, reached, true);
+        }
+        catch (IOException exception)
+        {
+            logger.LogWarning(exception, "JellyP test image barrier could not record its reached path.");
+            return;
+        }
+
+        logger.LogWarning("JellyP test image barrier reached for {Path}; waiting for release.", fullPath);
+        var release = barrierFile + ".release";
+        var deadline = DateTime.UtcNow.AddSeconds(120);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (File.Exists(release))
+            {
+                break;
+            }
+
+            Thread.Sleep(20);
+        }
+
+        logger.LogWarning("JellyP test image barrier released for {Path}.", fullPath);
     }
 }
 

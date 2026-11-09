@@ -88,6 +88,67 @@ class HostGateHelperTests(unittest.TestCase):
         self.assertEqual(b'next', rest)
         self.assertEqual(['partial.json'], names)
 
+    def test_v15_prekill_proof_rejects_missing_output_committed_journal_and_hash_mismatch(self):
+        record = {
+            'Id': 'record',
+            'State': 'Prepared',
+            'SourceHash': 'A' * 64,
+            'OutputHash': 'B' * 64,
+            'OutputPath': str(self.root / 'poster.webp'),
+            'BackupDeleted': False,
+        }
+        output = {'path': str(self.root / 'poster.webp'), 'exists': True, 'hash': 'B' * 64,
+                  'bytes': 1, 'isSymlink': False}
+        source = {'path': str(self.root / 'poster.png'), 'exists': True, 'hash': 'A' * 64,
+                  'bytes': 1, 'isSymlink': False}
+        backup = {'path': str(self.root / 'record.original'), 'exists': True, 'hash': 'A' * 64,
+                  'bytes': 1, 'isSymlink': False}
+        proof = dict(gates.v15_prekill_proof(record, output, source, backup, 'A' * 64))
+        self.assertTrue(all(proof.values()))
+        missing = dict(gates.v15_prekill_proof(
+            record, {'path': output['path'], 'exists': False, 'hash': None}, source, backup, 'A' * 64))
+        self.assertFalse(missing['V15 output exists before SIGKILL'])
+        self.assertFalse(missing['V15 output hash matches the Prepared journal OutputHash before SIGKILL'])
+        committed = dict(gates.v15_prekill_proof(
+            {**record, 'State': 'Committed'}, output, source, backup, 'A' * 64))
+        self.assertFalse(committed['V15 journal was Prepared before SIGKILL'])
+        wrong_output = dict(gates.v15_prekill_proof(
+            {**record, 'OutputHash': 'C' * 64}, output, source, backup, 'A' * 64))
+        self.assertFalse(wrong_output['V15 output hash matches the Prepared journal OutputHash before SIGKILL'])
+        wrong_backup = dict(gates.v15_prekill_proof(
+            record, output, source, {**backup, 'hash': 'D' * 64}, 'A' * 64))
+        self.assertFalse(wrong_backup['V15 retained original has the exact synthetic source hash before kill'])
+
+    def test_arm_image_barrier_writes_private_folders_and_clears_stale_markers(self):
+        source = self.root / 'data/metadata/library/aa/item/poster.png'
+        source.parent.mkdir(parents=True)
+        source.write_bytes(b'png')
+        barrier_path = self.root / gates.IMAGE_BARRIER_NAME
+        barrier_path.write_text('stale')
+        reached = self.root / (gates.IMAGE_BARRIER_NAME + '.reached')
+        release = self.root / (gates.IMAGE_BARRIER_NAME + '.release')
+        reached.write_text('stale')
+        release.write_text('stale')
+        barrier, reached, release, folders = gates.arm_image_barrier(self.root, [str(source)])
+        self.assertEqual([str(source.parent.resolve())], folders)
+        self.assertEqual(str(source.parent.resolve()) + '\n', barrier.read_text())
+        self.assertEqual(0o600, stat.S_IMODE(barrier.stat().st_mode))
+        self.assertFalse(reached.exists())
+        self.assertFalse(release.exists())
+        reached.write_text('evidence')
+        gates.release_image_barrier(release)
+        self.assertTrue(release.is_file())
+        self.assertEqual(0o600, stat.S_IMODE(release.stat().st_mode))
+        gates.release_image_barrier(release)
+        self.assertEqual('release\n', release.read_text())
+        gates.disarm_image_barrier(self.root)
+        self.assertFalse(barrier.exists())
+        self.assertTrue(reached.is_file())
+
+    def test_arm_image_barrier_rejects_empty_source_list(self):
+        with self.assertRaises(gates.GateFailure):
+            gates.arm_image_barrier(self.root, [])
+
     def test_pidfd_guard_failure_sends_no_stop(self):
         control = gates.PidfdControl(self.root, 123, '1', 7)
         with mock.patch.object(gates, 'assert_process_guard', side_effect=gates.GateFailure('changed')), \

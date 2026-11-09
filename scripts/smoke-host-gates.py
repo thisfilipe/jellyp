@@ -16,9 +16,12 @@ verifies its SHA256, creates three synthetic libraries, and runs:
   between transactions after a real mutation (plan Consumed, no next write).
 * V10: a real interval trigger runs the native Optimize task while a related
   library refresh waits/resumes, and while an unrelated refresh does not block.
-* V15: a real SIGKILL of the verified fixture PID after a Prepared journal is
-  observed, then restart of the same DLL, Interrupted/no-replay checks and
-  explicit recovery with exact bytes/hashes.
+* V15: a real SIGKILL of the verified fixture PID after the test-only fixture
+  plugin has held the real image save immediately after its WebP bytes were
+  written and before the journal is committed. The harness verifies the on-disk
+  output hash against the Prepared journal, restarts the same DLL, checks
+  Interrupted/no-replay/PendingRecovery and performs explicit recovery with
+  exact bytes/hashes and proven removal of the pre-kill output.
 
 All paths are under the marked root. Credentials and tokens are never printed.
 The `all` phase stops the fixture at the end by default and requires the public
@@ -56,6 +59,7 @@ STATE_NAME = "host-gates-state.json"
 EVIDENCE_NAME = "host-gates-evidence.json"
 SLOW_CONTROL_NAME = "test-provider-delay"
 SLOW_RELEASE_NAME = "test-provider-release"
+IMAGE_BARRIER_NAME = "test-image-barrier"
 TARGET_LIBRARY = "JellyP target"
 BARRIER_LIBRARY = "JellyP barrier"
 V15_LIBRARY = "JellyP v15"
@@ -143,6 +147,44 @@ def preflight():
             "Missing fixture dependencies: " + ", ".join(missing)
             + ". Install them explicitly on the disposable host; this harness never runs a package manager."
         )
+
+
+def arm_image_barrier(root, source_paths):
+    """Arm the test-only host barrier on exact item metadata folders.
+
+    The fixture plugin blocks the real image save after its bytes are written
+    and records the completed path atomically in <barrier>.reached. This removes
+    the inotify/SIGSTOP race between the output write and the journal commit.
+    """
+    barrier = h.safe_path(root, IMAGE_BARRIER_NAME, base=root, must_exist=False)
+    reached = Path(str(barrier) + ".reached")
+    release = Path(str(barrier) + ".release")
+    for stale in (reached, release):
+        if stale.is_file() and not stale.is_symlink():
+            stale.unlink()
+    folders = sorted({str(Path(path).resolve().parent) for path in source_paths if path})
+    if not folders:
+        raise GateFailure("V15 has no source image folder to arm the test barrier with.")
+    write_private_bytes(barrier, ("\n".join(folders) + "\n").encode("utf-8"))
+    return barrier, reached, release, folders
+
+
+def release_image_barrier(release):
+    """Let a blocked fixture thread continue during failure cleanup."""
+    if release is None:
+        return
+    try:
+        if not release.exists():
+            write_private_bytes(release, b"release\n")
+    except (OSError, GateFailure):
+        pass
+
+
+def disarm_image_barrier(root):
+    """Remove only the armed barrier; keep reached evidence for inspection."""
+    barrier = h.safe_path(root, IMAGE_BARRIER_NAME, base=root, must_exist=False)
+    if barrier.is_file() and not barrier.is_symlink():
+        barrier.unlink()
 
 
 def parse_stat_starttime(text):
@@ -741,6 +783,7 @@ def ensure_fixture_state(root, test_plugin_dll):
     clear_slow_release(root)
     os.environ["JELLYP_TEST_SLOW_FILE"] = str(root / SLOW_CONTROL_NAME)
     os.environ["JELLYP_TEST_SLOW_RELEASE"] = str(root / SLOW_RELEASE_NAME)
+    os.environ["JELLYP_TEST_IMAGE_BARRIER"] = str(root / IMAGE_BARRIER_NAME)
 
     media = h.safe_path(root, "host-gates-media", base=root, must_exist=False)
     specs = {
@@ -1261,6 +1304,34 @@ def run_v10_unrelated(root, token, state, evidence):
     }
 
 
+def v15_prekill_proof(record, output, source, backup, expected_source_hash):
+    """Return ordered proof conditions for the pre-SIGKILL state.
+
+    The caller raises on any false condition. Keeping the conditions in one
+    helper lets the release suite reject an output that never existed, a
+    Committed journal, or a hash mismatch instead of accepting a weaker
+    Prepared-only observation.
+    """
+    output_hash = str(record.get("OutputHash", "")).upper()
+    source_hash = str(record.get("SourceHash", "")).upper()
+    output_path = record.get("OutputPath")
+    return [
+        ("V15 output exists before SIGKILL", output["exists"]),
+        ("V15 output hash matches the Prepared journal OutputHash before SIGKILL",
+         output["exists"] and output["hash"] == output_hash),
+        ("V15 barrier reached the journal OutputPath",
+         output["exists"] and output_path is not None and output.get("path") is not None
+         and str(Path(output_path).resolve()) == str(Path(output["path"]).resolve())),
+        ("V15 journal was Prepared before SIGKILL", record.get("State") == "Prepared"),
+        ("V15 original backup still exists at interruption", record.get("BackupDeleted") is False),
+        ("V15 retained original exists before kill", backup["exists"]),
+        ("V15 retained original has the exact synthetic source hash before kill",
+         backup["exists"] and backup["hash"] == expected_source_hash.upper()),
+        ("V15 original source still has its exact bytes before kill",
+         source["exists"] and source["hash"] == source_hash),
+    ]
+
+
 def run_v15(root, token, state, evidence, expected_dll_sha256):
     items = state["items"]["v15"]
     before = {item["Id"]: primary_info(root, token, item["Id"]) for item in items}
@@ -1271,68 +1342,75 @@ def run_v15(root, token, state, evidence, expected_dll_sha256):
     check(evidence, plan["Proposed"] >= len(items), "V15 analysis proposes every synthetic item")
     keys = plan_keys(token, plan["PlanId"])
     journal_dir = h.safe_path(root, "data/plugins/Jellyfin.Plugin.JellyP/migration/journal", base=root, must_exist=True)
+    barrier, reached, release, armed_folders = arm_image_barrier(
+        root, [entry["path"] for entry in before.values()],
+    )
     watcher = subprocess.Popen(
         ["inotifywait", "-m", "-q", "-e", "moved_to", "--format", "%f", str(journal_dir)],
         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0,
     )
     control = None
+    kill_evidence = None
     try:
         pid, starttime = assert_process_guard(root)
         control = PidfdControl.open(root, pid, starttime)
         receipt = apply_plan(token, plan["PlanId"], keys)
         opid = receipt["OperationId"]
         op_count_before = len(h.request("JellyP/Executions?limit=100", token=token)[1].get("Items", []))
-        prepared = None
-        kill_evidence = None
-        source_before = output_before = backup_before = None
+        reached_path = h.wait_for(
+            lambda: reached.read_text().strip() if reached.is_file() else None,
+            "V15 test image barrier after real output write", timeout=60, interval=0.02,
+        )
+        # The fixture plugin is blocked in the real ImageSaver completion callback.
+        # Freeze the whole verified process before reading the on-disk state.
+        control.stop()
+        output_before = file_probe(reached_path)
+        prepared = [
+            entry for entry in journal_for_operation(root, opid)
+            if entry["record"].get("State") == "Prepared"
+        ]
+        check(evidence, len(prepared) == 1, "V15 exactly one Prepared journal exists at the barrier")
+        record_path = prepared[0]["path"]
+        record_before = prepared[0]["record"]
+        source_before = file_probe(record_before.get("Source", {}).get("Path"))
+        backup_path = h.safe_path(
+            root,
+            "data/plugins/Jellyfin.Plugin.JellyP/migration/originals/"
+            + h.normalized(record_before.get("Id", "")) + ".original",
+            base=root, must_exist=False,
+        )
+        backup_before = file_probe(backup_path)
+        observed_events = []
         buffer = b""
-        deadline = time.monotonic() + 45
-        while time.monotonic() < deadline and prepared is None:
-            ready, _, _ = select.select([watcher.stdout], [], [], 0.2)
+        drain_deadline = time.monotonic() + 1
+        while time.monotonic() < drain_deadline:
+            ready, _, _ = select.select([watcher.stdout], [], [], 0.05)
             if not ready:
-                continue
+                break
             chunk = os.read(watcher.stdout.fileno(), 4096)
             if not chunk:
-                continue
-            buffer, lines = inotify_event_names(buffer, chunk)
-            for line in lines:
-                control.stop()
-                try:
-                    path = journal_dir / line
-                    record = json.loads(path.read_text()) if path.is_file() else {}
-                    if (str(record.get("ExecutionId", "")).replace("-", "").lower() == opid.replace("-", "").lower()
-                            and record.get("State") == "Prepared"):
-                        source_before = file_probe(record.get("Source", {}).get("Path"))
-                        output_before = file_probe(record.get("OutputPath"))
-                        backup_path = h.safe_path(
-                            root,
-                            "data/plugins/Jellyfin.Plugin.JellyP/migration/originals/"
-                            + h.normalized(record.get("Id", "")) + ".original",
-                            base=root, must_exist=False,
-                        )
-                        backup_before = file_probe(backup_path)
-                        prepared = (path, record)
-                        control.kill()
-                        kill_evidence = {
-                            "pid": pid,
-                            "starttime": starttime,
-                            "signal": "SIGKILL",
-                            "pidfd": True,
-                            "stopSent": True,
-                            "killSent": True,
-                        }
-                        break
-                finally:
-                    if control is not None and control.stop_sent and not control.kill_sent:
-                        try:
-                            control.cont()
-                        except BaseException:
-                            # Identity unknown: never signal an unverified PID.
-                            pass
-            if prepared is not None:
                 break
-        if prepared is None:
-            raise GateFailure("V15 could not observe a Prepared journal before the operation completed.")
+            buffer, lines = inotify_event_names(buffer, chunk)
+            observed_events.extend(lines)
+        output_hash = str(record_before.get("OutputHash", "")).upper()
+        for label, truth in v15_prekill_proof(
+                record_before, output_before, source_before, backup_before,
+                state_hash(state, record_before["Source"]["ItemId"])):
+            check(evidence, truth, label)
+        inotify_prepared_observed = record_path.name in observed_events
+        op_before = operation_file(root, opid) or {}
+        check(evidence, op_before.get("MutationStarted") is True,
+              "V15 MutationStarted was durable before SIGKILL")
+        control.kill()
+        kill_evidence = {
+            "pid": pid,
+            "starttime": starttime,
+            "signal": "SIGKILL",
+            "pidfd": True,
+            "barrierBlocked": True,
+            "stopSent": True,
+            "killSent": True,
+        }
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline and (h.process_alive(pid) or h.port_open()):
             time.sleep(0.05)
@@ -1341,24 +1419,9 @@ def run_v15(root, token, state, evidence, expected_dll_sha256):
         pid_file = h.safe_path(root, "host.pid", base=root)
         if pid_file.is_file() and pid_file.read_text().strip() == str(pid):
             pid_file.unlink()
-        op_before = operation_file(root, opid) or {}
-        record_path, record_before = prepared
+        disarm_image_barrier(root)
         journal_count_before = len(journal_for_operation(root, opid))
-        removal_case = "prepared-with-output" if output_before and output_before["exists"] else "prepared-before-save-no-output"
-        check(evidence, op_before.get("MutationStarted") is True, "V15 MutationStarted was durable before SIGKILL")
-        check(evidence, record_before.get("State") == "Prepared", "V15 journal was Prepared before SIGKILL")
-        check(evidence, record_before.get("BackupDeleted") is False, "V15 original backup still exists at interruption")
-        check(evidence, backup_before is not None and backup_before["exists"], "V15 retained original exists before kill")
-        check(evidence, backup_before["hash"] == state_hash(state, record_before["Source"]["ItemId"]),
-              "V15 retained original has the exact synthetic source hash before kill")
-        check(evidence, source_before is not None and (source_before["exists"] or output_before["exists"]),
-              "V15 interruption has source or output evidence before kill")
-        if removal_case == "prepared-with-output":
-            check(evidence, output_before["exists"] and output_before["hash"] == str(record_before.get("OutputHash", "")).upper(),
-                  "V15 Prepared-with-output case has the committed WebP bytes before kill")
-        else:
-            check(evidence, output_before is not None and not output_before["exists"],
-                  "V15 Prepared-before-save case has no output before kill")
+        removal_case = "prepared-with-output-before-original-removal"
 
         restarted = restart_same_candidate(
             root, expected_dll_sha256, previous_identity=(pid, starttime), require_test_plugin=True,
@@ -1375,12 +1438,14 @@ def run_v15(root, token, state, evidence, expected_dll_sha256):
               "V15 restart produced a new PID/starttime identity")
         check(evidence, op_after["State"] == "Interrupted", "V15 restart marks the operation Interrupted")
         check(evidence, op_after["MutationStarted"] is True, "V15 restart preserves MutationStarted")
-        check(evidence, status.get("PendingRecovery", 0) >= 1, "V15 restart reports pending recovery")
+        check(evidence, status.get("PendingRecovery") == 1, "V15 restart reports exactly one pending recovery")
         check(evidence, record_after.get("State") in ("Prepared", "Restoring", "RecoveryRequired"),
               "V15 interrupted journal still requires recovery")
         check(evidence, journal_count_after == journal_count_before, "V15 restart did not replay or add a journal")
         check(evidence, op_count_after == op_count_before, "V15 restart did not create a replay operation")
         check(evidence, op_after["State"] == "Interrupted", "V15 no automatic replay after restart")
+        check(evidence, output_after_restart["exists"] and output_after_restart["hash"] == output_hash,
+              "V15 restart left the pre-kill output untouched")
 
         backup = h.safe_path(
             root,
@@ -1398,7 +1463,8 @@ def run_v15(root, token, state, evidence, expected_dll_sha256):
         _, recovered_status = h.request("JellyP/Status", token=token)
         active = primary_info(root, token, record_after["Source"]["ItemId"])
         output_after_recovery = file_probe(record_after.get("OutputPath"))
-        output_removal_proven = bool(output_before and output_before["exists"] and not output_after_recovery["exists"])
+        journal_count_after_recovery = len(journal_for_operation(root, opid))
+        output_removal_proven = bool(output_before["exists"] and not output_after_recovery["exists"])
         check(evidence, report["Phase"] == "Completed", "V15 explicit recovery completed")
         check(evidence, record_recovered.get("State") == "RolledBack", "V15 journal is RolledBack after recovery")
         check(evidence, record_recovered.get("BackupDeleted") is True, "V15 backup is deleted after recovery")
@@ -1409,11 +1475,9 @@ def run_v15(root, token, state, evidence, expected_dll_sha256):
               "V15 recovered journal keeps the exact owned source hash")
         check(evidence, output_after_recovery["exists"] is False,
               "V15 recovery leaves no output at the recorded path")
-        if removal_case == "prepared-with-output":
-            check(evidence, output_removal_proven, "V15 removed the WebP that existed before kill")
-        else:
-            check(evidence, output_before is not None and not output_before["exists"],
-                  "V15 Prepared-before-save case did not falsely claim output removal")
+        check(evidence, journal_count_after_recovery == journal_count_before,
+              "V15 recovery did not add a journal")
+        check(evidence, output_removal_proven, "V15 removed the WebP that existed before kill")
         check(evidence, operation_detail(token, opid)["Operation"]["State"] == "Interrupted",
               "V15 explicit recovery did not rewrite the interrupted operation")
         evidence["v15"] = {
@@ -1422,6 +1486,15 @@ def run_v15(root, token, state, evidence, expected_dll_sha256):
             "killedPid": pid,
             "killedStarttime": starttime,
             "killGuard": kill_evidence,
+            "barrier": {
+                "path": str(barrier),
+                "reached": str(reached),
+                "release": str(release),
+                "reachedPath": reached_path,
+                "armedFolders": armed_folders,
+            },
+            "inotifyPreparedEventObserved": inotify_prepared_observed,
+            "inotifyEvents": observed_events,
             "removalCase": removal_case,
             "sourceBeforeKill": source_before,
             "outputBeforeKill": output_before,
@@ -1443,6 +1516,7 @@ def run_v15(root, token, state, evidence, expected_dll_sha256):
             "operationStateAfterRecovery": operation_detail(token, opid)["Operation"]["State"],
             "journalCountBeforeRestart": journal_count_before,
             "journalCountAfterRestart": journal_count_after,
+            "journalCountAfterRecovery": journal_count_after_recovery,
             "operationCountBeforeRestart": op_count_before,
             "operationCountAfterRestart": op_count_after,
             "restartedPid": restarted["pid"],
@@ -1452,6 +1526,8 @@ def run_v15(root, token, state, evidence, expected_dll_sha256):
         }
         return token
     finally:
+        release_image_barrier(release)
+        disarm_image_barrier(root)
         if control is not None:
             control.close()
         watcher.kill()
@@ -1464,6 +1540,7 @@ def run_v15(root, token, state, evidence, expected_dll_sha256):
 def run_gates(root, state, expected_dll_sha256, scenarios=("v08", "v10", "v15")):
     os.environ["JELLYP_TEST_SLOW_FILE"] = str(root / SLOW_CONTROL_NAME)
     os.environ["JELLYP_TEST_SLOW_RELEASE"] = str(root / SLOW_RELEASE_NAME)
+    os.environ["JELLYP_TEST_IMAGE_BARRIER"] = str(root / IMAGE_BARRIER_NAME)
     token, info = login_verified(root)
     installed = h.safe_path(root, "data/plugins/JellyP/" + h.DLL_NAME, base=root, must_exist=True)
     installed_hash = h.sha256(installed)
@@ -1494,8 +1571,8 @@ def run_gates(root, state, expected_dll_sha256, scenarios=("v08", "v10", "v15"))
         "v15": {},
         "checks": [],
         "limitations": [
-            "The slow metadata provider is a test-only fixture plugin, not product code.",
-            "The V15 kill window is obtained from a real Prepared journal, not a product fault endpoint.",
+            "The slow metadata provider and image-save barrier are test-only fixture plugins, not product code.",
+            "The V15 kill window comes from a real image save held by the fixture barrier, not a product fault endpoint.",
             "No physical disk was filled and no OS permissions or services were changed.",
             "This run does not repeat the historical 121/819 UI journey or planning checks.",
         ],
@@ -1561,9 +1638,12 @@ def main(argv=None):
     parser.add_argument("--candidate", type=Path, help="Candidate plugin ZIP for setup/all.")
     parser.add_argument("--expected-dll-sha256", help="Expected candidate DLL SHA256 for setup/run/all.")
     parser.add_argument("--test-plugin-dll", type=Path, default=DEFAULT_TEST_PLUGIN)
+    parser.add_argument("--install-test-plugin", action="store_true",
+                        help="Stop the fixture, reinstall --test-plugin-dll, and restart before run/v15.")
     parser.add_argument("--keep-running", action="store_true", help="Do not stop the fixture after the all phase.")
     args = parser.parse_args(argv)
     root = h.guard_root(args.root)
+    os.environ["JELLYP_TEST_IMAGE_BARRIER"] = str(root / IMAGE_BARRIER_NAME)
     if args.phase == "stop":
         final = stop_and_verify(root)
         print(json.dumps(final, sort_keys=True))
@@ -1571,6 +1651,8 @@ def main(argv=None):
     preflight()
     if not h.is_sha256(args.expected_dll_sha256):
         parser.error("--expected-dll-sha256 must be 64 hex characters")
+    if args.install_test_plugin and not args.test_plugin_dll.is_file():
+        parser.error(f"Test plugin DLL not found: {args.test_plugin_dll}")
     if args.phase in ("setup", "all"):
         if not args.candidate or not args.candidate.is_file():
             parser.error("--candidate is required for setup/all")
@@ -1592,6 +1674,10 @@ def main(argv=None):
             print(f"setup complete: {root / STATE_NAME}")
         if args.phase in ("run", "all", "v15"):
             state = load_state(root)
+            if args.install_test_plugin and args.phase in ("run", "v15"):
+                h.stop_host(root)
+                install_test_plugin(root, args.test_plugin_dll)
+                h.start_host(root)
             if args.phase == "run":
                 run_gates(root, state, args.expected_dll_sha256)
                 print(f"run complete: {root / EVIDENCE_NAME}")
