@@ -122,9 +122,15 @@ public sealed partial class JellyPController
         try
         {
             var detail = coordinator.GetOperation(id, 0, 1);
-            if (detail.Operation.State is "Completed" or "CompletedWithErrors" or "Cancelled" or "Interrupted" or "Failed")
+            if (OptimizationCoordinator.IsTerminalOperationState(detail.Operation.State))
                 return ApiProblem(409, "OperationTerminal", "The operation already reached a terminal state.");
-            coordinator.RequestCancelOperation(id);
+            if (!coordinator.RequestCancelOperation(id))
+            {
+                var current = coordinator.GetOperation(id, 0, 1);
+                if (OptimizationCoordinator.IsTerminalOperationState(current.Operation.State))
+                    return ApiProblem(409, "OperationTerminal", "The operation already reached a terminal state.");
+            }
+
             tasks.CancelIfRunning<OptimizeArtworkTask>();
             return Accepted();
         }

@@ -222,6 +222,7 @@ public sealed partial class OptimizationCoordinator
                 throw new InvalidOperationException("Recover interrupted image transactions through the explicit recovery endpoint before starting a new batch.");
             await WaitForIdleOperationAsync(operation, null, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
+            if (operation.CancelRequested) throw new OperationCanceledException();
             switch (operation.Kind)
             {
                 case "Apply":
@@ -445,8 +446,8 @@ public sealed partial class OptimizationCoordinator
         // Authorization, exact expiry IDs and global-safety fingerprints are checked
         // again before any mutation. A mismatch stops without consuming the plan.
         var authorizedRetention = ValidateRetentionForApply(operation, config, protectedIds);
-        MarkMutationStarted(operation);
-        MarkPlanConsumed(operation);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (operation.CancelRequested) throw new OperationCanceledException();
         await PurgeRetentionForApplyAsync(operation, authorizedRetention, cancellationToken).ConfigureAwait(false);
         operation.Phase = "Processing";
         SaveOperation(operation);
@@ -457,6 +458,9 @@ public sealed partial class OptimizationCoordinator
             cancellationToken.ThrowIfCancellationRequested();
             if (operation.CancelRequested) break;
             await WaitForIdleOperationAsync(operation, pair.Item.ItemId, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (operation.CancelRequested) throw new OperationCanceledException();
+            MarkMutationStartedAndConsumePlan(operation);
             try
             {
                 MigrationRecord committed;
@@ -564,7 +568,9 @@ public sealed partial class OptimizationCoordinator
             }
 
             await WaitForIdleOperationAsync(operation, record.Source.ItemId, cancellationToken).ConfigureAwait(false);
-            MarkMutationStarted(operation);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (operation.CancelRequested) throw new OperationCanceledException();
+            MarkMutationStartedAndConsumePlan(operation);
             try
             {
                 await RestoreCoreAsync(record, config, slotSafe: true,
@@ -654,7 +660,9 @@ public sealed partial class OptimizationCoordinator
             }
 
             await WaitForIdleOperationAsync(operation, record.Source.ItemId, cancellationToken).ConfigureAwait(false);
-            MarkMutationStarted(operation);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (operation.CancelRequested) throw new OperationCanceledException();
+            MarkMutationStartedAndConsumePlan(operation);
             try
             {
                 await RetireRecordAsync(record, referenceCounts, slotSafe: true).ConfigureAwait(false);
@@ -723,10 +731,12 @@ public sealed partial class OptimizationCoordinator
         foreach (var record in authorized)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            await WaitForIdleOperationAsync(operation, record.Source.ItemId, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (operation.CancelRequested) throw new OperationCanceledException();
+            MarkMutationStartedAndConsumePlan(operation);
             try
             {
-                await WaitForIdleOperationAsync(operation, record.Source.ItemId, cancellationToken).ConfigureAwait(false);
-                MarkMutationStarted(operation);
                 await RetireRecordAsync(record, referenceCounts, slotSafe: true).ConfigureAwait(false);
                 operation.RetentionPurgedCount++;
                 operation.RetentionPurgedBytes += record.OriginalBytes;
@@ -784,6 +794,9 @@ public sealed partial class OptimizationCoordinator
             try
             {
                 _artwork.EnsureIdle(itemId);
+                // A cancel can arrive while EnsureIdle is blocked; never start a transaction after it.
+                cancellationToken.ThrowIfCancellationRequested();
+                if (operation.CancelRequested) throw new OperationCanceledException();
                 if (operation.Phase == "WaitingForMetadata")
                 {
                     operation.Phase = operation.Kind == "Apply" ? "Processing" : "Processing";
@@ -1146,8 +1159,47 @@ public sealed partial class OptimizationCoordinator
     private void MarkMutationStarted(OperationRecord operation)
     {
         if (operation.MutationStarted) return;
+        var updated = JsonSerializer.Deserialize<OperationRecord>(JsonSerializer.Serialize(operation))!;
+        updated.MutationStarted = true;
+        try
+        {
+            SaveOperation(updated);
+        }
+        catch
+        {
+            // The marker may have been published before the write failed. Only a
+            // readable record that still says false proves no durable mutation marker.
+            operation.MutationStarted = HasDurableMutationStarted(operation.Id);
+            throw;
+        }
+
         operation.MutationStarted = true;
-        SaveOperation(operation);
+        operation.CancelRequested |= updated.CancelRequested;
+    }
+
+    private bool HasDurableMutationStarted(Guid operationId)
+    {
+        try
+        {
+            var path = OperationPath(operationId);
+            return File.Exists(path) && DurableFiles.ReadJson<OperationRecord>(path).MutationStarted;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
+        {
+            return true; // Unknown durability is treated as a started mutation; keep the reservation.
+        }
+    }
+
+    // Test-only seams: production never sets these. They let regression tests
+    // simulate a finalization or persistence failure at a controlled boundary.
+    private static readonly AsyncLocal<Action?> _cancellationRequestReadHook = new();
+    private static readonly AsyncLocal<Action<bool, bool, string>?> _operationSaveTestHook = new();
+
+    private void MarkMutationStartedAndConsumePlan(OperationRecord operation)
+    {
+        if (operation.MutationStarted) return;
+        MarkMutationStarted(operation);
+        MarkPlanConsumed(operation);
     }
 
     private MigrationRecord? TryReadRecord(Guid recordId)
@@ -1188,7 +1240,9 @@ public sealed partial class OptimizationCoordinator
             operation.Failed = operation.Items.Count(item => item.Status == "Failed");
             operation.Invalidated = operation.Items.Count(item => item.Status == "Invalidated");
             operation.NotStarted = operation.Items.Count(item => item.Status == "NotStarted");
+            _operationSaveTestHook.Value?.Invoke(operation.MutationStarted, false, operation.State);
             DurableFiles.WriteJson(path, operation);
+            _operationSaveTestHook.Value?.Invoke(operation.MutationStarted, true, operation.State);
         }
     }
 

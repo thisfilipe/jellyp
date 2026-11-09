@@ -243,8 +243,13 @@ Logs e capturas sintéticas ficaram em `/tmp/opencode/jellyp-alpha-check/`,
   deve repetir o upgrade com a identidade candidata e o catálogo público.
 - As provas de bind/assembly usam `/proc` e `/proc/<pid>/maps` do Linux; não
   são portáveis para outros SOs.
-- V08, V10 e V15 continuam dependentes dos gates de falha/interrupção; não
-  houve disco cheio físico, alteração de permissões do SO ou serviço de sistema.
+- V08, V10 e V15 têm agora provas determinísticas in-process registradas em
+  [VALIDAÇÃO](VALIDATION.md) e no [fechamento](ALPHA-CLOSURE.pt-BR.md): cancelamento
+  por `operationId`, espera por metadata relacionada versus refresh não
+  relacionado, orçamento por configuração e reinício simulado entre salvar/restaurar.
+  Não houve kill de processo real, disparo pelo scheduler Jellyfin, disco
+  fisicamente cheio ou alteração de permissões/serviço do sistema. Essas camadas de
+  host continuam explicitamente não exercitadas nesta rodada de upgrade.
 - Axe não é certificação WCAG; Firefox, Safari, leitor de tela e aparelhos
   físicos não foram validados.
 - A fixture foi encerrada ao final pelo PID exato; a porta `18096` ficou livre.

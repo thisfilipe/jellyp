@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Jellyfin.Plugin.JellyP.Configuration;
 using Jellyfin.Plugin.JellyP.Conversion;
 using Jellyfin.Plugin.JellyP.Infrastructure;
@@ -149,6 +150,40 @@ public sealed class OptimizationCoordinatorTests : IDisposable
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
         Assert.Equal("Cancelled", _coordinator.GetStatus().LastRun.Phase);
         Assert.True(File.Exists(image.Path));
+    }
+
+    [Fact]
+    public async Task CancellationAfterLegacyMetadataWaitDoesNotStartTransaction()
+    {
+        var image = _store.Add();
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        _store.OnEnsureIdle = itemId =>
+        {
+            if (itemId == image.ItemId)
+            {
+                entered.Set();
+                _ = release.Wait(TimeSpan.FromSeconds(10));
+            }
+        };
+        using var cancellation = new CancellationTokenSource();
+        try
+        {
+            var run = Task.Run(() => _coordinator.RunAsync(new Progress<double>(), cancellation.Token));
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(15)));
+            cancellation.Cancel();
+            release.Set();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run.WaitAsync(TimeSpan.FromSeconds(15)));
+        }
+        finally
+        {
+            release.Set();
+            _store.OnEnsureIdle = null;
+        }
+
+        Assert.Equal(0, _store.SaveCalls);
+        Assert.True(File.Exists(image.Path));
+        Assert.Equal("Cancelled", _coordinator.GetStatus().LastRun.Phase);
     }
 
     [Fact]
@@ -354,6 +389,41 @@ public sealed class OptimizationCoordinatorTests : IDisposable
         Assert.Equal(id, _coordinator.GetStatus().LastRun.ExecutionId);
         Assert.True(_coordinator.GetStatus().LastRun.DryRun);
         Assert.Equal(0, _store.SaveCalls);
+    }
+
+    [Fact]
+    public async Task NativeTaskDoesNotWaitForUnrelatedMetadataRefresh()
+    {
+        var target = _store.Add();
+        var unrelated = _store.Add();
+        _store.BusyItems.TryAdd(unrelated.ItemId, 0);
+        _config.ScopeMode = "items";
+        _config.IncludedItemIds = [target.ItemId];
+
+        await new OptimizeArtworkTask(_coordinator).ExecuteAsync(new Progress<double>(), default)
+            .WaitAsync(TimeSpan.FromSeconds(15));
+
+        var report = _coordinator.GetStatus().LastRun;
+        Assert.Equal("Completed", report.Phase);
+        Assert.Equal(1, _store.SaveCalls);
+        Assert.EndsWith(".webp", _store.GetCurrent(target)!.Path);
+        Assert.EndsWith(".png", _store.GetCurrent(unrelated)!.Path);
+    }
+
+    [Fact]
+    public async Task NativeTaskWaitsForRelatedMetadataAndResumes()
+    {
+        var target = _store.Add();
+        _store.BusyItems.TryAdd(target.ItemId, 0);
+        var run = Task.Run(() => new OptimizeArtworkTask(_coordinator).ExecuteAsync(new Progress<double>(), default));
+
+        await WaitUntil(() => _coordinator.GetStatus().LastRun.Phase == "WaitingForMetadata");
+        Assert.Equal(0, _store.SaveCalls);
+
+        _store.BusyItems.TryRemove(target.ItemId, out _);
+        await run.WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.Equal("Completed", _coordinator.GetStatus().LastRun.Phase);
+        Assert.Equal(1, _store.SaveCalls);
     }
 
     [Fact]
@@ -728,6 +798,21 @@ public sealed class OptimizationCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public async Task ConfiguredFreeSpaceReserveDeniesBeforeBackupOrSave()
+    {
+        var image = _store.Add();
+        var original = File.ReadAllBytes(image.Path);
+        _config.MinimumFreeSpaceBytes = long.MaxValue / 2;
+
+        await Assert.ThrowsAsync<IOException>(Run);
+
+        Assert.Equal(original, File.ReadAllBytes(image.Path));
+        Assert.Equal(0, _store.SaveCalls);
+        Assert.Empty(_coordinator.GetStatus().RecentRecords);
+        Assert.Equal(0, _coordinator.GetStatus().RetainedBackupBytes);
+    }
+
+    [Fact]
     public async Task InterruptedRolledBackBackupDeletionIsFinalizedIdempotently()
     {
         var image = _store.Add();
@@ -826,12 +911,25 @@ public sealed class OptimizationCoordinatorTests : IDisposable
     private Task Run() => _coordinator.RunAsync(new Progress<double>(), default);
     private static Guid ItemId(int value) => Guid.Parse($"00000000-0000-0000-0000-{value:D12}");
 
+    private static async Task WaitUntil(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!condition())
+        {
+            if (DateTime.UtcNow >= deadline) throw new TimeoutException("Expected coordinator state was not reached.");
+            await Task.Delay(25);
+        }
+    }
+
     private sealed class FakeArtworkStore(string root) : IArtworkStore
     {
         private readonly List<ArtworkReference> _images = new();
         public int SaveCalls { get; private set; }
         public bool FailNextSaveAfterChange { get; set; }
-        public bool Busy { get; set; }
+        private volatile bool _busy;
+        public bool Busy { get => _busy; set => _busy = value; }
+        public ConcurrentDictionary<Guid, byte> BusyItems { get; } = new();
+        public Action<Guid?>? OnEnsureIdle { get; set; }
         public int InventoryCalls { get; private set; }
         public IReadOnlyCollection<Guid>? LastIncludedItemIds { get; private set; }
         public IReadOnlyCollection<Guid>? LastIncludedLibraryIds { get; private set; }
@@ -863,6 +961,8 @@ public sealed class OptimizationCoordinatorTests : IDisposable
         public bool IsPathReferenced(string path) => _images.Any(i => i.Path == path);
         public void EnsureIdle(Guid? itemId = null)
         {
+            OnEnsureIdle?.Invoke(itemId);
+            if (itemId is { } id && BusyItems.ContainsKey(id)) throw new InvalidOperationException("Busy metadata refresh.");
             if (Busy) throw new InvalidOperationException("Busy");
         }
         public ArtworkReference? GetCurrent(ArtworkReference reference) => _images.SingleOrDefault(i => i.Key == reference.Key);

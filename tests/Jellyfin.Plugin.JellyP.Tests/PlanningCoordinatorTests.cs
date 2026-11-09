@@ -1,5 +1,7 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Xml.Serialization;
+using System.Reflection;
 using Jellyfin.Plugin.JellyP.Configuration;
 using Jellyfin.Plugin.JellyP.Infrastructure;
 using Jellyfin.Plugin.JellyP.Migration;
@@ -690,6 +692,433 @@ public sealed class PlanningCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public async Task CancelDuringApplyValidationLeavesPlanReadyAndNeverMutates()
+    {
+        _store.Add();
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest { Scope = "all", BatchSize = 10, PreserveOriginals = true }, default);
+        var receipt = _coordinator.ApplyPlan(plan.PlanId, new PlanApplyRequest
+        {
+            Keys = _coordinator.GetPlanKeys(plan.PlanId, "selectable").Keys.ToArray(),
+        });
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        _store.OnCountPathReferences = () =>
+        {
+            entered.Set();
+            _ = release.Wait(TimeSpan.FromSeconds(10));
+        };
+        try
+        {
+            var running = Task.Run(() => _coordinator.RunNativeAsync(new Progress<double>(), default));
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(10)));
+            Assert.True(_coordinator.RequestCancelOperation(receipt.OperationId));
+            release.Set();
+            await running.WaitAsync(TimeSpan.FromSeconds(15));
+        }
+        finally
+        {
+            release.Set();
+            _store.OnCountPathReferences = null;
+        }
+
+        var detail = _coordinator.GetOperation(receipt.OperationId, 0, 10);
+        Assert.Equal("Cancelled", detail.Operation.State);
+        Assert.Equal("Ready", _coordinator.GetPlan(plan.PlanId).Status);
+        Assert.Equal(0, _store.SaveCalls);
+        Assert.Empty(_coordinator.GetStatus().RecentRecords);
+    }
+
+    [Fact]
+    public async Task CancelAfterMetadataWaitDoesNotStartTheNextTransaction()
+    {
+        var first = _store.Add();
+        var second = _store.Add();
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest { Scope = "all", BatchSize = 10, PreserveOriginals = true }, default);
+        var receipt = _coordinator.ApplyPlan(plan.PlanId, new PlanApplyRequest
+        {
+            Keys = _coordinator.GetPlanKeys(plan.PlanId, "selectable").Keys.ToArray(),
+        });
+        var ordered = _coordinator.GetOperation(receipt.OperationId, 0, 10).Items;
+        Assert.Equal(2, ordered.Count);
+        var blockedItemId = ordered[1].ItemId;
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        _store.OnEnsureIdle = itemId =>
+        {
+            if (itemId == blockedItemId)
+            {
+                entered.Set();
+                _ = release.Wait(TimeSpan.FromSeconds(10));
+            }
+        };
+        try
+        {
+            var running = Task.Run(() => _coordinator.RunNativeAsync(new Progress<double>(), default));
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(15)));
+            Assert.True(_coordinator.RequestCancelOperation(receipt.OperationId));
+            release.Set();
+            await running.WaitAsync(TimeSpan.FromSeconds(15));
+        }
+        finally
+        {
+            release.Set();
+            _store.OnEnsureIdle = null;
+        }
+
+        var detail = _coordinator.GetOperation(receipt.OperationId, 0, 10);
+        Assert.Equal("Cancelled", detail.Operation.State);
+        Assert.Equal("Consumed", _coordinator.GetPlan(plan.PlanId).Status);
+        Assert.Equal(1, _store.SaveCalls);
+        Assert.Equal("Changed", detail.Items.Single(item => item.Key == ordered[0].Key).Status);
+        Assert.Equal("NotStarted", detail.Items.Single(item => item.Key == ordered[1].Key).Status);
+        var changed = ordered[0].Key == first.Key ? first : second;
+        var untouched = ordered[0].Key == first.Key ? second : first;
+        Assert.EndsWith(".webp", _store.GetCurrent(changed)!.Path);
+        Assert.EndsWith(".png", _store.GetCurrent(untouched)!.Path);
+    }
+
+    [Fact]
+    public async Task CancelDuringFirstApplyMetadataWaitLeavesPlanReadyAndNeverMutates()
+    {
+        var image = _store.Add();
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest { Scope = "all", BatchSize = 10, PreserveOriginals = true }, default);
+        var receipt = _coordinator.ApplyPlan(plan.PlanId, new PlanApplyRequest
+        {
+            Keys = _coordinator.GetPlanKeys(plan.PlanId, "selectable").Keys.ToArray(),
+        });
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        _store.OnEnsureIdle = itemId =>
+        {
+            if (itemId == image.ItemId)
+            {
+                entered.Set();
+                _ = release.Wait(TimeSpan.FromSeconds(10));
+            }
+        };
+        try
+        {
+            var running = Task.Run(() => _coordinator.RunNativeAsync(new Progress<double>(), default));
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(10)));
+            Assert.True(_coordinator.RequestCancelOperation(receipt.OperationId));
+            release.Set();
+            await running.WaitAsync(TimeSpan.FromSeconds(15));
+        }
+        finally
+        {
+            release.Set();
+            _store.OnEnsureIdle = null;
+        }
+
+        var detail = _coordinator.GetOperation(receipt.OperationId, 0, 10);
+        Assert.Equal("Cancelled", detail.Operation.State);
+        Assert.False(detail.Operation.MutationStarted);
+        Assert.Equal("Ready", _coordinator.GetPlan(plan.PlanId).Status);
+        Assert.Equal(0, _store.SaveCalls);
+        Assert.Empty(_coordinator.GetStatus().RecentRecords);
+    }
+
+    [Fact]
+    public async Task CancelDuringFirstRetentionWaitLeavesPlanReadyAndNoRemoval()
+    {
+        var retained = _store.Add();
+        var regenerated = _store.Add();
+        await _coordinator.RunAsync(new Progress<double>(), default);
+        var records = _coordinator.GetStatus().RecentRecords;
+        var retainedRecord = records.Single(record => record.Source.ItemId == retained.ItemId);
+        retainedRecord.CompletedUtc = DateTime.UtcNow.AddDays(-30);
+        DurableFiles.WriteJson(
+            Path.Combine(_root, "migration", "journal", retainedRecord.Id.ToString("N") + ".json"), retainedRecord);
+        var backupPath = Path.Combine(_root, "migration", "originals", retainedRecord.Id.ToString("N") + ".original");
+        Assert.True(File.Exists(backupPath));
+        _config.Quality = 60;
+        _config.BackupRetentionDays = 10;
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest
+        {
+            Scope = "items",
+            ItemIds = [regenerated.ItemId],
+            BatchSize = 10,
+            PreserveOriginals = true,
+        }, default);
+        var keys = _coordinator.GetPlanKeys(plan.PlanId, "selectable").Keys.ToArray();
+        var review = _coordinator.ReviewPlan(plan.PlanId, new PlanReviewRequest { Keys = keys });
+        Assert.Equal(1, review.Retention.EligibleCount);
+        var receipt = _coordinator.ApplyPlan(plan.PlanId, new PlanApplyRequest
+        {
+            Keys = keys,
+            AuthorizeRetentionPurge = true,
+            AuthorizeRetentionFingerprint = review.Retention.Fingerprint,
+        });
+        var savesBefore = _store.SaveCalls;
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        _store.OnEnsureIdle = itemId =>
+        {
+            if (itemId == retained.ItemId)
+            {
+                entered.Set();
+                _ = release.Wait(TimeSpan.FromSeconds(10));
+            }
+        };
+        try
+        {
+            var running = Task.Run(() => _coordinator.RunNativeAsync(new Progress<double>(), default));
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(10)));
+            Assert.True(_coordinator.RequestCancelOperation(receipt.OperationId));
+            release.Set();
+            await running.WaitAsync(TimeSpan.FromSeconds(15));
+        }
+        finally
+        {
+            release.Set();
+            _store.OnEnsureIdle = null;
+        }
+
+        var detail = _coordinator.GetOperation(receipt.OperationId, 0, 10);
+        Assert.Equal("Cancelled", detail.Operation.State);
+        Assert.False(detail.Operation.MutationStarted);
+        Assert.Equal(0, detail.Operation.RetentionPurgedCount);
+        Assert.Equal("Ready", _coordinator.GetPlan(plan.PlanId).Status);
+        Assert.True(File.Exists(backupPath));
+        Assert.Equal(savesBefore, _store.SaveCalls);
+    }
+
+    [Fact]
+    public async Task CancelBatchRestoreDuringFirstMetadataWaitLeavesBackupAndNoRestore()
+    {
+        var image = _store.Add();
+        await _coordinator.RunAsync(new Progress<double>(), default);
+        var record = Assert.Single(_coordinator.GetStatus().RecentRecords);
+        var backupPath = Path.Combine(_root, "migration", "originals", record.Id.ToString("N") + ".original");
+        var receipt = _coordinator.QueueRestore(new BackupBatchRequest { RecordIds = [record.Id] }, default);
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        _store.OnEnsureIdle = itemId =>
+        {
+            if (itemId == image.ItemId)
+            {
+                entered.Set();
+                _ = release.Wait(TimeSpan.FromSeconds(10));
+            }
+        };
+        try
+        {
+            var running = Task.Run(() => _coordinator.RunNativeAsync(new Progress<double>(), default));
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(10)));
+            Assert.True(_coordinator.RequestCancelOperation(receipt.OperationId));
+            release.Set();
+            await running.WaitAsync(TimeSpan.FromSeconds(15));
+        }
+        finally
+        {
+            release.Set();
+            _store.OnEnsureIdle = null;
+        }
+
+        var detail = _coordinator.GetOperation(receipt.OperationId, 0, 10);
+        Assert.Equal("Cancelled", detail.Operation.State);
+        Assert.Equal("NotStarted", Assert.Single(detail.Items).Status);
+        Assert.EndsWith(".webp", _store.GetCurrent(image)!.Path);
+        Assert.True(File.Exists(backupPath));
+        Assert.Equal("Committed", Assert.Single(_coordinator.GetStatus().RecentRecords).State);
+    }
+
+    [Fact]
+    public void FinalizedOperationIsNotRevertedByCancellationSnapshot()
+    {
+        _store.Add();
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest { Scope = "all", BatchSize = 10, PreserveOriginals = true }, default);
+        var receipt = _coordinator.ApplyPlan(plan.PlanId, new PlanApplyRequest
+        {
+            Keys = _coordinator.GetPlanKeys(plan.PlanId, "selectable").Keys.ToArray(),
+        });
+        var operationPath = Path.Combine(_root, "migration", "operations", receipt.OperationId.ToString("N") + ".json");
+        var stale = JsonNode.Parse(File.ReadAllText(operationPath))!;
+        stale["State"] = "Running";
+        stale["Phase"] = "Processing";
+        stale["MutationStarted"] = true;
+        stale["RetentionPurgedCount"] = 0;
+        ((JsonArray)stale["Items"]!)[0]!["Status"] = "Pending";
+        File.WriteAllText(operationPath, stale.ToJsonString());
+
+        var completed = JsonNode.Parse(File.ReadAllText(operationPath))!;
+        completed["State"] = "Completed";
+        completed["Phase"] = "Completed";
+        completed["Message"] = "Operation completed.";
+        completed["CompletedUtc"] = DateTime.UtcNow.ToString("O");
+        completed["RetentionPurgedCount"] = 2;
+        ((JsonArray)completed["Items"]!)[0]!["Status"] = "Changed";
+        SetCancellationHook(() => File.WriteAllText(operationPath, completed.ToJsonString()));
+        try
+        {
+            Assert.False(_coordinator.RequestCancelOperation(receipt.OperationId));
+        }
+        finally
+        {
+            SetCancellationHook(null);
+        }
+
+        var final = JsonNode.Parse(File.ReadAllText(operationPath))!;
+        Assert.Equal("Completed", final["State"]!.GetValue<string>());
+        Assert.Equal("Completed", final["Phase"]!.GetValue<string>());
+        Assert.NotNull(final["CompletedUtc"]);
+        Assert.Equal(2, final["RetentionPurgedCount"]!.GetValue<int>());
+        Assert.Equal("Changed", ((JsonArray)final["Items"]!)[0]!["Status"]!.GetValue<string>());
+        Assert.False(final["CancelRequested"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task ConcurrentCancellationRequestsPreserveProgress()
+    {
+        _store.Add();
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest { Scope = "all", BatchSize = 10, PreserveOriginals = true }, default);
+        var receipt = _coordinator.ApplyPlan(plan.PlanId, new PlanApplyRequest
+        {
+            Keys = _coordinator.GetPlanKeys(plan.PlanId, "selectable").Keys.ToArray(),
+        });
+        var operationPath = Path.Combine(_root, "migration", "operations", receipt.OperationId.ToString("N") + ".json");
+        var running = JsonNode.Parse(File.ReadAllText(operationPath))!;
+        running["State"] = "Running";
+        running["Phase"] = "Processing";
+        running["MutationStarted"] = true;
+        running["RetentionPurgedCount"] = 3;
+        ((JsonArray)running["Items"]!)[0]!["Status"] = "Changed";
+        File.WriteAllText(operationPath, running.ToJsonString());
+
+        var results = await Task.WhenAll(
+            Task.Run(() => _coordinator.RequestCancelOperation(receipt.OperationId)),
+            Task.Run(() => _coordinator.RequestCancelOperation(receipt.OperationId)));
+
+        Assert.All(results, value => Assert.True(value));
+        var final = JsonNode.Parse(File.ReadAllText(operationPath))!;
+        Assert.Equal("Running", final["State"]!.GetValue<string>());
+        Assert.True(final["CancelRequested"]!.GetValue<bool>());
+        Assert.True(final["MutationStarted"]!.GetValue<bool>());
+        Assert.Equal(3, final["RetentionPurgedCount"]!.GetValue<int>());
+        Assert.Equal("Changed", ((JsonArray)final["Items"]!)[0]!["Status"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task PrePublicationMarkerFailureReleasesPlanWithoutMutation()
+    {
+        _store.Add();
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest { Scope = "all", BatchSize = 10, PreserveOriginals = true }, default);
+        var receipt = _coordinator.ApplyPlan(plan.PlanId, new PlanApplyRequest
+        {
+            Keys = _coordinator.GetPlanKeys(plan.PlanId, "selectable").Keys.ToArray(),
+        });
+        Action<bool, bool, string> hook = (mutationStarted, published, state) =>
+        {
+            if (mutationStarted && state == "Running" && !published)
+                throw new IOException("Injected pre-publication marker failure");
+        };
+        SetOperationSaveHook(hook);
+        try
+        {
+            await _coordinator.RunNativeAsync(new Progress<double>(), default);
+        }
+        finally
+        {
+            SetOperationSaveHook(null);
+        }
+
+        var detail = _coordinator.GetOperation(receipt.OperationId, 0, 10);
+        Assert.Equal("Failed", detail.Operation.State);
+        Assert.False(detail.Operation.MutationStarted);
+        Assert.Equal("Ready", _coordinator.GetPlan(plan.PlanId).Status);
+        Assert.Equal(0, _store.SaveCalls);
+        Assert.Empty(_coordinator.GetStatus().RecentRecords);
+    }
+
+    [Fact]
+    public async Task PostPublicationMarkerFailureKeepsPlanReservedConservatively()
+    {
+        _store.Add();
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest { Scope = "all", BatchSize = 10, PreserveOriginals = true }, default);
+        var receipt = _coordinator.ApplyPlan(plan.PlanId, new PlanApplyRequest
+        {
+            Keys = _coordinator.GetPlanKeys(plan.PlanId, "selectable").Keys.ToArray(),
+        });
+        Action<bool, bool, string> hook = (mutationStarted, published, state) =>
+        {
+            if (mutationStarted && state == "Running" && published)
+                throw new IOException("Injected post-publication marker failure");
+        };
+        SetOperationSaveHook(hook);
+        try
+        {
+            await _coordinator.RunNativeAsync(new Progress<double>(), default);
+        }
+        finally
+        {
+            SetOperationSaveHook(null);
+        }
+
+        var detail = _coordinator.GetOperation(receipt.OperationId, 0, 10);
+        Assert.Equal("Failed", detail.Operation.State);
+        Assert.True(detail.Operation.MutationStarted);
+        Assert.Equal("Reserved", _coordinator.GetPlan(plan.PlanId).Status);
+        Assert.Equal(0, _store.SaveCalls);
+        Assert.Empty(_coordinator.GetStatus().RecentRecords);
+    }
+
+    [Fact]
+    public async Task ApplyPersistenceFailureRestoresOriginalAndLeavesNoRecovery()
+    {
+        var image = _store.Add();
+        var original = File.ReadAllBytes(image.Path);
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest { Scope = "all", BatchSize = 10, PreserveOriginals = true }, default);
+        var receipt = _coordinator.ApplyPlan(plan.PlanId, new PlanApplyRequest
+        {
+            Keys = _coordinator.GetPlanKeys(plan.PlanId, "selectable").Keys.ToArray(),
+        });
+        _store.FailNextSaveAfterChange = true;
+        await _coordinator.RunNativeAsync(new Progress<double>(), default);
+
+        var detail = _coordinator.GetOperation(receipt.OperationId, 0, 10);
+        Assert.Equal("CompletedWithErrors", detail.Operation.State);
+        Assert.Equal("Failed", Assert.Single(detail.Items).Status);
+        Assert.Equal(original, File.ReadAllBytes(_store.GetCurrent(image)!.Path));
+        Assert.Equal("RolledBack", Assert.Single(_coordinator.GetStatus().RecentRecords).State);
+        Assert.Equal(0, _coordinator.GetStatus().PendingRecovery);
+        Assert.Empty(_coordinator.GetBackups("restorable", 0, 50, default).Items);
+    }
+
+    [Fact]
+    public async Task RestartDuringRestoreRequiresExplicitRecoveryAndRemovesVerifiedOutput()
+    {
+        var image = _store.Add();
+        var original = File.ReadAllBytes(image.Path);
+        await _coordinator.RunAsync(new Progress<double>(), default);
+        var record = Assert.Single(_coordinator.GetStatus().RecentRecords);
+        var outputPath = _store.GetCurrent(image)!.Path;
+        var output = File.ReadAllBytes(outputPath);
+
+        // Simulate Jellyfin publishing the original during RestoreCoreAsync, then
+        // a crash before the journal records RolledBack and removes the WebP.
+        var staging = Path.Combine(_root, "restore-staging.image");
+        DurableFiles.Write(staging, original);
+        await _store.SaveAsync(_store.GetCurrent(image)!, staging, "image/png");
+        File.WriteAllBytes(outputPath, output);
+        record.State = "Restoring";
+        var journalPath = Path.Combine(_root, "migration", "journal", record.Id.ToString("N") + ".json");
+        DurableFiles.WriteJson(journalPath, record);
+
+        var restarted = NewCoordinator();
+        Assert.Equal(1, restarted.GetStatus().PendingRecovery);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => restarted.RunAsync(new Progress<double>(), default));
+        await restarted.RollbackAsync(record.Id, default);
+
+        Assert.Equal(original, File.ReadAllBytes(_store.GetCurrent(image)!.Path));
+        Assert.False(File.Exists(outputPath));
+        var persisted = DurableFiles.ReadJson<MigrationRecord>(journalPath);
+        Assert.Equal("RolledBack", persisted.State);
+        Assert.True(persisted.BackupDeleted);
+        Assert.False(File.Exists(Path.Combine(_root, "migration", "originals", record.Id.ToString("N") + ".original")));
+        Assert.Equal(0, restarted.GetStatus().PendingRecovery);
+    }
+
+    [Fact]
     public async Task CorruptClaimedOperationReleasesTheNativeGateForTheNextRun()
     {
         _store.Add();
@@ -1061,6 +1490,16 @@ public sealed class PlanningCoordinatorTests : IDisposable
     private OptimizationCoordinator NewCoordinator() =>
         new(_store, () => _config, Path.Combine(_root, "migration"), NullLogger<OptimizationCoordinator>.Instance);
 
+    private static void SetCancellationHook(Action? hook) =>
+        ((AsyncLocal<Action?>)typeof(OptimizationCoordinator)
+            .GetField("_cancellationRequestReadHook", BindingFlags.NonPublic | BindingFlags.Static)!
+            .GetValue(null)!).Value = hook;
+
+    private static void SetOperationSaveHook(Action<bool, bool, string>? hook) =>
+        ((AsyncLocal<Action<bool, bool, string>?>)typeof(OptimizationCoordinator)
+            .GetField("_operationSaveTestHook", BindingFlags.NonPublic | BindingFlags.Static)!
+            .GetValue(null)!).Value = hook;
+
     private static async Task WaitUntil(Func<bool> condition)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);
@@ -1112,9 +1551,13 @@ public sealed class PlanningCoordinatorTests : IDisposable
         public int SaveCalls { get; private set; }
         public int CountReferenceCalls { get; private set; }
         public void ResetCountReferenceCalls() => CountReferenceCalls = 0;
-        public bool Busy { get; set; }
+        private volatile bool _busy;
+        public bool Busy { get => _busy; set => _busy = value; }
         public bool ThrowInventoryPath { get; set; }
         public bool ThrowSavePath { get; set; }
+        public bool FailNextSaveAfterChange { get; set; }
+        public Action? OnCountPathReferences { get; set; }
+        public Action<Guid?>? OnEnsureIdle { get; set; }
 
         public ArtworkReference Add(bool isPerson = false, Guid? itemId = null, string? explicitPath = null, string? state = null,
             ImageType type = ImageType.Primary, int index = 0)
@@ -1212,6 +1655,7 @@ public sealed class PlanningCoordinatorTests : IDisposable
 
         public void EnsureIdle(Guid? itemId = null)
         {
+            OnEnsureIdle?.Invoke(itemId);
             if (Busy) throw new InvalidOperationException("Busy metadata refresh.");
         }
 
@@ -1239,6 +1683,7 @@ public sealed class PlanningCoordinatorTests : IDisposable
 
         public IReadOnlyDictionary<string, int> CountPathReferences(IReadOnlyCollection<string> paths)
         {
+            OnCountPathReferences?.Invoke();
             CountReferenceCalls++;
             var absolute = paths.Select(Path.GetFullPath).ToHashSet(StringComparer.Ordinal);
             var counts = absolute.ToDictionary(path => path, _ => 0, StringComparer.Ordinal);
@@ -1266,6 +1711,12 @@ public sealed class PlanningCoordinatorTests : IDisposable
             var previous = entry.Reference.Path;
             if (previous != destination) File.Delete(previous);
             entry.Reference = entry.Reference with { Path = destination };
+            if (FailNextSaveAfterChange)
+            {
+                FailNextSaveAfterChange = false;
+                throw new IOException("Injected persistence failure");
+            }
+
             return Task.FromResult(entry.Reference);
         }
 

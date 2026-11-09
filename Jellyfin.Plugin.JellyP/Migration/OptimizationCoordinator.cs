@@ -227,6 +227,7 @@ public sealed partial class OptimizationCoordinator
             if (!config.DryRun)
             {
                 await WaitForIdleAsync(null, report, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
                 FinalizeRolledBackRecords();
                 CleanupStaging();
             }
@@ -272,6 +273,7 @@ public sealed partial class OptimizationCoordinator
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!config.DryRun) await WaitForIdleAsync(reference.ItemId, report, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
                 report.Phase = "Processing";
                 report.Message = null;
                 SaveReport(report);
@@ -326,6 +328,7 @@ public sealed partial class OptimizationCoordinator
                         if (!config.DryRun)
                         {
                             await WaitForIdleAsync(reference.ItemId, report, cancellationToken).ConfigureAwait(false);
+                            cancellationToken.ThrowIfCancellationRequested();
                             report.Phase = "Processing";
                             var target = reference;
                             if (syncRecord is not null)
@@ -839,7 +842,13 @@ public sealed partial class OptimizationCoordinator
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            try { _artwork.EnsureIdle(itemId); return; }
+            try
+            {
+                _artwork.EnsureIdle(itemId);
+                // A cancel can arrive while EnsureIdle is blocked; never start a transaction after it.
+                cancellationToken.ThrowIfCancellationRequested();
+                return;
+            }
             catch (InvalidOperationException ex)
             {
                 if (report.Phase != "WaitingForMetadata" || report.Message != ex.Message)

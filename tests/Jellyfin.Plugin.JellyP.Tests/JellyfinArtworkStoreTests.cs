@@ -386,6 +386,17 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => store.EnsureIdle(item.Id));
     }
 
+    [Fact]
+    public void UnrelatedRefreshProgressDoesNotBlockButRelatedProgressDoes()
+    {
+        var item = PersonWithImage(Path.Combine(_root, "metadata", "target-progress", "folder.jpg"));
+        var store = CreateStore();
+        _activeRefreshes.Add(Guid.NewGuid());
+        store.EnsureIdle(item.Id);
+        _activeRefreshes.Add(item.Id);
+        Assert.Throws<InvalidOperationException>(() => store.EnsureIdle(item.Id));
+    }
+
     private CollectionFolder AddLibrary(Guid[] members)
     {
         var folder = new CollectionFolder { Id = Guid.NewGuid(), PhysicalFolderIds = [Guid.NewGuid()] };

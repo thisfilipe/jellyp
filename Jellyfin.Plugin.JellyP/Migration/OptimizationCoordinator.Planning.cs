@@ -466,49 +466,71 @@ public sealed partial class OptimizationCoordinator
     /// <summary>Requests safe cancellation. A running image transaction reaches a safe boundary first.</summary>
     public bool RequestCancelOperation(Guid? operationId = null)
     {
-        OperationRecord? operation;
+        // Lock order: requestGate -> operationStateGate -> planStateGate.
         lock (_requestGate)
         {
             var id = operationId ?? _currentOperationId ?? _pendingOperationId;
             if (!id.HasValue) return false;
-            if (!File.Exists(OperationPath(id.Value))) return false;
-            operation = ReadOperation(id.Value);
-            if (operation.State is "Completed" or "CompletedWithErrors" or "Cancelled" or "Interrupted" or "Failed") return false;
+            OperationRecord? operation;
             try
             {
-                operation.CancelRequested = true;
-                if (operation.State == "Queued")
-                {
-                    operation.State = "Cancelled";
-                    operation.Phase = "Cancelled";
-                    operation.Message = "Cancelled before the native operation started.";
-                    operation.CompletedUtc = DateTime.UtcNow;
-                    if (operation.PlanId.HasValue && File.Exists(PlanPath(operation.PlanId.Value)))
-                    {
-                        var plan = ReadPlan(operation.PlanId.Value);
-                        if (plan.OperationId == operation.Id)
-                        {
-                            plan.OperationId = null;
-                            plan.Status = "Ready";
-                            SavePlan(plan);
-                        }
-                    }
-                }
-
-                SaveOperation(operation);
+                operation = SaveCancellationRequest(id.Value);
             }
             finally
             {
-                if (_currentOperationId == operation.Id)
+                if (_currentOperationId == id.Value)
                 {
                     try { _operationCancellation?.Cancel(); }
                     catch (ObjectDisposedException) { }
                 }
             }
-        }
 
-        return true;
+            if (operation is null) return false;
+            if (operation.State == "Cancelled") ReleasePlanForCancelledOperation(operation);
+            return true;
+        }
     }
+
+    private OperationRecord? SaveCancellationRequest(Guid operationId)
+    {
+        lock (_operationStateGate)
+        {
+            if (!File.Exists(OperationPath(operationId))) return null;
+            var operation = ReadOperation(operationId);
+            _cancellationRequestReadHook.Value?.Invoke();
+            // Re-read under the same gate before persisting. A finalization write that
+            // landed after the first read must remain terminal, never a stale snapshot.
+            operation = ReadOperation(operationId);
+            if (IsTerminalOperationState(operation.State)) return null;
+            operation.CancelRequested = true;
+            if (operation.State == "Queued")
+            {
+                operation.State = "Cancelled";
+                operation.Phase = "Cancelled";
+                operation.Message = "Cancelled before the native operation started.";
+                operation.CompletedUtc = DateTime.UtcNow;
+            }
+
+            SaveOperation(operation);
+            return operation;
+        }
+    }
+
+    private void ReleasePlanForCancelledOperation(OperationRecord operation)
+    {
+        if (!operation.PlanId.HasValue || !File.Exists(PlanPath(operation.PlanId.Value))) return;
+        lock (_planStateGate)
+        {
+            var plan = ReadPlan(operation.PlanId.Value);
+            if (plan.OperationId != operation.Id) return;
+            plan.OperationId = null;
+            plan.Status = "Ready";
+            SavePlan(plan);
+        }
+    }
+
+    internal static bool IsTerminalOperationState(string state) =>
+        state is "Completed" or "CompletedWithErrors" or "Cancelled" or "Interrupted" or "Failed";
 
     private static string NormalizeScope(PlanAnalyzeRequest request)
     {

@@ -161,3 +161,144 @@ harness tests (30 total in this round). This is a local compatibility gate, not
 a new release identity. See
 [UPGRADE-VALIDATION.pt-BR.md](UPGRADE-VALIDATION.pt-BR.md) for the fixture
 layout, official package hashes, exact observed hashes and limitations.
+
+## Deterministic V08/V10/V15 gates (08/11/2026)
+
+This round did **not** start a Jellyfin host, fill a disk, alter OS permissions
+or expose a fault-injection endpoint. It exercised real product classes against
+real temporary files and used fake adapters only at host/IO boundaries where a
+signalled barrier makes the test deterministic. The full .NET suite passed with
+**204 tests**, the release suite with **32**, the Release build had zero warnings
+and errors, Python/CJS syntax checks passed, and the publication audit passed.
+The historical 121/819/20 UI/planning runs were not repeated because only backend
+cancellation/wait/recovery code changed.
+
+Reproduce the targeted gate tests with:
+
+```sh
+dotnet test JellyP.slnx -c Release --no-restore --filter \
+  "FullyQualifiedName~CancelDuring|\
+FullyQualifiedName~CancelBatchRestore|\
+FullyQualifiedName~CancelAfterMetadataWait|\
+FullyQualifiedName~FinalizedOperationIsNotReverted|\
+FullyQualifiedName~ConcurrentCancellationRequests|\
+FullyQualifiedName~CancellationAfterLegacyMetadataWait|\
+FullyQualifiedName~CancelExecution|\
+FullyQualifiedName~NativeTaskDoesNotWait|\
+FullyQualifiedName~NativeTaskWaitsForRelated|\
+FullyQualifiedName~UnrelatedRefreshProgress|\
+FullyQualifiedName~ConfiguredFreeSpaceReserve|\
+FullyQualifiedName~PrePublicationMarkerFailure|\
+FullyQualifiedName~PostPublicationMarkerFailure|\
+FullyQualifiedName~ApplyPersistenceFailure|\
+FullyQualifiedName~RestartDuringRestore"
+```
+
+Exact layers:
+
+- Real product code: `OptimizationCoordinator`, `OptimizeArtworkTask`,
+  `SynchronizePoliciesTask`, `JellyfinArtworkStore.EnsureIdle`, journals,
+  `DurableFiles`, WebP conversion and explicit recovery.
+- Deterministic fake edges: an `IArtworkStore` test double with `EnsureIdle` and
+  `SaveAsync` barriers, plus fake `ILibraryManager`/`IProviderManager` services
+  for refresh queue/progress and library scan. No HTTP API responses are mocked.
+- Controlled test seams: private hooks set by reflection simulate concurrent
+  finalization and marker-write failure before/after publication. There is no
+  public fault endpoint or release fault behavior.
+- Not exercised: Jellyfin scheduler dispatch, real SIGKILL of a fixture process,
+  physically full disk, OS permission failures, and browser disconnect/focus.
+
+V08 cancellation evidence:
+
+- `CancelDuringApplyValidationLeavesPlanReadyAndNeverMutates` cancels an exact
+  `operationId` after validation and before mutation; the plan stays `Ready`,
+  zero saves occur and no journal is written. Before the fix the plan became
+  `Consumed` without a mutation.
+- `CancelDuringFirstApplyMetadataWaitLeavesPlanReadyAndNeverMutates` cancels the
+  first item's metadata wait: no `MutationStarted`, no save and the plan returns
+  to `Ready`. Before the fix the plan was consumed before the wait.
+- `CancelDuringFirstRetentionWaitLeavesPlanReadyAndNoRemoval` cancels the first
+  retention wait: no backup removal, no mutation marker and a `Ready` plan.
+- `CancelBatchRestoreDuringFirstMetadataWaitLeavesBackupAndNoRestore` cancels a
+  batch restore during its first metadata wait: the item stays `NotStarted`, the
+  WebP and stored original remain, and the operation is `Cancelled`.
+- `CancelAfterMetadataWaitDoesNotStartTheNextTransaction` cancels while the
+  second image waits for metadata; the first stays `Changed`, the second becomes
+  `NotStarted`, the operation is `Cancelled`, only one save occurs and the plan
+  stays `Consumed` after the first real mutation. Before the fix the second
+  transaction ran and the operation completed.
+- `FinalizedOperationIsNotRevertedByCancellationSnapshot` simulates a
+  finalization write between the cancellation read and persistence: the terminal
+  state, `MutationStarted` and progress must survive, and the cancellation
+  request returns false. Before the fix the stale `Running` snapshot overwrote
+  the completed record.
+- `CancelExecutionReportsTerminalStateWhenFinalizationWinsTheRace` covers the
+  endpoint after the pre-check: it re-reads the current record and returns
+  `409 OperationTerminal` without requesting native cancellation.
+- `ConcurrentCancellationRequestsPreserveProgress` sends two cancellation
+  requests concurrently and preserves `Running`, `CancelRequested`,
+  `MutationStarted` and persisted progress.
+- `CancellationAfterLegacyMetadataWaitDoesNotStartTransaction` covers the legacy
+  native batch wait: no save, original intact, report `Cancelled`.
+- `CancelExecutionTargetsOnlyTheExactQueuedOperationAndReleasesItsPlan` covers
+  the controller endpoint: the exact queued operation becomes `Cancelled`, its
+  plan returns to `Ready`, the native task cancellation is requested, and an
+  unknown ID returns 404 without cancelling another operation.
+- Existing queue/wait regressions remain:
+  `CancelBeforeNativeStartLeavesPlanReadyAndNeverFallsBackToAutomation`,
+  `CancelWhileWaitingPersistsEvenAgainstConcurrentProgressSaves`, and
+  `CancelQueuedRequestNeverFallsBackToApplyingSavedSettings`.
+
+V10 scheduler/metadata evidence:
+
+- Layer distinction: the `OptimizeArtworkTask` class and coordinator are real, but
+  the native-task test uses the deterministic `IArtworkStore` double. The
+  `EnsureIdle` tests exercise real `JellyfinArtworkStore` code over fake
+  `ILibraryManager`/`IProviderManager` service interfaces. Neither mocks HTTP.
+- `NativeTaskDoesNotWaitForUnrelatedMetadataRefresh` runs the real native task
+  class while another item's metadata refresh is busy; the target converts and
+  the unrelated item remains untouched.
+- `NativeTaskWaitsForRelatedMetadataAndResumes` observes `WaitingForMetadata`
+  with zero saves for a related refresh, then resumes and completes after the
+  barrier is released.
+- `UnrelatedRefreshProgressDoesNotBlockButRelatedProgressDoes` and
+  `UnrelatedRefreshDoesNotBlockButTargetLibraryAncestorAndScanDo` exercise the
+  real `JellyfinArtworkStore.EnsureIdle`: unrelated refresh queue/progress is
+  accepted; the item, its parent, its library or a running scan is rejected.
+- Existing native-task serialization/cancellation coverage remains in
+  `NativeOptimizeAndSyncSerializeWithoutFailingEachOther` and
+  `CancellingNativeWaiterLeavesActiveReportAndGateIntact`.
+
+V15 budget/persistence/interruption evidence:
+
+- `ConfiguredFreeSpaceReserveDeniesBeforeBackupOrSave` uses a configured reserve
+  above available space, not a full disk: denial happens before backup or save,
+  the original remains, zero saves occur and no journal/backup is created.
+- `OrphanOriginalFilesCountAgainstBudget` keeps orphan originals inside the
+  backup budget instead of deleting them silently.
+- `PrePublicationMarkerFailureReleasesPlanWithoutMutation` injects a failure
+  before the durable mutation marker is published: the plan stays `Ready`,
+  `MutationStarted` stays false and no save occurs. The marker is written from a
+  cloned record before the shared in-memory state is changed.
+- `PostPublicationMarkerFailureKeepsPlanReservedConservatively` simulates a
+  failure after publication: the durable record is re-read; when it already says
+  `MutationStarted=true`, the plan stays `Reserved` and the operation fails
+  conservatively instead of releasing the reservation under uncertainty.
+- `ApplyPersistenceFailureRestoresOriginalAndLeavesNoRecovery` injects a
+  persistence failure after the save: the original is restored, the journal is
+  `RolledBack`, pending recovery is zero and no restorable backup remains.
+- `RestartDuringRestoreRequiresExplicitRecoveryAndRemovesVerifiedOutput` uses a
+  state barrier to simulate a crash between publishing the original and writing
+  the `RolledBack` journal. A new coordinator blocks new mutations; explicit
+  recovery restores the bytes, removes the verified WebP output, deletes the
+  backup and leaves zero pending recovery.
+- Existing prepared-journal, partial-output, orphan-cleanup and rolled-back
+  deletion-intent regressions remain.
+
+Remaining host-level gap: real scheduler dispatch and a real fixture-process
+SIGKILL were not executed. The in-process restart constructs a new coordinator
+over the real journal files; it is not an OS kill. To close that layer, run the
+marked fixture, observe `WaitingForMetadata` or `MutationStarted` in the journal,
+terminate only the verified PID, restart and verify `Interrupted`, no automatic
+replay and explicit recovery. V08 browser disconnect/navigation/focus also
+remains outside this backend round.

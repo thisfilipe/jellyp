@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json.Nodes;
 using Jellyfin.Plugin.JellyP.Api;
 using Jellyfin.Plugin.JellyP.Configuration;
 using Jellyfin.Plugin.JellyP.Migration;
@@ -26,6 +27,7 @@ public sealed class JellyPControllerTests : IDisposable
     private Guid _planItemId;
     private string _planImagePath = string.Empty;
     private bool _throwInventoryPath;
+    private int _cancelCalls;
 
     public JellyPControllerTests()
     {
@@ -72,6 +74,7 @@ public sealed class JellyPControllerTests : IDisposable
                 _queueCalls++;
                 if (_failQueue) throw new InvalidOperationException("Native queue unavailable.");
             }
+            if (method.Name == "CancelIfRunning") _cancelCalls++;
             return null;
         });
         _controller = new JellyPController(_coordinator, manager, store);
@@ -158,6 +161,81 @@ public sealed class JellyPControllerTests : IDisposable
         Assert.IsType<AcceptedResult>(_controller.Cancel());
         Assert.Equal("Cancelled", _coordinator.GetStatus().LastRun.Phase);
         Assert.Equal(1, _queueCalls);
+    }
+
+    [Fact]
+    public void CancelExecutionTargetsOnlyTheExactQueuedOperationAndReleasesItsPlan()
+    {
+        _config.MinimumSavingsBytes = 0;
+        _config.MinimumSavingsRatio = 0;
+        _config.MinimumSsim = 0;
+        _planItemId = Guid.NewGuid();
+        _planImagePath = Path.Combine(_root, "artwork", "cancel.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(_planImagePath)!);
+        File.WriteAllBytes(_planImagePath, Png());
+        var plan = Assert.IsType<PlanSummary>(Assert.IsType<OkObjectResult>(_controller.Analyze(new PlanAnalyzeRequest
+        {
+            Scope = "items",
+            ItemIds = [_planItemId],
+            BatchSize = 10,
+            PreserveOriginals = true,
+        }, default).Result).Value);
+        var keys = _coordinator.GetPlanKeys(plan.PlanId, "selectable").Keys.ToArray();
+        Assert.NotEmpty(keys);
+        var receipt = Assert.IsType<OperationReceipt>(Assert.IsType<AcceptedResult>(
+            _controller.Apply(plan.PlanId, new PlanApplyRequest { Keys = keys }).Result).Value);
+        Assert.Equal("Queued", receipt.State);
+
+        Assert.IsType<AcceptedResult>(_controller.CancelExecution(receipt.OperationId));
+        Assert.Equal("Cancelled", _coordinator.GetOperation(receipt.OperationId, 0, 10).Operation.State);
+        Assert.Equal("Ready", _coordinator.GetPlan(plan.PlanId).Status);
+        Assert.Equal(1, _cancelCalls);
+
+        var unknown = _controller.CancelExecution(Guid.NewGuid());
+        Assert.Equal(404, Assert.IsType<ObjectResult>(unknown).StatusCode);
+        Assert.Equal(1, _cancelCalls);
+    }
+
+    [Fact]
+    public void CancelExecutionReportsTerminalStateWhenFinalizationWinsTheRace()
+    {
+        _config.MinimumSavingsBytes = 0;
+        _config.MinimumSavingsRatio = 0;
+        _config.MinimumSsim = 0;
+        _planItemId = Guid.NewGuid();
+        _planImagePath = Path.Combine(_root, "artwork", "cancel-race.png");
+        Directory.CreateDirectory(Path.GetDirectoryName(_planImagePath)!);
+        File.WriteAllBytes(_planImagePath, Png());
+        var plan = Assert.IsType<PlanSummary>(Assert.IsType<OkObjectResult>(_controller.Analyze(new PlanAnalyzeRequest
+        {
+            Scope = "items",
+            ItemIds = [_planItemId],
+            BatchSize = 10,
+            PreserveOriginals = true,
+        }, default).Result).Value);
+        var keys = _coordinator.GetPlanKeys(plan.PlanId, "selectable").Keys.ToArray();
+        var receipt = Assert.IsType<OperationReceipt>(Assert.IsType<AcceptedResult>(
+            _controller.Apply(plan.PlanId, new PlanApplyRequest { Keys = keys }).Result).Value);
+        var operationPath = Path.Combine(_root, "operations", receipt.OperationId.ToString("N") + ".json");
+        var running = JsonNode.Parse(File.ReadAllText(operationPath))!;
+        running["State"] = "Running";
+        running["Phase"] = "Processing";
+        File.WriteAllText(operationPath, running.ToJsonString());
+        var completed = JsonNode.Parse(File.ReadAllText(operationPath))!;
+        completed["State"] = "Completed";
+        completed["Phase"] = "Completed";
+        completed["CompletedUtc"] = DateTime.UtcNow.ToString("O");
+        SetCancellationHook(() => File.WriteAllText(operationPath, completed.ToJsonString()));
+        try
+        {
+            var result = _controller.CancelExecution(receipt.OperationId);
+            Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
+            Assert.Equal(0, _cancelCalls);
+        }
+        finally
+        {
+            SetCancellationHook(null);
+        }
     }
 
     [Fact]
@@ -252,6 +330,11 @@ public sealed class JellyPControllerTests : IDisposable
         Assert.DoesNotContain("/private", text);
         Assert.Contains("Legacy JellyP run needs attention", text);
     }
+
+    private static void SetCancellationHook(Action? hook) =>
+        ((AsyncLocal<Action?>)typeof(OptimizationCoordinator)
+            .GetField("_cancellationRequestReadHook", BindingFlags.NonPublic | BindingFlags.Static)!
+            .GetValue(null)!).Value = hook;
 
     private static byte[] Png()
     {
