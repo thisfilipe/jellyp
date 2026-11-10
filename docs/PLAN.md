@@ -1,5 +1,10 @@
 # JellyP UX refactor: handoff and authorization boundary
 
+Future product requests collected after release are tracked in the
+[backlog](BACKLOG.pt-BR.md), separately from the refactor's historical acceptance
+checklists. The first requests concern optional image-batch and retained-original
+storage limits; they are recorded, not implemented in 0.4.0.0.
+
 ## Current delivery status (2026-11-09)
 
 **The main implementation is committed through `b5f709d`; the 0.4.0.0 release
