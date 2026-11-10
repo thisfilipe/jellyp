@@ -6,7 +6,16 @@
     "description": "Administrator-selected artwork policies, verified alpha and quality, resumable migration and optional preserved originals.",
     "owner": "thisfilipe",
     "category": "General",
+    "imageUrl": "https://raw.githubusercontent.com/thisfilipe/jellyp/v0.4.0.0/assets/branding/jellyp-catalog.png",
     "versions": [
+      {
+        "version": "0.4.0.0",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/thisfilipe/jellyp/releases/download/v0.4.0.0/JellyP_0.4.0.0.zip",
+        "checksum": "0cc7bdf41ed7fc48f31d6db39fc7b5b7",
+        "timestamp": "2026-11-10T00:24:25Z",
+        "changelog": "- Reorganize the native dashboard into five areas: Simulate, Execute,\n  Automation, History and restoration, and Settings.\n- Analyze the selected scope, choose exact image identities across pages, review\n  the frozen plan and apply only that reviewed selection. Stale or changed\n  selections are revalidated instead of silently replaced.\n- Persist plans and operation receipts on the server; navigation, reloads and\n  reconnects keep the same operation and per-image results.\n- Restore selected originals in batches, or review and permanently retire\n  originals in a separate action. Uncertain recovery records never enter a\n  batch.\n- Keep manual drafts, Global defaults and scheduled automation independent.\n  Saving defaults or automation does not broaden scope or enable conversions.\n- Preserve existing configuration, task identities, triggers and journals on\n  upgrade. Older journals remain usable, and applying remains disabled and in\n  preview by default.\n- Close cancellation races around validation, metadata waits and transaction\n  boundaries. Stop targets the exact operation and leaves unwritten work for a\n  later run.\n- Add the approved JellyP branding, theme-correct wordmarks, native plugin card\n  artwork and a direct JellyP entry in the Jellyfin main menu.\n- Keep the verified WebP conversion, exact alpha checks, SSIM and savings gates,\n  retained originals, durable recovery and storage protections from earlier\n  releases.\n\nLimitations: this release is pre-alpha and is not claimed to be stable or\nuniversally certified. Browser validation covered Chromium only; Firefox,\nSafari, screen readers and physical devices remain unvalidated, and axe is not\nWCAG certification. The declared 5000-image plan, 1000-image batch and\n200-original batch caps were not stress-tested; the largest real fixture used 52\nimages. Simultaneous manual image uploads remain a residual race because\nJellyfin exposes no shared mutation lock. Back up Jellyfin before upgrading.\nConfiguration and journals are preserved, but a safe DLL downgrade is not\npromised."
+      },
       {
         "version": "0.3.0.1",
         "targetAbi": "12.1.0.0",
