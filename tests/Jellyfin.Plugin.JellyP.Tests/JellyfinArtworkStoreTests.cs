@@ -25,6 +25,7 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
     private readonly Dictionary<string, Guid> _personIds = [];
     private bool _scanning;
     private bool _sortListImages;
+    private Action? _onSnapshot;
     private readonly HashSet<Guid> _refreshQueue = [];
     private readonly HashSet<Guid> _activeRefreshes = [];
 
@@ -248,6 +249,166 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
     }
 
     [Fact]
+    public void DetailedInventoryAndPageHonorMaximumWithOneOverLimitMarker()
+    {
+        for (var index = 0; index < 12; index++)
+            _items.Add(PersonWithImage(Path.Combine(_root, "metadata", "bounded", index.ToString(), "folder.jpg")));
+        var store = CreateStore();
+        var bounded = store.DetailedInventory(default, maximumEntries: 10);
+        Assert.Equal(11, bounded.Count);
+        var cursor = bounded[4].Reference.Key;
+        var page = store.DetailedInventoryPage(default, afterKey: cursor, maximumEntries: 3);
+        Assert.Equal(4, page.Count);
+        Assert.All(page, entry => Assert.True(string.CompareOrdinal(entry.Reference.Key, cursor) > 0));
+    }
+
+    [Fact]
+    public void PagedInventoryUnionIsCompleteOrderedAndHasNoSkipsWhenHydrationOrderDiffers()
+    {
+        var ids = new[]
+        {
+            new Guid("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+            new Guid("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+            new Guid("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+            new Guid("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+        };
+        foreach (var id in ids)
+        {
+            var root = Path.Combine(_root, "metadata", "ordered", id.ToString("N"));
+            Directory.CreateDirectory(root);
+            var paths = new[] { "primary.jpg", "backdrop-0.jpg", "backdrop-1.jpg" };
+            foreach (var name in paths) File.WriteAllBytes(Path.Combine(root, name), [1, 2, 3]);
+            _items.Add(new Person
+            {
+                Id = id,
+                Path = root,
+                ImageInfos =
+                [
+                    new ItemImageInfo { Type = ImageType.Primary, Path = Path.Combine(root, paths[0]) },
+                    new ItemImageInfo { Type = ImageType.Backdrop, Path = Path.Combine(root, paths[1]) },
+                    new ItemImageInfo { Type = ImageType.Backdrop, Path = Path.Combine(root, paths[2]) },
+                ],
+            });
+        }
+
+        _snapshotIds = ids; // deliberately not key order
+        var store = CreateStore();
+        var full = store.DetailedInventory(default).OrderBy(entry => entry.Reference.Key, StringComparer.Ordinal)
+            .Select(entry => entry.Reference.Key).ToArray();
+        var seen = new List<string>();
+        string? cursor = null;
+        for (var part = 0; part < 20; part++)
+        {
+            var page = store.DetailedInventoryPage(default, afterKey: cursor, maximumEntries: 2);
+            if (page.Count == 0) break;
+            seen.AddRange(page.Select(entry => entry.Reference.Key));
+            cursor = page[^1].Reference.Key;
+            if (page.Count <= 2) break;
+        }
+
+        Assert.Equal(full, seen);
+        Assert.Equal(seen.Count, seen.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public void PageCutsAfterOrderingTypesSoLaterLowerKeyDoesNotDisappear()
+    {
+        var id = Guid.NewGuid();
+        var root = Path.Combine(_root, "metadata", "type-order", id.ToString("N"));
+        Directory.CreateDirectory(root);
+        var paths = new[] { "backdrop.jpg", "logo.png", "primary.jpg" };
+        foreach (var name in paths) File.WriteAllBytes(Path.Combine(root, name), [1, 2, 3]);
+        _items.Add(new Person
+        {
+            Id = id,
+            Path = root,
+            ImageInfos =
+            [
+                new ItemImageInfo { Type = ImageType.Backdrop, Path = Path.Combine(root, paths[0]) },
+                new ItemImageInfo { Type = ImageType.Logo, Path = Path.Combine(root, paths[1]) },
+                new ItemImageInfo { Type = ImageType.Primary, Path = Path.Combine(root, paths[2]) },
+            ],
+        });
+        _snapshotIds = [id];
+        var store = CreateStore();
+        var first = store.DetailedInventoryPage(default, maximumEntries: 1);
+        Assert.Equal(2, first.Count);
+        Assert.Equal("Primary", first[0].Reference.Type.ToString());
+        var second = store.DetailedInventoryPage(default, afterKey: first[^1].Reference.Key, maximumEntries: 1);
+        Assert.Single(second);
+        Assert.Equal("Logo", second[0].Reference.Type.ToString());
+        var all = first.Concat(second).Select(entry => entry.Reference.Key).ToArray();
+        Assert.Equal(all.OrderBy(key => key, StringComparer.Ordinal), all);
+    }
+
+    [Fact]
+    public void AnalysisCacheHitDoesNotRenewItsFixedTimestamp()
+    {
+        var item = PersonWithImage(Path.Combine(_root, "metadata", "cache", "folder.jpg"));
+        var store = CreateStore();
+        Assert.Single(store.DetailedInventoryPage(default, maximumEntries: 10));
+        var snapshots = _snapshotCalls;
+        var captured = CachedSnapshotCapturedUtc(store);
+        Assert.NotNull(captured);
+        Assert.Single(store.DetailedInventoryPage(default, maximumEntries: 10));
+        Assert.Equal(snapshots, _snapshotCalls);
+        Assert.Equal(captured, CachedSnapshotCapturedUtc(store));
+        Assert.Equal(item.Id, Assert.Single(store.DetailedInventoryPage(default, maximumEntries: 10)).Reference.ItemId);
+    }
+
+    [Fact]
+    public void AnalysisPageDoesNotPublishAPassThatObservedAScanStart()
+    {
+        PersonWithImage(Path.Combine(_root, "metadata", "scan", "folder.jpg"));
+        var store = CreateStore();
+        _onSnapshot = () => _scanning = true;
+        // The current read-only pass may complete during a scan, but it must not
+        // become an advisory cache entry that survives the scan.
+        Assert.Single(store.DetailedInventoryPage(default, maximumEntries: 10));
+        _scanning = false;
+        _onSnapshot = null;
+        var snapshots = _snapshotCalls;
+        Assert.Single(store.DetailedInventoryPage(default, maximumEntries: 10));
+        Assert.True(_snapshotCalls > snapshots);
+    }
+
+    [Fact]
+    public void AnalysisPageRebuildsWhenTheAdvisoryCountsAreMissingAKey()
+    {
+        var item = PersonWithImage(Path.Combine(_root, "metadata", "missing-key", "folder.jpg"));
+        var store = CreateStore();
+        Assert.Single(store.DetailedInventoryPage(default, maximumEntries: 10));
+        var snapshots = _snapshotCalls;
+        RemoveCachedPath(store, item.ImageInfos[0].Path);
+        Assert.Single(store.DetailedInventoryPage(default, maximumEntries: 10));
+        Assert.True(_snapshotCalls > snapshots);
+    }
+
+    [Fact]
+    public void AnalysisPageHydratesOnlyTheRequestedRemainderAfterTheFirstReferencePass()
+    {
+        var ids = Enumerable.Range(0, 100_000).Select(index => new Guid(index, 0, 0, new byte[8])).ToArray();
+        _items.AddRange(ids.Select(id => new Person
+        {
+            Id = id,
+            ImageInfos = [new ItemImageInfo
+            {
+                Type = ImageType.Primary,
+                Path = Path.Combine(_root, "metadata", "large", id.ToString("N"), "missing.png"),
+            }],
+        }));
+        _snapshotIds = ids;
+        var store = CreateStore();
+        var first = store.DetailedInventoryPage(default, maximumEntries: 1000);
+        Assert.Equal(1001, first.Count);
+        _requestedBatches.Clear();
+        var second = store.DetailedInventoryPage(default, afterKey: first[^1].Reference.Key, maximumEntries: 1000);
+        Assert.Equal(1001, second.Count);
+        var hydrated = _requestedBatches.Sum(batch => batch.Length);
+        Assert.InRange(hydrated, 1, 1500);
+    }
+
+    [Fact]
     public void DetailedInventoryExplainsSharedReferenceAndKeepsLegacyAggregatesEquivalent()
     {
         var selected = PersonWithImage(Path.Combine(_root, "metadata", "selected", "folder.webp"));
@@ -417,6 +578,21 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
         return item;
     }
 
+    private static DateTime? CachedSnapshotCapturedUtc(JellyfinArtworkStore store)
+    {
+        var snapshot = typeof(JellyfinArtworkStore)
+            .GetField("_analysisSnapshot", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(store);
+        return snapshot?.GetType().GetProperty("CapturedUtc")!.GetValue(snapshot) as DateTime?;
+    }
+
+    private static void RemoveCachedPath(JellyfinArtworkStore store, string path)
+    {
+        var snapshot = typeof(JellyfinArtworkStore)
+            .GetField("_analysisSnapshot", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(store)!;
+        var counts = (Dictionary<string, int>)snapshot.GetType().GetProperty("Counts")!.GetValue(snapshot)!;
+        counts.Remove(Path.GetFullPath(path));
+    }
+
     private JellyfinArtworkStore CreateStore()
     {
         var paths = Proxy<IServerApplicationPaths>((method, _) => method.Name == "get_InternalMetadataPath" ? Path.Combine(_root, "metadata") : throw new NotSupportedException(method.Name));
@@ -445,6 +621,7 @@ public sealed class JellyfinArtworkStoreTests : IDisposable
     private IReadOnlyList<Guid> Snapshot(InternalItemsQuery query)
     {
         _snapshotCalls++;
+        _onSnapshot?.Invoke();
         Assert.True(query.IncludeOwnedItems);
         Assert.False(query.GroupByPresentationUniqueKey);
         Assert.Null(query.StartIndex);

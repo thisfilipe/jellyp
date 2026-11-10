@@ -19,19 +19,37 @@ follows from local validation.
   while preserving legacy automation fields and task triggers.
 - Read-only analysis produces a bounded, expiring server-owned plan with explicit
   Convert/Regenerate/Keep actions and stable image keys. Review and billing use
-  the exact selected subset across server pages, not scan cursors.
+  the exact selected subset across server pages, not scan cursors. Large scopes
+  are split into deterministic key-ordered parts (`ArtworkReference.Key`), each
+  bounded by the manual candidate limit and the 5,000-slot part cap. A parent
+  part resolves at most one child part; repeated continuation is idempotent and
+  a consumed parent remains continuable. Expiry, saved defaults, scope or policy
+  changes reject continuation. The synchronous Analyze POST is retained; a
+  transient bounded progress endpoint reports real inventory/evaluation counts
+  and supports cancellation without exposing paths.
 - Apply, restore and retire persist their exact intent before dispatch to the
   existing native task. Operations have individual results, safe cancellation,
   idempotent application, queued retry and conservative restart reconciliation;
   restart never automatically replays an interrupted mutation.
 - The existing transaction engine still performs conversion, verified restoration,
   journaling and storage checks. Additional guards protect shared paths and items
-  with unavailable sibling images before mutation; reference counts are batched.
+  with unavailable sibling images before mutation; reference counts are batched
+  once per operation instead of once per image. A per-operation backup-byte
+  counter avoids rescanning the originals directory per image; an uncertain
+  transaction conservatively rescans it. The real store keeps a short-lived,
+  scan-aware snapshot of item IDs and path counts for read-only planning; apply
+  always revalidates fresh and never trusts the UI or a stale index.
 - Detailed inventory rehydrates repeated image types through `GetItemById`, matching
   native slot order rather than the differently ordered `GetItemList` result.
 - Retention review pages every affected identity and binds consent to its complete
   fingerprint. The persisted operation cannot silently expand that ID set and
   excludes originals needed by selected regenerations.
+- Stored-original listing has two explicit levels. `all` is page-bounded
+  preliminary metadata (`CanReview`, no shared/hash claim); `restorable` and
+  `retirable` are authoritative verified filters and may be expensive on
+  explicit request. `POST /Backups/Review` verifies bounded exact IDs read-only
+  and reports invalid rows without silently dropping them. Queue and mutation
+  revalidate again.
 - Plans/operations are separate from legacy `last-run.json`, scan cursors and
   image journals. Old journals remain readable; optional new fields add dimensions,
   policy/evidence, execution identity and deletion intent.

@@ -74,7 +74,7 @@ public sealed class OptimizationCoordinatorTests : IDisposable
         await _coordinator.PurgeAsync(DateTime.UtcNow.AddSeconds(1), default);
         var after = _coordinator.GetStatus();
         Assert.Equal(0, after.RetainedBackupBytes);
-        Assert.Equal(before.VerifiedSavingsBytes, after.NetReclaimedBytes);
+        Assert.Equal(before.PreliminarySavingsBytes, after.NetReclaimedBytes);
         await Assert.ThrowsAsync<InvalidOperationException>(() => _coordinator.RollbackAsync(after.RecentRecords[0].Id, default));
     }
 
@@ -765,7 +765,8 @@ public sealed class OptimizationCoordinatorTests : IDisposable
         Assert.NotEqual(first.Id, active.Id);
         Assert.Equal(DurableFiles.Hash(original), active.SourceHash);
         Assert.Equal(expected.OutputBytes!, File.ReadAllBytes(_store.GetCurrent(image)!.Path));
-        Assert.Equal(original.Length - expected.OutputBytes!.Length, status.VerifiedSavingsBytes);
+        Assert.Equal(original.Length - expected.OutputBytes!.Length, status.PreliminarySavingsBytes);
+        Assert.Equal(0, status.VerifiedSavingsBytes);
         Assert.Equal(original.Length, status.RetainedBackupBytes);
     }
 

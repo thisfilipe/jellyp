@@ -95,36 +95,51 @@ public sealed partial class OptimizationCoordinator
     public BackupPage GetBackups(string? filter, int offset, int limit, CancellationToken cancellationToken)
     {
         ValidatePage(offset, limit, 200);
+        cancellationToken.ThrowIfCancellationRequested();
         var normalized = NormalizeFilter(filter);
         var snapshot = LoadJournalSnapshot();
-        var records = ActiveBackupRecords(snapshot);
-        var shared = BackupSlotStates(records, cancellationToken);
-        var rows = records.Select(record => ToBackupView(record, shared)).ToArray();
-        var filtered = rows.Where(row => normalized == "all" || normalized == "restorable" && row.Restorable || normalized == "retirable" && row.Retirable)
-            .OrderByDescending(row => row.CompletedUtc ?? row.CreatedUtc).ThenBy(row => row.RecordId).ToArray();
+        if (normalized == "all")
+        {
+            // Default listing is preliminary journal metadata only: no global
+            // reference scan, no per-record GetCurrent, no checksum reads.
+            var records = PreliminaryBackupRecords(snapshot);
+            var page = records.Skip(offset).Take(limit).ToArray();
+            return new BackupPage
+            {
+                Filter = normalized,
+                Offset = offset,
+                Limit = limit,
+                Total = records.Count,
+                Items = page.Select(ToPreliminaryBackupView).ToArray(),
+            };
+        }
+
+        // Explicit verified filters are authoritative and may be expensive. They
+        // are never used implicitly by the default history load.
+        var verified = VerifiedBackupRecords(snapshot, normalized);
+        var verifiedPage = verified.Skip(offset).Take(limit).ToArray();
         return new BackupPage
         {
             Filter = normalized,
             Offset = offset,
             Limit = limit,
-            Total = filtered.Length,
-            Items = filtered.Skip(offset).Take(limit).ToArray(),
+            Total = verified.Count,
+            Items = verifiedPage.Select(row => row.View).ToArray(),
         };
     }
 
     /// <summary>Returns every active backup key for the explicit filter, or fails if the hard cap is exceeded.</summary>
     public BackupKeysResponse GetBackupKeys(string? filter, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var normalized = NormalizeFilter(filter);
         var snapshot = LoadJournalSnapshot();
-        var records = ActiveBackupRecords(snapshot);
-        var shared = BackupSlotStates(records, cancellationToken);
-        var rows = records.Select(record => ToBackupView(record, shared))
-            .Where(row => normalized == "all" || normalized == "restorable" && row.Restorable || normalized == "retirable" && row.Retirable)
-            .OrderByDescending(row => row.CompletedUtc ?? row.CreatedUtc).ThenBy(row => row.RecordId).ToArray();
-        if (rows.Length > 10_000)
+        var ids = normalized == "all"
+            ? PreliminaryBackupRecords(snapshot).Select(record => record.Id).ToArray()
+            : VerifiedBackupRecords(snapshot, normalized).Select(row => row.View.RecordId).ToArray();
+        if (ids.Length > 10_000)
             throw new JellyPRequestException(409, "SelectionTooLarge", "More than 10000 backup keys match. Narrow the filter before selecting all.");
-        return new BackupKeysResponse { Filter = normalized, Total = rows.Length, Keys = rows.Select(row => row.RecordId).ToArray() };
+        return new BackupKeysResponse { Filter = normalized, Total = ids.Length, Keys = ids };
     }
 
     /// <summary>Queues an exact batch restoration after server-side preliminary eligibility checks.</summary>
@@ -440,15 +455,28 @@ public sealed partial class OptimizationCoordinator
         }
 
         var protectedIds = prepared.Where(pair => pair.Record is not null).Select(pair => pair.Record!.Id).ToHashSet();
-        var applyReferenceCounts = _artwork.CountPathReferences(prepared
-            .Where(pair => pair.Record?.OutputPath is not null)
-            .Select(pair => pair.Record!.OutputPath!).ToArray());
         // Authorization, exact expiry IDs and global-safety fingerprints are checked
         // again before any mutation. A mismatch stops without consuming the plan.
         var authorizedRetention = ValidateRetentionForApply(operation, config, protectedIds);
         cancellationToken.ThrowIfCancellationRequested();
         if (operation.CancelRequested) throw new OperationCanceledException();
-        await PurgeRetentionForApplyAsync(operation, authorizedRetention, cancellationToken).ConfigureAwait(false);
+        // One operation-scoped global reference pass covers selected outputs, their
+        // source slots, and separately authorized retention outputs. Never per image.
+        var referencePaths = prepared.SelectMany(pair => new[]
+            {
+                pair.Record?.OutputPath,
+                pair.Record?.Source.Path,
+                pair.Current.Path,
+            })
+            .Concat(authorizedRetention.Select(record => record.OutputPath))
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => path!)
+            .Distinct(PathComparer)
+            .ToArray();
+        var applyReferenceCounts = _artwork.CountPathReferences(referencePaths)
+            .ToDictionary(pair => pair.Key, pair => pair.Value, PathComparer);
+        var backupBudget = new BackupBudget(ActualBackupBytes());
+        await PurgeRetentionForApplyAsync(operation, authorizedRetention, applyReferenceCounts, backupBudget, cancellationToken).ConfigureAwait(false);
         operation.Phase = "Processing";
         SaveOperation(operation);
         var total = Math.Max(1, prepared.Count);
@@ -467,19 +495,21 @@ public sealed partial class OptimizationCoordinator
                 if (pair.Record is not null)
                 {
                     await RestoreCoreAsync(pair.Record, config, slotSafe: true,
-                        referenceCounts: applyReferenceCounts).ConfigureAwait(false);
+                        referenceCounts: applyReferenceCounts, backupBudget: backupBudget).ConfigureAwait(false);
                     var target = _artwork.GetCurrent(pair.Current) ?? throw new IOException("Restored image slot is missing.");
                     if (DurableFiles.Hash(DurableFiles.ReadImage(target.Path)) != pair.Record.SourceHash)
                         throw new IOException("Restored original checksum failed.");
                     committed = await ConvertAsync(target, pair.Source, pair.Optimized.OutputBytes!, config,
-                        config.Fingerprint(pair.Policy), operation.Id, pair.Optimized, PolicySnapshot(config, pair.Policy)).ConfigureAwait(false);
+                        config.Fingerprint(pair.Policy), operation.Id, pair.Optimized, PolicySnapshot(config, pair.Policy),
+                        applyReferenceCounts, backupBudget).ConfigureAwait(false);
                 }
                 else
                 {
                     if (!fresh.TryGetValue(pair.Item.Key, out _))
                         throw new IOException("The image slot disappeared before the write.");
                     committed = await ConvertAsync(pair.Current, pair.Source, pair.Optimized.OutputBytes!, config,
-                        config.Fingerprint(pair.Policy), operation.Id, pair.Optimized, PolicySnapshot(config, pair.Policy)).ConfigureAwait(false);
+                        config.Fingerprint(pair.Policy), operation.Id, pair.Optimized, PolicySnapshot(config, pair.Policy),
+                        applyReferenceCounts, backupBudget).ConfigureAwait(false);
                 }
 
                 pair.Item.Status = "Changed";
@@ -511,9 +541,16 @@ public sealed partial class OptimizationCoordinator
                 break;
             }
 
-            SaveOperation(operation);
+            // Journal records are the durable per-image evidence. Persisting the
+            // whole operation after every image was O(B²); checkpointing every 25
+            // images is still O(B²/25), not constant. Cancellation stays on the
+            // token, with checkpoints on failure/end.
+            var processed = index + 1;
+            if (processed % 25 == 0 || processed == prepared.Count || operation.CancelRequested)
+                SaveOperation(operation);
             progress.Report(100d * ++index / total);
         }
+        SaveOperation(operation);
 
         if (operation.CancelRequested)
             MarkRemainingNotStarted(operation, "CancelledBeforeStart");
@@ -530,7 +567,9 @@ public sealed partial class OptimizationCoordinator
             .Select(item => TryReadRecord(item.RecordId!.Value))
             .Where(record => record is not null).Select(record => record!).ToArray();
         var referenceCounts = _artwork.CountPathReferences(batchRecords
-            .Where(record => record.OutputPath is not null).Select(record => record.OutputPath!).ToArray());
+            .Where(record => record.OutputPath is not null).Select(record => record.OutputPath!).ToArray())
+            .ToDictionary(pair => pair.Key, pair => pair.Value, PathComparer);
+        var backupBudget = new BackupBudget(ActualBackupBytes());
         var index = 0;
         foreach (var item in operation.Items.Where(item => item.Status == "Pending"))
         {
@@ -574,7 +613,7 @@ public sealed partial class OptimizationCoordinator
             try
             {
                 await RestoreCoreAsync(record, config, slotSafe: true,
-                    referenceCounts: referenceCounts).ConfigureAwait(false);
+                    referenceCounts: referenceCounts, backupBudget: backupBudget).ConfigureAwait(false);
                 item.Status = "Restored";
                 item.Reason = null;
                 item.OriginalMimeType = record.OriginalMimeType;
@@ -622,7 +661,9 @@ public sealed partial class OptimizationCoordinator
             .Select(item => TryReadRecord(item.RecordId!.Value))
             .Where(record => record is not null).Select(record => record!).ToArray();
         var referenceCounts = _artwork.CountPathReferences(batchRecords
-            .Where(record => record.OutputPath is not null).Select(record => record.OutputPath!).ToArray());
+            .Where(record => record.OutputPath is not null).Select(record => record.OutputPath!).ToArray())
+            .ToDictionary(pair => pair.Key, pair => pair.Value, PathComparer);
+        var backupBudget = new BackupBudget(ActualBackupBytes());
         var index = 0;
         foreach (var item in operation.Items.Where(item => item.Status == "Pending"))
         {
@@ -665,7 +706,7 @@ public sealed partial class OptimizationCoordinator
             MarkMutationStartedAndConsumePlan(operation);
             try
             {
-                await RetireRecordAsync(record, referenceCounts, slotSafe: true).ConfigureAwait(false);
+                await RetireRecordAsync(record, referenceCounts, slotSafe: true, backupBudget: backupBudget).ConfigureAwait(false);
                 item.Status = "Retired";
                 item.Reason = null;
                 operation.ActualBilling.BackupBytesBefore += record.OriginalBytes;
@@ -721,11 +762,10 @@ public sealed partial class OptimizationCoordinator
     }
 
     private async Task PurgeRetentionForApplyAsync(OperationRecord operation,
-        IReadOnlyCollection<MigrationRecord> authorized, CancellationToken cancellationToken)
+        IReadOnlyCollection<MigrationRecord> authorized, Dictionary<string, int> referenceCounts,
+        BackupBudget backupBudget, CancellationToken cancellationToken)
     {
         if (authorized.Count == 0) return;
-        var referenceCounts = _artwork.CountPathReferences(authorized
-            .Where(record => record.OutputPath is not null).Select(record => record.OutputPath!).ToArray());
         operation.Phase = "RetiringExpiredOriginals";
         SaveOperation(operation);
         foreach (var record in authorized)
@@ -737,7 +777,7 @@ public sealed partial class OptimizationCoordinator
             MarkMutationStartedAndConsumePlan(operation);
             try
             {
-                await RetireRecordAsync(record, referenceCounts, slotSafe: true).ConfigureAwait(false);
+                await RetireRecordAsync(record, referenceCounts, slotSafe: true, backupBudget: backupBudget).ConfigureAwait(false);
                 operation.RetentionPurgedCount++;
                 operation.RetentionPurgedBytes += record.OriginalBytes;
             }
@@ -830,7 +870,12 @@ public sealed partial class OptimizationCoordinator
             throw new JellyPRequestException(400, "InvalidBackupSelection", "Backup IDs must be non-empty and unique; nothing was written.");
 
         var snapshot = LoadJournalSnapshot();
-        var records = ActiveBackupRecords(snapshot);
+        var selectedIds = ids.ToHashSet();
+        // Verify only the exact requested records. Listing pages stay cheap; this
+        // mutation boundary still reads and hashes every selected original.
+        var records = snapshot.All.Where(record => selectedIds.Contains(record.Id)
+                && record.State == "Committed" && !record.BackupDeleted && File.Exists(Backup(record)))
+            .Where(record => IsActiveRecord(record, verifyHash: true, snapshot)).ToArray();
         var shared = BackupSlotStates(records, cancellationToken);
         var byId = records.ToDictionary(record => record.Id);
         var operation = new OperationRecord
@@ -847,7 +892,7 @@ public sealed partial class OptimizationCoordinator
         {
             if (!byId.TryGetValue(id, out var record))
                 throw new JellyPRequestException(409, "BackupNotEligible", "Every exact backup must still be an active committed transaction; nothing was queued.");
-            var view = ToBackupView(record, shared);
+            var view = ToBackupView(record, shared, verified: true);
             if (kind == "Restore" ? !view.Restorable : !view.Retirable)
                 throw new JellyPRequestException(409, "BackupNotEligible", $"A selected backup is not currently {(kind == "Restore" ? "restorable" : "retirable")}; nothing was queued.");
             operation.Items.Add(new OperationItem
@@ -896,17 +941,211 @@ public sealed partial class OptimizationCoordinator
         }
     }
 
-    private List<MigrationRecord> ActiveBackupRecords(JournalSnapshot? snapshot = null)
+    private List<MigrationRecord> PreliminaryBackupRecords(JournalSnapshot snapshot)
     {
-        snapshot ??= LoadJournalSnapshot();
-        var active = new List<MigrationRecord>();
-        foreach (var record in snapshot.All.Where(record => record.State == "Committed" && !record.BackupDeleted)
-            .OrderByDescending(record => record.CompletedUtc ?? record.CreatedUtc).ThenBy(record => record.Id))
+        // Latest committed for the exact source key and not uncertain must be
+        // established before backup-file existence; an older superseded backup
+        // must never replace the latest state.
+        return snapshot.All
+            .Where(record => record.State == "Committed" && !record.BackupDeleted)
+            .Where(record => snapshot.LatestCommitted.TryGetValue(record.Source.Key, out var latest)
+                && latest.Id == record.Id)
+            .Where(record => !snapshot.Uncertain.ContainsKey(record.Source.Key))
+            .Where(record => File.Exists(Backup(record)))
+            .OrderByDescending(record => record.CompletedUtc ?? record.CreatedUtc).ThenBy(record => record.Id)
+            .ToList();
+    }
+
+    private BackupView ToPreliminaryBackupView(MigrationRecord record)
+    {
+        // Deliberately no GetCurrent, no global reference count and no hash here.
+        // This row only says that an exact stored original can be selected for
+        // explicit verification; it makes no restore/removal eligibility claim.
+        var view = ToBackupViewBase(record);
+        // Page-scoped metadata only: a cheap current-slot check improves the
+        // explanation, but never claims shared/corrupt/verified eligibility.
+        var current = _artwork.GetCurrent(record.Source);
+        var currentMatches = current is not null && record.OutputPath is not null
+            && string.Equals(current.Path, record.OutputPath, PathComparison)
+            && File.Exists(current.Path);
+        var slotSafe = currentMatches && _artwork.IsSlotSafeForMutation(current!);
+        view.Verified = false;
+        view.CanReview = true;
+        view.Restorable = false;
+        view.Retirable = false;
+        view.Reason = !currentMatches ? "ActiveArtworkChanged"
+            : !slotSafe ? "OtherSlotUnavailable"
+            : "ReviewRequired";
+        return view;
+    }
+
+    private BackupView ToBackupViewBase(MigrationRecord record) => new()
+    {
+        RecordId = record.Id,
+        ItemId = record.Source.ItemId,
+        Key = record.Source.Key,
+        Category = record.Source.IsPerson ? "People" : record.Source.Type.ToString(),
+        Type = record.Source.Type,
+        TypeName = record.Source.Type.ToString(),
+        Index = record.Source.Index,
+        State = record.State,
+        OriginalMimeType = record.OriginalMimeType,
+        OriginalBytes = record.OriginalBytes,
+        OutputBytes = record.OutputBytes,
+        OriginalWidth = record.OriginalWidth,
+        OriginalHeight = record.OriginalHeight,
+        OutputWidth = record.OutputWidth,
+        OutputHeight = record.OutputHeight,
+        PolicyFingerprint = string.IsNullOrEmpty(record.PolicyFingerprint) ? null : record.PolicyFingerprint,
+        SourceHash = record.SourceHash,
+        OutputHash = record.OutputHash,
+        CreatedUtc = record.CreatedUtc,
+        CompletedUtc = record.CompletedUtc,
+        Error = string.IsNullOrWhiteSpace(record.Error) ? null : "Recovery required; review server logs.",
+        CleanupWarning = record.CleanupWarning,
+    };
+
+    private List<VerifiedBackup> VerifiedBackupRecords(JournalSnapshot snapshot, string filter)
+    {
+        var candidates = PreliminaryBackupRecords(snapshot);
+        var slots = CheapBackupSlotStates(candidates);
+        var rows = new List<VerifiedBackup>();
+        foreach (var record in candidates)
         {
-            if (IsActiveRecord(record, verifyHash: true, snapshot)) active.Add(record);
+            if (!TryVerifyBackup(record, slots.GetValueOrDefault(record.Source.Key), snapshot,
+                    filter == "retirable", out var view, out _)) continue;
+            rows.Add(new VerifiedBackup(record, view));
         }
 
-        return active.GroupBy(record => record.Source.Key, StringComparer.Ordinal).Select(group => group.First()).ToList();
+        return rows;
+    }
+
+    private bool TryVerifyBackup(MigrationRecord record, BackupSlotState? slot, JournalSnapshot snapshot,
+        bool requireRetirable, out BackupView view, out string? reason)
+    {
+        view = ToBackupViewBase(record);
+        reason = null;
+        if (snapshot.Uncertain.ContainsKey(record.Source.Key))
+        {
+            reason = "RecoveryRequired";
+        }
+        else if (record.State != "Committed" || record.BackupDeleted)
+        {
+            reason = "NotActiveCommittedTransaction";
+        }
+        else if (!snapshot.LatestCommitted.TryGetValue(record.Source.Key, out var latest) || latest.Id != record.Id)
+        {
+            reason = "SupersededRecord";
+        }
+        else if (!File.Exists(Backup(record)))
+        {
+            reason = "BackupNotFound";
+        }
+        else if (slot is not { IsMutationSafe: true })
+        {
+            reason = slot?.IsShared == true ? "SharedReference" : slot?.Reason ?? "ActiveArtworkChanged";
+        }
+        else if (!IsActiveRecord(record, verifyHash: true, snapshot))
+        {
+            reason = "BackupChanged";
+        }
+        else if (requireRetirable && File.Exists(record.Source.Path))
+        {
+            reason = "OriginalStillPresent";
+        }
+
+        view.CanReview = true;
+        view.Verified = reason is null;
+        view.Eligible = reason is null;
+        view.Restorable = reason is null;
+        view.Retirable = reason is null && !File.Exists(record.Source.Path);
+        view.Reason = reason;
+        return reason is null;
+    }
+
+    private sealed record VerifiedBackup(MigrationRecord Record, BackupView View);
+
+    /// <summary>Verifies exact stored-original IDs and returns per-row evidence without mutating.</summary>
+    public BackupReviewResponse ReviewBackups(BackupReviewRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var ids = (request.RecordIds ?? []).ToArray();
+        if (ids.Length is < 1 or > MaximumOperationBatch || ids.Distinct().Count() != ids.Length
+            || ids.Any(id => id == Guid.Empty))
+            throw new JellyPRequestException(400, "InvalidBackupSelection",
+                $"Review between 1 and {MaximumOperationBatch} exact unique backup records.");
+        var kind = (request.Kind ?? string.Empty).Trim();
+        if (!kind.Equals("Restore", StringComparison.OrdinalIgnoreCase)
+            && !kind.Equals("Retire", StringComparison.OrdinalIgnoreCase))
+            throw new JellyPRequestException(400, "InvalidBackupKind", "Backup review kind must be Restore or Retire.");
+        kind = kind.Equals("Retire", StringComparison.OrdinalIgnoreCase) ? "Retire" : "Restore";
+
+        var snapshot = LoadJournalSnapshot();
+        var records = ids.Select(id => snapshot.All.FirstOrDefault(record => record.Id == id)).ToArray();
+        var candidates = records.Where(record => record is not null).Select(record => record!).ToArray();
+        var slots = CheapBackupSlotStates(candidates);
+        var items = new List<BackupView>();
+        foreach (var id in ids)
+        {
+            var record = records.FirstOrDefault(candidate => candidate?.Id == id);
+            if (record is null)
+            {
+                items.Add(new BackupView
+                {
+                    RecordId = id,
+                    State = "Missing",
+                    Verified = false,
+                    CanReview = false,
+                    Eligible = false,
+                    Reason = "BackupNotFound",
+                });
+                continue;
+            }
+
+            var verified = TryVerifyBackup(record, slots.GetValueOrDefault(record.Source.Key), snapshot,
+                kind == "Retire", out var view, out var reason);
+            view.Eligible = verified;
+            view.Reason = reason;
+            items.Add(view);
+        }
+
+        return new BackupReviewResponse
+        {
+            Kind = kind,
+            Total = items.Count,
+            Eligible = items.Count(item => item.Eligible),
+            Invalid = items.Count(item => !item.Eligible),
+            Items = items,
+        };
+    }
+
+    private Dictionary<string, BackupSlotState> CheapBackupSlotStates(IReadOnlyCollection<MigrationRecord> records)
+    {
+        if (records.Count == 0) return new Dictionary<string, BackupSlotState>(StringComparer.Ordinal);
+        // One global reference pass for the page/selection. Checksums are deliberately
+        // deferred to QueueRestore/QueueRetire and the mutation itself.
+        var referenceCounts = _artwork.CountPathReferences(records
+            .Where(record => record.OutputPath is not null)
+            .Select(record => record.OutputPath!).ToArray());
+        var result = new Dictionary<string, BackupSlotState>(StringComparer.Ordinal);
+        foreach (var record in records)
+        {
+            var current = _artwork.GetCurrent(record.Source);
+            var count = record.OutputPath is null ? 0 : referenceCounts.GetValueOrDefault(Path.GetFullPath(record.OutputPath));
+            var shared = count > 1;
+            var currentMatches = current is not null && record.OutputPath is not null
+                && string.Equals(current.Path, record.OutputPath, PathComparison)
+                && File.Exists(current.Path);
+            var slotSafe = currentMatches && _artwork.IsSlotSafeForMutation(current!);
+            var safe = slotSafe && count == 1;
+            result[record.Source.Key] = new BackupSlotState(shared, safe,
+                shared ? "SharedReference"
+                : count == 0 ? "ReferenceCountUnavailable"
+                : !currentMatches ? "ActiveArtworkChanged"
+                : !slotSafe ? "OtherSlotUnavailable" : null);
+        }
+
+        return result;
     }
 
     private bool IsMutationSafe(ArtworkInventoryEntry entry) =>
@@ -927,7 +1166,8 @@ public sealed partial class OptimizationCoordinator
             }, StringComparer.Ordinal);
     }
 
-    private static BackupView ToBackupView(MigrationRecord record, IReadOnlyDictionary<string, BackupSlotState> shared)
+    private static BackupView ToBackupView(MigrationRecord record, IReadOnlyDictionary<string, BackupSlotState> shared,
+        bool verified = false)
     {
         var slot = shared.GetValueOrDefault(record.Source.Key);
         var active = record.State == "Committed" && !record.BackupDeleted;
@@ -935,6 +1175,7 @@ public sealed partial class OptimizationCoordinator
         var retirable = restorable && !File.Exists(record.Source.Path);
         return new BackupView
         {
+            Verified = verified,
             RecordId = record.Id,
             ItemId = record.Source.ItemId,
             Key = record.Source.Key,

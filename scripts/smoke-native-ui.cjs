@@ -38,20 +38,20 @@ async function until(callback,label = 'state',timeout = 30000) {
 }
 async function nativeReady(page) {
  await page.waitForFunction(() => {
-  const root = document.querySelector('#JellyPConfigPage:not(.hide)');
-   return root && root.querySelector('#JpMain')?.getAttribute('aria-busy') !== 'true' && [...root.querySelectorAll('[is="emby-button"],[is="emby-linkbutton"]')].every(node => node.classList.contains('emby-button'));
+  const root = [...document.querySelectorAll('#JellyPConfigPage:not(.hide)')].at(-1);
+   return root && root.querySelector('#JpMain')?.getAttribute('aria-busy') !== 'true' && [...root.querySelectorAll('[is="emby-button"],[is="emby-linkbutton"]')].every(node => node.classList.contains('emby-button')) && [...root.querySelectorAll('.jp-secondary,.jp-link')].every(node => getComputedStyle(node).boxShadow !== '');
  });
-  await page.locator('#JellyPConfigPage:not(.hide)').evaluate(async root => {
+  await page.locator('#JellyPConfigPage:not(.hide)').last().evaluate(async root => {
   const animations = root.getAnimations({subtree:true}).filter(animation => Number.isFinite(animation.effect.getTiming().iterations));
   await Promise.all(animations.map(animation => animation.finished.catch(() => {})));
   });
   // Actual 12.1 host save notifications are .toast, not .toastVisible. Wait for
   // their real disappearance instead of capturing a host toast over our CTA.
   await page.waitForFunction(() => ![...document.querySelectorAll('.toastContainer .toast')].some(node => node.getClientRects().length && getComputedStyle(node).opacity !== '0'));
-  await page.waitForFunction(() => { const image = document.querySelector('#JellyPConfigPage:not(.hide) #JpLogo'); return image?.complete && image.naturalWidth === 480; });
+  await page.waitForFunction(() => { const image = [...document.querySelectorAll('#JellyPConfigPage:not(.hide)')].at(-1)?.querySelector('#JpLogo'); return image?.complete && image.naturalWidth === 480; });
 }
 async function branding(page,theme,label) {
- const ui = page.locator('#JellyPConfigPage:not(.hide)');
+ const ui = page.locator('#JellyPConfigPage:not(.hide)').last();
  await nativeReady(page);
  check(await ui.locator('#JpLogo').evaluate((image,theme) => {
   const rect = image.getBoundingClientRect(), brand = image.parentElement.getBoundingClientRect(), version = image.parentElement.querySelector('#JpVersion'), url = new URL(image.currentSrc);
@@ -66,6 +66,8 @@ async function setHostTheme(page,theme,target) {
  await page.waitForLoadState('networkidle');
  await page.goto(target);
  await page.locator('#JellyPConfigPage:not(.hide) #JpTitle').waitFor();
+ await page.waitForFunction(theme => document.documentElement.getAttribute('data-theme') === theme,theme);
+ await page.waitForFunction(theme => [...document.querySelectorAll('#JellyPConfigPage:not(.hide)')].at(-1)?.dataset.jpDark === String(theme === 'dark'),theme);
  await nativeReady(page);
  await page.waitForFunction(() => !document.querySelector('.toastVisible'));
 }
@@ -77,7 +79,7 @@ async function auditFidelity(page,label) {
  check(result.violations.length === 0,'axe fidelity ' + label + ' WCAG A/AA');
 }
 async function captureMatrix(page,label,inspect) {
- const target = page.url(), ui = page.locator('#JellyPConfigPage:not(.hide)');
+ const target = page.url(), ui = page.locator('#JellyPConfigPage:not(.hide)').last();
  for (const theme of ['dark','light']) {
   await setHostTheme(page,theme,target);
   for (const language of ['en','pt']) {
@@ -110,9 +112,9 @@ async function redButton(locator,label) {
  check(style.bg[0] > style.bg[1] * 2 && style.bg[0] > style.bg[2] * 2 && style.fg.every(v => v === 255) && contrast >= 4.5 && style.height >= 44,label + ' solid red, white contrast ≥4.5 and 44px touch target');
 }
 async function navigationCraft(page,label) {
- const ui = page.locator('#JellyPConfigPage:not(.hide)'); await nativeReady(page);
+ const ui = page.locator('#JellyPConfigPage:not(.hide)').last(); await nativeReady(page);
  await page.mouse.move(0,0);
- check(await ui.locator('.jp-secondary,.jp-link').evaluateAll(nodes => nodes.every(node => node.classList.contains('emby-button') && !node.classList.contains('raised') && getComputedStyle(node).boxShadow === 'none')),label + ' secondary actions/navigation use enhanced native controls without raised hierarchy');
+ check(await ui.locator('.jp-secondary,.jp-link').evaluateAll(nodes => nodes.every(node => node.classList.contains('emby-button') && !node.classList.contains('raised') && ['none',''].includes(getComputedStyle(node).boxShadow))),label + ' secondary actions/navigation use enhanced native controls without raised hierarchy');
   check(await ui.locator('#JpNav nav a .material-icons[aria-hidden=true]').count() === 5 && await ui.locator('.jp-nav-separator').count() === 1 && await ui.locator('#JpNav nav a[aria-current=page]').count() === 1,label + ' five labelled destinations, real decorative Material icons, manual/management separator and one current page');
   check(await ui.locator('.jp-navigation').evaluate(node => {const neutral=getComputedStyle(node).color;return [...node.querySelectorAll('nav a:not([aria-current=page]),.jp-activity a')].every(link=>getComputedStyle(link).color===neutral && getComputedStyle(link.querySelector('.material-icons')).color===neutral) && getComputedStyle(node.querySelector('nav a[aria-current=page]')).color!==neutral;}),label + ' inactive destinations and icons use neutral host foreground; only current destination uses accent');
   const inactive=ui.locator('#JpNav nav a:not([aria-current=page])').first();
@@ -126,7 +128,7 @@ async function navigationCraft(page,label) {
  if (await ui.locator('.jp-local-nav').count()) check(await ui.locator('.jp-local-nav').evaluate(node => node.querySelectorAll('[aria-current=page]').length===1 && !node.querySelector('[role=tab]') && [...node.querySelectorAll('a')].every(a => !a.classList.contains('jp-danger-button') && getComputedStyle(a).backgroundColor==='rgba(0, 0, 0, 0)') && getComputedStyle(node.querySelector('[aria-current=page]')).borderBottomStyle==='solid'),label + ' restoration/removal destinations are real current-page links with underline, never destructive fills or fake tabs');
 }
 async function realSticky(page,label,kind,device='desktop') {
- const ui = page.locator('#JellyPConfigPage:not(.hide)');
+ const ui = page.locator('#JellyPConfigPage:not(.hide)').last();
  await page.setViewportSize(device==='mobile'?{width:390,height:844}:{width:1600,height:900}); await nativeReady(page);
  const selector = kind==='bar'?'.jp-selection-bar':'.jp-aside';
  // Expand a genuine form disclosure to provide a useful scrolling interval even
@@ -218,7 +220,7 @@ async function prototypeReferences(browser) {
  await context.close();
 }
 async function copyScenarios(page) {
- const baseline = await api('JellyP/Settings'), ui = page.locator('#JellyPConfigPage:not(.hide)');
+ const baseline = await api('JellyP/Settings'), ui = page.locator('#JellyPConfigPage:not(.hide)').last();
  const fixture = (await api('Items?Recursive=true&IncludeItemTypes=Movie')).Items.find(item => item.Name === 'JellyP Canary (2026)');
  const target = base + '/web/#/configurationpage?name=jellyp&jp=automation';
  try {
@@ -314,11 +316,11 @@ async function main() {
  await page.locator('button[type=submit]').click();
  await page.waitForURL(url => !url.hash.includes('/login'));
   await page.goto(base + '/web/#/configurationpage?name=jellyp');
-  const ui = page.locator('#JellyPConfigPage:not(.hide)');
+  const ui = page.locator('#JellyPConfigPage:not(.hide)').last();
   await ui.locator('[data-jp-id=draftQuality]').waitFor();
   await setHostTheme(page,'dark',page.url());
  await ui.locator('[data-jp-id=Language]').selectOption('en');
- await page.waitForFunction(() => document.querySelector('#JellyPConfigPage:not(.hide) #JpTitle')?.textContent === 'Simulate');
+ await page.waitForFunction(() => [...document.querySelectorAll('#JellyPConfigPage:not(.hide)')].at(-1)?.querySelector('#JpTitle')?.textContent === 'Simulate');
  check(await ui.locator('[data-jp-id=draftQuality]').evaluate(node => node.classList.contains('emby-input')),'real native emby-input enhancement');
  check(await ui.locator('[data-jp-id=draftPrimaryEnabled]').getAttribute('data-embycheckbox') === 'true','real native dynamic emby-checkbox enhancement');
  check(await ui.locator('.checkboxOutline').count() >= 11,'host checkbox outlines, not fake controls');
@@ -366,7 +368,7 @@ async function main() {
     await page.goto(base+'/web/#/configurationpage?name=jellyp&jp=automation');await ui.locator('#SaveAutomation').waitFor();await nativeReady(page);
    }
  await ui.locator('[data-jp-id=Language]').selectOption('pt');
-  await page.waitForFunction(() => document.querySelector('#JellyPConfigPage:not(.hide) #JpTitle')?.textContent === 'Automação');
+  await page.waitForFunction(() => [...document.querySelectorAll('#JellyPConfigPage:not(.hide)')].at(-1)?.querySelector('#JpTitle')?.textContent === 'Automação');
  await page.screenshot({path:path.join(screenshots,'03-native-automation-pt-dark-desktop.png'),fullPage:true});
  await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:path.join(screenshots,'04-native-automation-pt-dark-mobile.png'),fullPage:true});
@@ -485,7 +487,7 @@ function pathFree(value) {
  return Object.entries(value).every(([key,child]) => !/path/i.test(key) && pathFree(child));
 }
 async function journey(page,baseline) {
- const ui = page.locator('#JellyPConfigPage:not(.hide)');
+ const ui = page.locator('#JellyPConfigPage:not(.hide)').last();
  const field = name => ui.locator('[data-jp-id="' + name + '"]');
  async function checked(locator,value) { if (await locator.isChecked() !== value) await locator.locator('..').click(); assert.equal(await locator.isChecked(),value); }
  async function navigate(area) {
@@ -801,7 +803,7 @@ async function journey(page,baseline) {
  await ui.locator('[data-action=selectAllBackups]').click(); await ui.locator('#ReviewBackups').click(); await ui.locator('#JpDialog[open]').waitFor();
  await confirmBackup('Restore');
   check((await api('JellyP/Backups')).Total === 0,'all remaining generated originals restored; no active backups left');
-  await until(async()=>await ui.locator('.restoreEntry').count()>0 && (await ui.locator('.restoreEntry').innerText()).includes('No restorable originals available'),'restoration conclusion reflects real empty availability');
+  await until(async()=>await ui.locator('.restoreEntry').count()>0 && (await ui.locator('.restoreEntry').innerText()).includes('No stored originals available'),'restoration conclusion reflects real empty availability');
   check(await ui.locator('.restoreEntry a').count()===0 && await ui.locator('#JpExecutionBody a[href*="jp=history"]').count()===0,'restoration conclusion with no originals offers neither an unavailable restore CTA nor a duplicate in the results card');
   await page.screenshot({path:path.join(screenshots,'completion-restored-no-originals-desktop.png'),fullPage:true});
  check(JSON.stringify((await api('JellyP/Settings')).Automation) === autoBefore,'manual analyze/apply/regenerate/restore/retire never saves automation');

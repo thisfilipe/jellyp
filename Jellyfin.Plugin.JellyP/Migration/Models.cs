@@ -37,6 +37,16 @@ public interface IArtworkStore
             })
             .ToArray();
 
+    /// <summary>Lists a deterministic key-ordered page after an exclusive cursor, with at most maximumEntries + 1 rows.</summary>
+    IReadOnlyList<ArtworkInventoryEntry> DetailedInventoryPage(CancellationToken cancellationToken,
+        IReadOnlyCollection<Guid>? includedItemIds = null, IReadOnlyCollection<Guid>? includedLibraryIds = null,
+        string? afterKey = null, int? maximumEntries = null, Action<int>? inventoryProgress = null) =>
+        DetailedInventory(cancellationToken, includedItemIds, includedLibraryIds, inventoryProgress, maximumEntries: null)
+            .Where(entry => string.IsNullOrEmpty(afterKey)
+                || string.CompareOrdinal(entry.Reference.Key, afterKey) > 0)
+            .Take(maximumEntries is > 0 ? maximumEntries.Value + 1 : int.MaxValue)
+            .ToArray();
+
     /// <summary>Checks that no scan or refresh is active.</summary>
     void EnsureIdle(Guid? itemId = null);
 
@@ -53,8 +63,11 @@ public interface IArtworkStore
     int CountPathReferences(string path) => IsPathReferenced(path) ? 1 : 0;
 
     /// <summary>Counts several paths in one store scan when supported; the default keeps compatibility.</summary>
-    IReadOnlyDictionary<string, int> CountPathReferences(IReadOnlyCollection<string> paths) =>
-        paths.Distinct(StringComparer.Ordinal).ToDictionary(path => path, CountPathReferences, StringComparer.Ordinal);
+    IReadOnlyDictionary<string, int> CountPathReferences(IReadOnlyCollection<string> paths)
+    {
+        var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        return paths.Distinct(comparer).ToDictionary(path => path, CountPathReferences, comparer);
+    }
 
     /// <summary>Checks that no sibling slot makes a save/restore unsafe. Default preserves compatibility.</summary>
     bool IsSlotSafeForMutation(ArtworkReference reference) => true;
@@ -162,7 +175,13 @@ internal sealed class ScanCursor
 
 /// <summary>Administrator status including honest net storage accounting.</summary>
 public sealed record OptimizerStatus(RunReport LastRun, long RetainedBackupBytes, long VerifiedSavingsBytes,
-    long NetReclaimedBytes, IReadOnlyList<MigrationRecord> RecentRecords, int PendingRecovery);
+    long NetReclaimedBytes, IReadOnlyList<MigrationRecord> RecentRecords, int PendingRecovery)
+{
+    /// <summary>Gets the metadata-only savings estimate; it is not a slot/hash verification.</summary>
+    public long PreliminarySavingsBytes { get; init; }
+    /// <summary>Gets the metadata-only net estimate; it is not a slot/hash verification.</summary>
+    public long PreliminaryNetReclaimedBytes { get; init; }
+}
 
 /// <summary>A bounded, path-free image result for administrators.</summary>
 public sealed record ImageRunSample(Guid ItemId, ImageType Type, long OriginalBytes, long OutputBytes, string Reason);

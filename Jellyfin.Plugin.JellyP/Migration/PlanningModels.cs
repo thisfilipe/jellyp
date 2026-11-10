@@ -17,6 +17,10 @@ public sealed class PlanAnalyzeRequest
     public PlanGeneralPolicy? GeneralPolicy { get; set; }
     public bool? PreserveOriginals { get; set; }
     public int? BatchSize { get; set; }
+    /// <summary>Gets or sets an optional client-generated identity used only for transient progress polling.</summary>
+    public Guid? AnalysisId { get; set; }
+    /// <summary>Gets or sets the previous part to continue deterministically. Null starts a new pass.</summary>
+    public Guid? ContinuationPlanId { get; set; }
 }
 
 /// <summary>General manual encoding values. Savings gates remain global.</summary>
@@ -55,7 +59,23 @@ public sealed class PlanSummary
     public string DefaultsSource { get; set; } = "legacy";
     public bool LegacyDefaultsWarning { get; set; }
     public Guid? OperationId { get; set; }
+    public Guid? PassId { get; set; }
+    public Guid? ParentPlanId { get; set; }
+    public int Part { get; set; } = 1;
+    public bool HasMore { get; set; }
     public IReadOnlyList<PlanWarning> Warnings { get; set; } = [];
+}
+
+/// <summary>Transient, path-free progress for one synchronous analysis request.</summary>
+public sealed class PlanAnalysisProgress
+{
+    public Guid AnalysisId { get; set; }
+    public string State { get; set; } = "Running";
+    public string Phase { get; set; } = "Queued";
+    public int InventoryItems { get; set; }
+    public int Evaluated { get; set; }
+    public Guid? PlanId { get; set; }
+    public string? Message { get; set; }
 }
 
 public sealed class PlanImageView
@@ -281,6 +301,12 @@ public sealed class BackupView
     public string State { get; set; } = string.Empty;
     public bool Restorable { get; set; }
     public bool Retirable { get; set; }
+    /// <summary>Gets or sets whether checksums were verified for this listing; mutation endpoints verify again.</summary>
+    public bool Verified { get; set; }
+    /// <summary>Gets or sets whether the exact ID can be sent to explicit review; no restore/removal claim.</summary>
+    public bool CanReview { get; set; }
+    /// <summary>Gets or sets the requested verb's verified eligibility after an explicit review.</summary>
+    public bool Eligible { get; set; }
     public string? Reason { get; set; }
     public string? OriginalMimeType { get; set; }
     public long OriginalBytes { get; set; }
@@ -317,6 +343,23 @@ public sealed class BackupKeysResponse
 public sealed class BackupBatchRequest
 {
     public Guid[] RecordIds { get; set; } = [];
+}
+
+/// <summary>Explicit bounded verification of exact stored-original IDs before review.</summary>
+public sealed class BackupReviewRequest
+{
+    public Guid[] RecordIds { get; set; } = [];
+    /// <summary>Gets or sets Restore or Retire; never inferred from a global filter.</summary>
+    public string Kind { get; set; } = "Restore";
+}
+
+public sealed class BackupReviewResponse
+{
+    public string Kind { get; set; } = "Restore";
+    public int Total { get; set; }
+    public int Eligible { get; set; }
+    public int Invalid { get; set; }
+    public IReadOnlyList<BackupView> Items { get; set; } = [];
 }
 
 public sealed class BackupRetireRequest
@@ -371,6 +414,12 @@ public sealed class SettingsView
     public GlobalLimits Globals { get; set; } = new();
     public string DefaultsSource { get; set; } = "legacy";
     public bool LegacyDefaultsWarning { get; set; }
+    /// <summary>Gets or sets the effective candidates per manual part after legacy clamping.</summary>
+    public int EffectiveManualBatchSize { get; set; }
+    /// <summary>Gets or sets the explicit manual part limit.</summary>
+    public int ManualBatchLimit { get; set; }
+    /// <summary>Gets or sets the automation batch limit, which is intentionally separate.</summary>
+    public int AutomationBatchLimit { get; set; }
     public string[] Categories { get; set; } = PluginConfiguration.Categories;
 }
 
@@ -430,6 +479,18 @@ internal sealed class PlanRecord
     public string ManualDefaultsFingerprint { get; set; } = string.Empty;
     public string DefaultsSource { get; set; } = "legacy";
     public bool LegacyDefaultsWarning { get; set; }
+    /// <summary>Gets or sets the stable pass identity shared by every part.</summary>
+    public Guid? PassId { get; set; }
+    /// <summary>Gets or sets the previous part; null for the first part.</summary>
+    public Guid? ParentPlanId { get; set; }
+    /// <summary>Gets or sets the 1-based part number.</summary>
+    public int Part { get; set; } = 1;
+    /// <summary>Gets or sets the last key safely consumed by this part; continuation starts after it.</summary>
+    public string Cursor { get; set; } = string.Empty;
+    /// <summary>Gets or sets whether another part exists after this one.</summary>
+    public bool HasMore { get; set; }
+    /// <summary>Gets or sets the fingerprint binding scope, policies and saved defaults across parts.</summary>
+    public string ScopeFingerprint { get; set; } = string.Empty;
     public int RequestedBatchSize { get; set; }
     public int TotalImages { get; set; }
     public int Evaluated { get; set; }

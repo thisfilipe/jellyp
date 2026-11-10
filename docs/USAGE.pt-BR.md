@@ -51,6 +51,15 @@ Selecione as propostas desejadas em todas as páginas de resultado e escolha
 políticas ou padrões invalida o plano e exige nova simulação. O plano também
 expira; confira a validade antes de aplicar.
 
+A análise manual é processada em partes determinísticas ordenadas por chave. O
+padrão manual salvo e cada parte avaliam no máximo 1.000 candidatas; isso não é um
+limite da biblioteca inteira. Quando **Continuar para a próxima parte** aparece,
+ela alcança as próximas posições sem repetir a primeira parte. A continuação é
+idempotente por parte pai e é recusada se expiração, padrões salvos, escopo ou
+políticas mudaram. Uma parte consumida ainda pode continuar, e a parte anterior
+permanece disponível para leitura. A automação mantém o limite separado de 10.000
+candidatas.
+
 ## Execute e acompanhe os recibos
 
 Em **Executar**, revise os ajustes congelados, a seleção exata e a conta de
@@ -90,15 +99,20 @@ tipo não desfaz conversões existentes; use a restauração explicitamente.
 ## Histórico, restauração e remoção permanente
 
 **Histórico e restauração** lista recibos persistidos de operações e seus
-resultados individuais. Selecione transações elegíveis para restaurar originais
-exatos em lote, ou abra a visão separada **Remover originais · permanente** para
-revisar a aposentadoria. Registros incertos ou com recuperação necessária nunca
-entram em nenhum dos lotes.
+resultados individuais. A lista padrão é deliberadamente preliminar: mostra
+originais guardados que podem ser selecionados para verificação (`CanReview`),
+não uma afirmação de que todo ID é restaurável. Selecione IDs exatos, abra a
+revisão e leia o resultado por ID. IDs inválidos, compartilhados, alterados,
+incertos ou superados devem ser removidos explicitamente; nada é descartado ou
+substituído silenciosamente. Os filtros explícitos verificados
+`restorable`/`retirable` e a ação `Backups/Review` fazem a checagem
+autoritativa.
 
 A restauração exige originais guardados. A aposentadoria é permanente: sem o
 original, não há restauração nem regeneração a partir dele. Cada ação é
 revalidada e confirmada para as identidades exatas selecionadas. A aposentadoria
-de originais não remove os WebP ativos.
+de originais não remove os WebP ativos. A fila e o apply revalidam os IDs exatos
+novamente mesmo após uma revisão bem-sucedida.
 
 Retenção zero significa remoção manual; caso contrário, originais elegíveis
 expiram no início de um lote de aplicação. Siga a [recuperação](RECOVERY.md) para

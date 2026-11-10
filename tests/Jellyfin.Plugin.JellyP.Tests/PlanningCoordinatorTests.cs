@@ -183,6 +183,260 @@ public sealed class PlanningCoordinatorTests : IDisposable
         Assert.NotEqual("None", image.Reason);
     }
 
+    [Theory]
+    [InlineData(100)]
+    [InlineData(1000)]
+    public void ScopeAbovePlanImageCapIsBoundedByBatchInsteadOfFailing(int batchSize)
+    {
+        // Regression: AnalyzePlan used to request DetailedInventory with the whole
+        // 5000-image plan cap and fail with PlanScopeTooLarge before BatchSize was
+        // consulted. A large scope must still produce one bounded, useful batch.
+        _config.BatchSize = 1000;
+        _store.AddReadyRange(6001);
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest
+        {
+            Scope = "all",
+            BatchSize = batchSize,
+            GeneralPolicy = new PlanGeneralPolicy { Quality = 60, MaximumDimension = 2400, MinimumSsim = 0 },
+            PreserveOriginals = true,
+        }, default);
+
+        Assert.InRange(plan.Evaluated, 1, batchSize);
+        Assert.True(plan.Proposed > 0);
+        var page = _coordinator.GetPlanImages(plan.PlanId, 0, 200);
+        Assert.Contains(page.Items, image => image.State == "Ready" && image.Action == "Convert");
+    }
+
+    [Fact]
+    public void PlanningInventoryHonorsMaximumEntriesWithOneOverLimitMarker()
+    {
+        _store.AddReadyRange(12);
+        var bounded = _store.DetailedInventory(default, maximumEntries: 10);
+        Assert.Equal(11, bounded.Count);
+    }
+
+    [Fact]
+    public void LargeScopeContinuesDeterministicallyWithoutRepeatingTheFirstPart()
+    {
+        _config.BatchSize = 1000;
+        _store.AddReadyRange(2500);
+        var first = _coordinator.AnalyzePlan(new PlanAnalyzeRequest
+        {
+            Scope = "all",
+            BatchSize = 1000,
+            GeneralPolicy = new PlanGeneralPolicy { Quality = 60, MaximumDimension = 2400, MinimumSsim = 0 },
+            PreserveOriginals = true,
+        }, default);
+        Assert.Equal(1, first.Part);
+        Assert.Equal(1000, first.Evaluated);
+        Assert.Equal(1, first.NotEvaluated);
+        Assert.True(first.HasMore);
+
+        var second = _coordinator.AnalyzePlan(new PlanAnalyzeRequest { ContinuationPlanId = first.PlanId }, default);
+        Assert.Equal(first.PlanId, second.ParentPlanId);
+        Assert.Equal(first.PassId, second.PassId);
+        Assert.Equal(2, second.Part);
+        Assert.Equal(1000, second.Evaluated);
+        Assert.True(second.HasMore);
+        var firstKeys = _coordinator.GetPlanKeys(first.PlanId, "selectable").Keys.ToHashSet();
+        var secondKeys = _coordinator.GetPlanKeys(second.PlanId, "selectable").Keys.ToArray();
+        Assert.Equal(1000, firstKeys.Count);
+        Assert.Equal(1000, secondKeys.Length);
+        Assert.DoesNotContain(secondKeys, key => firstKeys.Contains(key));
+        Assert.True(string.CompareOrdinal(secondKeys[0], firstKeys.Max()!) > 0);
+
+        var repeated = _coordinator.AnalyzePlan(new PlanAnalyzeRequest { ContinuationPlanId = first.PlanId }, default);
+        Assert.Equal(second.PlanId, repeated.PlanId);
+    }
+
+    [Fact]
+    public void ConsumedParentCanContinueAndChangedDefaultsRejectContinuation()
+    {
+        _config.BatchSize = 10;
+        _store.AddReadyRange(25);
+        var first = _coordinator.AnalyzePlan(new PlanAnalyzeRequest
+        {
+            Scope = "all",
+            BatchSize = 10,
+            GeneralPolicy = new PlanGeneralPolicy { Quality = 60, MaximumDimension = 2400, MinimumSsim = 0 },
+            PreserveOriginals = true,
+        }, default);
+        var key = _coordinator.GetPlanKeys(first.PlanId, "selectable").Keys.First();
+        _coordinator.ApplyPlan(first.PlanId, new PlanApplyRequest { Keys = [key] });
+        Assert.Equal("Reserved", _coordinator.GetPlan(first.PlanId).Status);
+        var second = _coordinator.AnalyzePlan(new PlanAnalyzeRequest { ContinuationPlanId = first.PlanId }, default);
+        Assert.Equal(2, second.Part);
+
+        _config.Quality = 61;
+        var error = Assert.Throws<JellyPRequestException>(() =>
+            _coordinator.AnalyzePlan(new PlanAnalyzeRequest { ContinuationPlanId = first.PlanId }, default));
+        Assert.Equal("ManualDefaultsChanged", error.Code);
+    }
+
+    [Fact]
+    public void SavingAutomationLibrariesClearsIncompatibleItemIds()
+    {
+        var automation = _coordinator.GetSettings().Automation;
+        automation.ScopeMode = "items";
+        automation.ItemIds = [Guid.NewGuid()];
+        automation.LibraryIds = [];
+        _coordinator.SaveAutomation(new SettingsAutomationRequest { Automation = automation });
+        automation.ScopeMode = "libraries";
+        automation.LibraryIds = [Guid.NewGuid()];
+        var saved = _coordinator.SaveAutomation(new SettingsAutomationRequest { Automation = automation });
+        Assert.Equal("libraries", saved.Automation.ScopeMode);
+        Assert.Empty(saved.Automation.ItemIds);
+        Assert.Single(saved.Automation.LibraryIds);
+    }
+
+    [Fact]
+    public void MissingOperationReferenceMapEntryFallsBackToFreshCount()
+    {
+        var image = _store.Add();
+        _store.ResetCountReferenceCalls();
+        var method = typeof(OptimizationCoordinator).GetMethod("ReferenceCountFor",
+            BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var count = (int)method.Invoke(_coordinator, [new Dictionary<string, int>(StringComparer.Ordinal), image.Path])!;
+        Assert.Equal(1, count);
+        Assert.True(_store.CountReferenceCalls > 0);
+    }
+
+    [Fact]
+    public void PathCountComparerFollowsThePlatform()
+    {
+        var comparer = (StringComparer)typeof(OptimizationCoordinator)
+            .GetProperty("PathComparer", BindingFlags.NonPublic | BindingFlags.Static)!
+            .GetValue(null)!;
+        Assert.Equal(OperatingSystem.IsWindows(), comparer.Equals("Poster.PNG", "poster.png"));
+    }
+
+    [Fact]
+    public void DefaultPrimaryPolicyDoesNotForceAnOverrideAndExplicitOverrideIsPreserved()
+    {
+        var defaults = new ManualDefaults();
+        Assert.All(defaults.Policies, policy => Assert.False(policy.OverrideGlobal));
+        var settings = _coordinator.GetSettings();
+        Assert.False(settings.Defaults.Policies.Single(policy => policy.Category == "Primary").OverrideGlobal);
+
+        var policies = new ManualDefaults().Policies.Select(policy => new ImageTypePolicy
+        {
+            Category = policy.Category,
+            Enabled = policy.Enabled,
+            OverrideGlobal = policy.Category == "Primary",
+            Quality = policy.Quality,
+            Lossless = policy.Lossless,
+            ResizeImages = policy.ResizeImages,
+            MaximumDimension = policy.MaximumDimension,
+            MinimumSsim = policy.MinimumSsim,
+        }).ToArray();
+        _config.ManualDefaults = new ManualDefaults { Policies = policies };
+        Assert.True(_coordinator.GetSettings().Defaults.Policies.Single(policy => policy.Category == "Primary").OverrideGlobal);
+    }
+
+    [Fact]
+    public void LegacyManualBatchAbovePartLimitProjectsClampedWithoutRewritingSavedValue()
+    {
+        _config.ManualDefaults = new ManualDefaults
+        {
+            BatchSize = 10000,
+            Policies = new ManualDefaults().Policies,
+        };
+        var before = JsonSerializer.Serialize(_config);
+        var settings = _coordinator.GetSettings();
+        Assert.Equal(1000, settings.EffectiveManualBatchSize);
+        Assert.Equal(1000, settings.ManualBatchLimit);
+        Assert.Equal(10000, settings.AutomationBatchLimit);
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest
+        {
+            Scope = "all",
+            GeneralPolicy = new PlanGeneralPolicy { Quality = 60, MinimumSsim = 0 },
+            PreserveOriginals = true,
+        }, default);
+        Assert.Equal(1000, plan.RequestedBatchSize);
+        Assert.Equal(before, JsonSerializer.Serialize(_config));
+        var unchanged = _coordinator.SaveDefaults(new SettingsDefaultsRequest
+        {
+            Defaults = settings.Defaults,
+            Globals = settings.Globals,
+        });
+        Assert.Equal(10000, unchanged.Defaults.BatchSize);
+        Assert.Equal(10000, _config.ManualDefaults!.BatchSize);
+        var changed = settings.Defaults;
+        changed.BatchSize = 1001;
+        Assert.Throws<JellyPRequestException>(() => _coordinator.SaveDefaults(new SettingsDefaultsRequest
+        {
+            Defaults = changed,
+            Globals = settings.Globals,
+        }));
+
+        var automation = settings.Automation;
+        automation.BatchSize = 10000;
+        Assert.Equal(10000, _coordinator.SaveAutomation(new SettingsAutomationRequest { Automation = automation }).Automation.BatchSize);
+    }
+
+    [Fact]
+    public async Task ApplyingHundredImagesUsesBoundedGlobalReferenceScans()
+    {
+        _config.BatchSize = 100;
+        _store.AddReadyRange(100);
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest
+        {
+            Scope = "all",
+            BatchSize = 100,
+            GeneralPolicy = new PlanGeneralPolicy { Quality = 60, MaximumDimension = 2400, MinimumSsim = 0 },
+            PreserveOriginals = false,
+        }, default);
+        var keys = _coordinator.GetPlanKeys(plan.PlanId, "selectable").Keys.ToArray();
+        Assert.Equal(100, keys.Length);
+        var receipt = _coordinator.ApplyPlan(plan.PlanId, new PlanApplyRequest
+        {
+            Keys = keys,
+            AuthorizePermanentRemoval = true,
+        });
+        _store.ResetCountReferenceCalls();
+        await _coordinator.RunNativeAsync(new Progress<double>(), default);
+        Assert.Equal("Completed", _coordinator.GetOperation(receipt.OperationId, 0, 10).Operation.State);
+        Assert.Equal(100, _store.SaveCalls);
+        Assert.InRange(_store.CountReferenceCalls, 1, 2);
+    }
+
+    [Fact]
+    public void HundredThousandMetadataEntriesStillProduceABoundedPart()
+    {
+        _config.BatchSize = 1000;
+        _store.AddSyntheticExcludedRange(100_000);
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest
+        {
+            Scope = "all",
+            BatchSize = 1000,
+            PreserveOriginals = true,
+        }, default);
+        Assert.Equal(1001, plan.TotalImages);
+        Assert.Equal(0, plan.Evaluated);
+        Assert.True(plan.HasMore);
+        Assert.Equal(1, _store.DetailedInventoryPageCalls);
+    }
+
+    [Fact]
+    public void ReviewWithRetentionDisabledDoesNotReadTheJournal()
+    {
+        var image = _store.Add();
+        var plan = _coordinator.AnalyzePlan(new PlanAnalyzeRequest
+        {
+            Scope = "items",
+            ItemIds = [image.ItemId],
+            BatchSize = 10,
+            PreserveOriginals = true,
+        }, default);
+        var keys = _coordinator.GetPlanKeys(plan.PlanId, "selectable").Keys.ToArray();
+        var journal = Path.Combine(_root, "migration", "journal");
+        Directory.CreateDirectory(journal);
+        File.WriteAllText(Path.Combine(journal, "unreadable.json"), "{not-json");
+        var review = _coordinator.ReviewPlan(plan.PlanId, new PlanReviewRequest { Keys = keys, Limit = 10 });
+        Assert.Equal(0, review.Retention.EligibleCount);
+        Assert.Equal(1, review.TotalSelected);
+    }
+
     [Fact]
     public async Task SavingAutomationAfterAnalysisDoesNotChangeManualPlanSnapshot()
     {
@@ -344,9 +598,14 @@ public sealed class PlanningCoordinatorTests : IDisposable
         _store.Add(explicitPath: current.Path);
         var all = _coordinator.GetBackups("all", 0, 50, default);
         var row = Assert.Single(all.Items);
+        Assert.False(row.Verified);
         Assert.False(row.Restorable);
-        Assert.Equal("SharedReference", row.Reason);
+        Assert.True(row.CanReview);
         Assert.Empty(_coordinator.GetBackups("restorable", 0, 50, default).Items);
+        Assert.Empty(_coordinator.GetBackupKeys("restorable", default).Keys);
+        var review = _coordinator.ReviewBackups(new BackupReviewRequest { RecordIds = [record.Id], Kind = "Restore" });
+        Assert.False(review.Items[0].Eligible);
+        Assert.Equal("SharedReference", review.Items[0].Reason);
         var operations = _coordinator.GetOperations(0, 50).Total;
         Assert.Throws<JellyPRequestException>(() =>
             _coordinator.QueueRestore(new BackupBatchRequest { RecordIds = [record.Id] }, default));
@@ -366,6 +625,181 @@ public sealed class PlanningCoordinatorTests : IDisposable
             _coordinator.QueueRestore(new BackupBatchRequest { RecordIds = [record.Id] }, default));
         Assert.Equal(operations, _coordinator.GetOperations(0, 50).Total);
         Assert.EndsWith(".webp", _store.GetCurrent(image)!.Path);
+    }
+
+    [Fact]
+    public async Task SynchronizeBudgetAccountsForReplacedOriginalExactly()
+    {
+        var image = _store.Add();
+        _config.MaximumBackupBytes = 32L * 1024 * 1024;
+        await _coordinator.RunAsync(new Progress<double>(), default);
+        var record = Assert.Single(_coordinator.GetStatus().RecentRecords);
+        var originalBytes = record.OriginalBytes;
+        var fillerSize = _config.MaximumBackupBytes - 2 * originalBytes + 1;
+        Assert.True(fillerSize > 0);
+        var filler = Path.Combine(_root, "migration", "originals", "filler.original");
+        Directory.CreateDirectory(Path.GetDirectoryName(filler)!);
+        DurableFiles.Write(filler, new byte[(int)fillerSize]);
+        _config.Quality = 60;
+        _config.MinimumSsim = 0;
+        await _coordinator.RunAsync(new Progress<double>(), default, synchronize: true);
+        Assert.Equal(3, _store.SaveCalls);
+        Assert.Equal(fillerSize + originalBytes, _coordinator.GetStatus().RetainedBackupBytes);
+        Assert.Equal("Committed", _coordinator.GetStatus().RecentRecords.Single(row => row.State == "Committed").State);
+    }
+
+    [Fact]
+    public async Task SynchronizeCannotWriteWhenActiveWebpBecomesShared()
+    {
+        var image = _store.Add();
+        await _coordinator.RunAsync(new Progress<double>(), default);
+        var current = _store.GetCurrent(image)!;
+        _store.Add(explicitPath: current.Path);
+        _config.Quality = 60;
+        _config.MinimumSsim = 0;
+        var saves = _store.SaveCalls;
+        await _coordinator.RunAsync(new Progress<double>(), default, synchronize: true);
+        Assert.Equal(saves, _store.SaveCalls);
+        Assert.EndsWith(".webp", _store.GetCurrent(image)!.Path);
+        Assert.Equal(0, _store.SaveCalls - saves);
+    }
+
+    [Fact]
+    public async Task CancellingAnalysisPreventsPlanPublicationAndBecomesTerminal()
+    {
+        _store.Add();
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        _store.OnDetailedInventoryPage = () =>
+        {
+            entered.Set();
+            _ = release.Wait(TimeSpan.FromSeconds(10));
+        };
+        var analysisId = Guid.NewGuid();
+        var task = Task.Run(() => _coordinator.AnalyzePlan(new PlanAnalyzeRequest
+        {
+            Scope = "all",
+            AnalysisId = analysisId,
+            BatchSize = 10,
+            PreserveOriginals = true,
+        }, default));
+        try
+        {
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(10)));
+            Assert.True(_coordinator.CancelAnalysis(analysisId));
+            release.Set();
+            var error = await Assert.ThrowsAsync<JellyPRequestException>(() => task);
+            Assert.Equal("AnalysisCancelled", error.Code);
+        }
+        finally
+        {
+            release.Set();
+            _store.OnDetailedInventoryPage = null;
+        }
+
+        var progress = _coordinator.GetAnalysisProgress(analysisId);
+        Assert.Equal("Cancelled", progress.State);
+        var plans = Path.Combine(_root, "migration", "plans");
+        Assert.True(!Directory.Exists(plans) || !Directory.EnumerateFiles(plans, "*.json").Any());
+        Assert.False(_coordinator.CancelAnalysis(analysisId));
+    }
+
+    [Fact]
+    public void BackupListingPaginatesPreliminaryMetadataWithoutGlobalScanOrAllRecordLookups()
+    {
+        for (var index = 0; index < 200; index++)
+        {
+            var image = _store.Add();
+            SeedCommitted(image, DateTime.UtcNow.AddMinutes(index));
+        }
+
+        _store.ResetCountReferenceCalls();
+        var page = _coordinator.GetBackups("all", 0, 1, default);
+        Assert.Equal(200, page.Total);
+        Assert.Single(page.Items);
+        Assert.False(page.Items[0].Verified);
+        Assert.False(page.Items[0].Restorable);
+        Assert.True(page.Items[0].CanReview);
+        Assert.Equal(0, _store.CountReferenceCalls);
+        Assert.InRange(_store.GetCurrentCalls, 0, 1);
+
+        _store.ResetCountReferenceCalls();
+        var keys = _coordinator.GetBackupKeys("all", default);
+        Assert.Equal(200, keys.Total);
+        Assert.Equal(0, _store.CountReferenceCalls);
+        Assert.Equal(0, _store.GetCurrentCalls);
+
+        // Verified filters remain explicit and authoritative.
+        _store.ResetCountReferenceCalls();
+        var verified = _coordinator.GetBackups("restorable", 0, 1, default);
+        Assert.Single(verified.Items);
+        Assert.True(verified.Items[0].Verified);
+        Assert.True(verified.Items[0].Restorable);
+        Assert.True(_store.CountReferenceCalls > 0);
+    }
+
+    [Fact]
+    public void CorruptUncertainAndSupersededRecordsAreNotVerifiedEligible()
+    {
+        var validImage = _store.Add();
+        var valid = SeedCommitted(validImage, DateTime.UtcNow.AddMinutes(-5));
+        var corruptImage = _store.Add();
+        var corrupt = SeedCommitted(corruptImage, DateTime.UtcNow.AddMinutes(-4));
+        DurableFiles.Write(Path.Combine(_root, "migration", "originals", corrupt.Id.ToString("N") + ".original"), [9, 8, 7]);
+
+        var uncertainImage = _store.Add();
+        var uncertain = SeedCommitted(uncertainImage, DateTime.UtcNow.AddMinutes(-3));
+        var uncertainPath = Path.Combine(_root, "migration", "journal", uncertain.Id.ToString("N") + ".json");
+        var uncertainJson = JsonNode.Parse(File.ReadAllText(uncertainPath))!;
+        uncertainJson["State"] = "RecoveryRequired";
+        File.WriteAllText(uncertainPath, uncertainJson.ToJsonString());
+
+        var supersededImage = _store.Add();
+        var superseded = SeedCommitted(supersededImage, DateTime.UtcNow.AddMinutes(-2));
+        var latest = SeedCommitted(supersededImage, DateTime.UtcNow.AddMinutes(-1));
+
+        var preliminary = _coordinator.GetBackups("all", 0, 50, default);
+        Assert.Contains(preliminary.Items, row => row.RecordId == valid.Id && row.CanReview && !row.Verified && !row.Restorable);
+        Assert.DoesNotContain(preliminary.Items, row => row.RecordId == uncertain.Id);
+        Assert.DoesNotContain(preliminary.Items, row => row.RecordId == superseded.Id);
+        Assert.Contains(preliminary.Items, row => row.RecordId == latest.Id);
+
+        var verified = _coordinator.GetBackups("restorable", 0, 50, default);
+        Assert.Contains(verified.Items, row => row.RecordId == valid.Id && row.Verified);
+        Assert.DoesNotContain(verified.Items, row => row.RecordId == corrupt.Id);
+        Assert.DoesNotContain(verified.Items, row => row.RecordId == uncertain.Id);
+        Assert.DoesNotContain(verified.Items, row => row.RecordId == superseded.Id);
+
+        var mixed = _coordinator.ReviewBackups(new BackupReviewRequest
+        {
+            RecordIds = [valid.Id, corrupt.Id, uncertain.Id, superseded.Id],
+            Kind = "Restore",
+        });
+        Assert.Equal(1, mixed.Eligible);
+        Assert.Equal(3, mixed.Invalid);
+        Assert.True(mixed.Items.Single(row => row.RecordId == valid.Id).Eligible);
+        Assert.Equal("BackupChanged", mixed.Items.Single(row => row.RecordId == corrupt.Id).Reason);
+        Assert.Equal("RecoveryRequired", mixed.Items.Single(row => row.RecordId == uncertain.Id).Reason);
+        Assert.Equal("SupersededRecord", mixed.Items.Single(row => row.RecordId == superseded.Id).Reason);
+        Assert.Equal(0, _store.SaveCalls);
+    }
+
+    [Fact]
+    public void BackupsReviewExactInvalidIDsDoesNotWriteOrThrowWholeBatch()
+    {
+        var image = _store.Add();
+        var record = SeedCommitted(image, DateTime.UtcNow);
+        var review = _coordinator.ReviewBackups(new BackupReviewRequest
+        {
+            RecordIds = [record.Id, Guid.NewGuid()],
+            Kind = "Retire",
+        });
+        Assert.Equal(2, review.Total);
+        Assert.Equal(1, review.Eligible);
+        Assert.Equal(1, review.Invalid);
+        Assert.Equal("BackupNotFound", review.Items.Single(row => row.RecordId != record.Id).Reason);
+        Assert.True(review.Items.Single(row => row.RecordId == record.Id).Eligible);
+        Assert.Equal(0, _store.SaveCalls);
     }
 
     [Fact]
@@ -642,7 +1076,11 @@ public sealed class PlanningCoordinatorTests : IDisposable
         Assert.False(_store.IsSlotSafeForMutation(image));
         var row = Assert.Single(_coordinator.GetBackups("all", 0, 50, default).Items);
         Assert.False(row.Restorable);
+        Assert.True(row.CanReview);
         Assert.Contains("OtherSlotUnavailable", row.Reason);
+        Assert.Empty(_coordinator.GetBackups("restorable", 0, 50, default).Items);
+        var review = _coordinator.ReviewBackups(new BackupReviewRequest { RecordIds = [record.Id], Kind = "Restore" });
+        Assert.False(review.Items[0].Eligible);
         Assert.Throws<JellyPRequestException>(() =>
             _coordinator.QueueRestore(new BackupBatchRequest { RecordIds = [record.Id] }, default));
         var saves = _store.SaveCalls;
@@ -662,8 +1100,14 @@ public sealed class PlanningCoordinatorTests : IDisposable
         var before = File.ReadAllBytes(shared);
 
         var backup = Assert.Single(_coordinator.GetBackups("all", 0, 50, default).Items);
+        // Listing is preliminary and does not perform the global shared scan;
+        // the mutation boundary must still reject the shared path.
+        Assert.False(backup.Verified);
         Assert.False(backup.Restorable);
-        Assert.Equal("SharedReference", backup.Reason);
+        Assert.True(backup.CanReview);
+        Assert.Empty(_coordinator.GetBackups("restorable", 0, 50, default).Items);
+        Assert.Throws<JellyPRequestException>(() =>
+            _coordinator.QueueRestore(new BackupBatchRequest { RecordIds = [record.Id] }, default));
         await Assert.ThrowsAsync<IOException>(() => _coordinator.RollbackAsync(record.Id, default, authorizedManual: true));
 
         Assert.Equal(before, File.ReadAllBytes(shared));
@@ -1550,13 +1994,16 @@ public sealed class PlanningCoordinatorTests : IDisposable
         public string Root => root;
         public int SaveCalls { get; private set; }
         public int CountReferenceCalls { get; private set; }
-        public void ResetCountReferenceCalls() => CountReferenceCalls = 0;
+        public int GetCurrentCalls { get; private set; }
+        public int DetailedInventoryPageCalls { get; private set; }
+        public void ResetCountReferenceCalls() { CountReferenceCalls = 0; GetCurrentCalls = 0; }
         private volatile bool _busy;
         public bool Busy { get => _busy; set => _busy = value; }
         public bool ThrowInventoryPath { get; set; }
         public bool ThrowSavePath { get; set; }
         public bool FailNextSaveAfterChange { get; set; }
         public Action? OnCountPathReferences { get; set; }
+        public Action? OnDetailedInventoryPage { get; set; }
         public Action<Guid?>? OnEnsureIdle { get; set; }
 
         public ArtworkReference Add(bool isPerson = false, Guid? itemId = null, string? explicitPath = null, string? state = null,
@@ -1581,6 +2028,44 @@ public sealed class PlanningCoordinatorTests : IDisposable
                 Year = 2026,
             });
             return reference;
+        }
+
+        public void AddReadyRange(int count)
+        {
+            var content = SmallPng();
+            for (var index = 1; index <= count; index++)
+            {
+                // Deterministic ordered IDs keep the first batch deterministic after
+                // AnalyzePlan orders by ArtworkReference.Key.
+                var id = new Guid(index, 0, 0, new byte[8]);
+                var path = Path.Combine(root, id.ToString("N"), "primary-0.png");
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllBytes(path, content);
+                _entries.Add(new Entry
+                {
+                    Reference = new ArtworkReference(id, ImageType.Primary, 0, path),
+                    Name = "Synthetic large " + index,
+                    ItemType = "Movie",
+                    Year = 2026,
+                });
+            }
+        }
+
+        public void AddSyntheticExcludedRange(int count)
+        {
+            for (var index = 1; index <= count; index++)
+            {
+                var id = new Guid(index, 0, 0, new byte[8]);
+                _entries.Add(new Entry
+                {
+                    Reference = new ArtworkReference(id, ImageType.Primary, 0,
+                        Path.Combine(root, "synthetic", index.ToString("D8"), "poster.png")),
+                    State = "Excluded",
+                    Name = "Synthetic metadata " + index,
+                    ItemType = "Movie",
+                    Year = 2026,
+                });
+            }
         }
 
         public ArtworkReference AddWebp()
@@ -1636,8 +2121,26 @@ public sealed class PlanningCoordinatorTests : IDisposable
                         ReferenceCount = count,
                     };
                 }).ToArray();
+            // Match the default IArtworkStore contract: at most maximumEntries + 1
+            // rows so the caller can detect overflow without materializing everything.
+            if (maximumEntries is > 0 and < int.MaxValue)
+                rows = rows.Take(maximumEntries.Value + 1).ToArray();
             inventoryProgress?.Invoke(rows.Length);
             return rows;
+        }
+
+        public IReadOnlyList<ArtworkInventoryEntry> DetailedInventoryPage(CancellationToken cancellationToken,
+            IReadOnlyCollection<Guid>? includedItemIds = null, IReadOnlyCollection<Guid>? includedLibraryIds = null,
+            string? afterKey = null, int? maximumEntries = null, Action<int>? inventoryProgress = null)
+        {
+            DetailedInventoryPageCalls++;
+            OnDetailedInventoryPage?.Invoke();
+            cancellationToken.ThrowIfCancellationRequested();
+            return DetailedInventory(cancellationToken, includedItemIds, includedLibraryIds, inventoryProgress, maximumEntries: null)
+                .Where(entry => string.IsNullOrEmpty(afterKey)
+                    || string.CompareOrdinal(entry.Reference.Key, afterKey) > 0)
+                .Take(maximumEntries is > 0 ? maximumEntries.Value + 1 : int.MaxValue)
+                .ToArray();
         }
 
         public IReadOnlyList<ArtworkReference> Inventory(CancellationToken cancellationToken,
@@ -1646,8 +2149,13 @@ public sealed class PlanningCoordinatorTests : IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             var selected = (includedItemIds ?? []).ToHashSet();
+            var counts = _entries.Where(entry => IsLocal(entry.Reference.Path))
+                .GroupBy(entry => Path.GetFullPath(entry.Reference.Path), StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
             var result = _entries.Where(entry => entry.State is null or "Ready" or "AlreadyWebp")
                 .Where(entry => includedItemIds is null || includedItemIds.Count == 0 || selected.Contains(entry.Reference.ItemId))
+                .Where(entry => !IsLocal(entry.Reference.Path)
+                    || counts.GetValueOrDefault(Path.GetFullPath(entry.Reference.Path)) == 1)
                 .Select(entry => entry.Reference).ToArray();
             inventoryProgress?.Invoke(result.Length);
             return result;
@@ -1661,6 +2169,7 @@ public sealed class PlanningCoordinatorTests : IDisposable
 
         public ArtworkReference? GetCurrent(ArtworkReference reference)
         {
+            GetCurrentCalls++;
             var entry = _entries.FirstOrDefault(candidate => candidate.Reference.Key == reference.Key);
             return entry is null || entry.State is "Remote" or "Missing" ? null : entry.Reference;
         }
@@ -1729,6 +2238,18 @@ public sealed class PlanningCoordinatorTests : IDisposable
             for (var y = 0; y < 512; y++)
             for (var x = 0; x < 512; x++)
                 bitmap.SetPixel(x, y, new SKColor((byte)(x / 2), (byte)(y / 2), (byte)(128 + random.Next(5)), 255));
+            using var image = SKImage.FromBitmap(bitmap);
+            using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
+            return encoded.ToArray();
+        }
+
+        private static byte[] SmallPng()
+        {
+            using var bitmap = new SKBitmap(32, 32);
+            var random = new Random(42);
+            for (var y = 0; y < 32; y++)
+            for (var x = 0; x < 32; x++)
+                bitmap.SetPixel(x, y, new SKColor((byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256), 255));
             using var image = SKImage.FromBitmap(bitmap);
             using var encoded = image.Encode(SKEncodedImageFormat.Png, 100);
             return encoded.ToArray();

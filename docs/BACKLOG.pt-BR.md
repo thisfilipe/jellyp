@@ -7,6 +7,18 @@ de uso real, **ainda sem reprodução controlada, perfil de desempenho ou causa
 raiz comprovada**. Registrar não equivale a autorizar investigação em produção.
 Os quatro pontos abaixo têm prioridade sobre refinamentos menores de conveniência.
 
+**Status da candidata 0.4.0.1:** a busca no tema escuro recebeu superfície
+transparente herdada do host; o template padrão de políticas foi confirmado sem
+override de Primary (overrides salvos continuam preservados); escopos grandes
+passaram a ser processados em partes determinísticas com continuação explícita,
+limite manual de 1.000 candidatas por parte e automação separada em 10.000.
+A listagem de backups foi separada em preliminar (`CanReview`, sem promessa) e
+verificação explícita por IDs exatos (`/Backups/Review`), com filtros
+verificados mantidos. A validação nativa/browser desta candidata foi executada
+(33 upgrade, 820 UI, 48 browser resilience; gates frescos independentes já
+aprovados). Ainda pendentes: perfil de desempenho ponta a ponta em fixture real
+representativa e as opções futuras de lote/orçamento sem limite (`0`).
+
 ### 1. Desempenho da jornada inteira e ausência de progresso — prioridade alta
 
 **Esclarecimento posterior do mantenedor:** não se limita à simulação ou à conta.
@@ -100,6 +112,35 @@ Não anexar a captura de produção ou logs privados ao repositório sem sanitiz
   Cobrir teste novo, recarga, padrões globais e configuração preexistente.
 
 ### 4. Limites de lote inconsistentes e insuficientes
+
+#### Bloqueante de execução em massa: escopo rejeitado antes de limitar o lote
+
+Novo relato do mantenedor: pedido de lote de 1.000 falha com erro descrito como
+`PlanTooLarge`; reduzir o lote para 100 continua falhando. Isso impede uso em
+massa em bibliotecas grandes, não apenas reduz sua velocidade.
+
+**Evidência no código publicado:** `AnalyzePlan` solicita `DetailedInventory`
+com `maximumEntries: MaximumPlanImages` (5.000) antes do laço que limita as
+avaliações por `BatchSize`. O adapter real lança `PlanScopeTooLarge` quando o
+inventário do escopo excede esse teto. O limite conta posições de imagem do
+escopo inventariado, não só propostas aprovadas ou candidatas avaliadas. Assim,
+reduzir o lote não reduz o inventário necessário ao plano atual. O nome exato do
+erro HTTP observado pelo usuário ainda não foi coletado; o código encontrado
+é `PlanScopeTooLarge`, não um identificador literal `PlanTooLarge`.
+
+- [ ] Corrigir o contrato de planejamento para processar um escopo grande por
+  partes limitadas sem exigir que ele inteiro caiba num plano. Não orientar o
+  usuário a reduzir o lote como solução quando esse parâmetro não limita o escopo.
+- [ ] Projetar continuação determinística/progresso entre partes, preservando
+  seleção exata revisada, identidade dos slots, alterações concorrentes e
+  proteção global contra referências compartilhadas. Não apenas remover o teto
+  e carregar centenas de milhares de registros/bytes em memória.
+- [ ] Reproduzir com escopo superior a 5.000 posições e lotes de 100 e 1.000;
+  provar que cada lote pode ser analisado, revisto e aplicado e que a continuação
+  não fica repetindo só as primeiras imagens ou substituindo autorizações.
+- [ ] Distinguir na interface limites de escopo/plano, candidatas por lote e
+  seleção para aplicação; um erro de escopo não deve parecer rejeição de um lote
+  que a própria interface permite. Medir a solução na escala da prioridade 1.
 
 - [ ] Resolver a discrepância percebida: o teste manual permite até **1.000**,
   enquanto os ajustes globais aceitam **10.000**. O mantenedor considera ambos

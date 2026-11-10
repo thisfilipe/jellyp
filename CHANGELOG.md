@@ -3,6 +3,44 @@
 Versions use Jellyfin's four-part format. Published versions and their assets
 are immutable; corrections receive a new version.
 
+## [0.4.0.1] - 2026-11-10
+
+- Process large scopes as deterministic, key-ordered parts instead of rejecting
+  the whole selection above the 5,000-slot plan cap. Manual parts evaluate at
+  most 1,000 candidates; explicit continuation reaches the rest of the library
+  without repeating the first images or replacing reviewed selections.
+- Keep continuation idempotent per parent part and reject it when expiry, saved
+  defaults, scope or policies changed. A consumed parent can still continue.
+- Report real analysis phases and counts through a transient progress endpoint,
+  with explicit cancellation. The existing synchronous Analyze response remains.
+- Align saved manual defaults and the manual test to the same 1,000-candidate
+  per-part limit. Legacy saved values above it remain readable and are clamped
+  for analysis without a silent rewrite; automation keeps its separate 10,000
+  limit.
+- Reduce operation-wide global reference scans, per-image backup-directory
+  scans and whole-operation persistence. Default history listing is explicitly
+  preliminary (`CanReview`, no restore/removal claim); exact selected IDs are
+  verified by a bounded read-only `/Backups/Review` action and again before
+  queue/apply.
+- Load history progressively with per-section loading, timeout/retry and stale
+  response guards. Task polling no longer scans journals or every original.
+  Explicit verified `restorable`/`retirable` filters remain available and are
+  the only ones that claim verified eligibility.
+- Fix the dark-theme search result surface without changing host theme globals.
+  The default Primary policy template has no per-type override; explicit saved
+  overrides remain preserved and are not reset.
+- Keep recovery, shared-reference protection, exact reviewed application and
+  immutable published assets unchanged.
+
+Limitations: the manual per-part limit remains 1,000; unlimited batch/original
+budget options are still future backlog items. Large operation records still
+carry their prepared evidence, and checkpointing every 25 images is still
+O(B²/25), so memory and whole-record persistence remain bounded but not constant.
+Browser validation covered the native Chromium harness at desktop/tablet/mobile
+in EN/PT and light/dark, including axe, restore/retire review and extended
+history; Firefox, Safari, physical devices and screen readers remain outside
+that harness.
+
 ## [0.4.0.0] - 2026-11-09
 
 - Reorganize the native dashboard into five areas: Simulate, Execute,

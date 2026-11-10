@@ -44,6 +44,7 @@ import urllib.parse
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+CANDIDATE_VERSION = "0.4.0.1"
 HARNESS_PATH = REPO / "scripts/smoke-upgrade.py"
 _spec = importlib.util.spec_from_file_location("jellyp_smoke_upgrade", HARNESS_PATH)
 h = importlib.util.module_from_spec(_spec)
@@ -322,7 +323,7 @@ def restart_same_candidate(root, expected_dll_sha256, previous_identity=None, re
     if previous_identity is not None and (pid, starttime) == tuple(previous_identity):
         raise GateFailure("Restart returned the same PID/starttime identity; refusing to claim a restart.")
     token, info = login_verified(root)
-    active = h.wait_plugin(token, "0.3.0.1")
+    active = h.wait_plugin(token, CANDIDATE_VERSION)
     installed = h.assert_single_plugin_install(root)
     if h.sha256(installed) != expected_dll_sha256.upper():
         raise GateFailure("Restarted host loaded a DLL different from the expected candidate.")
@@ -798,7 +799,7 @@ def ensure_fixture_state(root, test_plugin_dll):
     h.start_host(root)
     pid, starttime = assert_process_guard(root)
     token, info = login_verified(root)
-    h.wait_plugin(token, "0.3.0.1")
+    h.wait_plugin(token, CANDIDATE_VERSION)
     installed = h.assert_single_plugin_install(root)
     if h.sha256(installed) != installed_hash:
         raise GateFailure("Installed candidate DLL changed during fixture setup.")
@@ -1632,16 +1633,19 @@ def write_final_evidence(root, final, error=None):
 
 
 def main(argv=None):
+    global CANDIDATE_VERSION
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--phase", choices=("setup", "run", "v15", "all", "stop"), default="all")
     parser.add_argument("--candidate", type=Path, help="Candidate plugin ZIP for setup/all.")
     parser.add_argument("--expected-dll-sha256", help="Expected candidate DLL SHA256 for setup/run/all.")
+    parser.add_argument("--expected-candidate-version", default=CANDIDATE_VERSION, help="Candidate plugin version for setup/all.")
     parser.add_argument("--test-plugin-dll", type=Path, default=DEFAULT_TEST_PLUGIN)
     parser.add_argument("--install-test-plugin", action="store_true",
                         help="Stop the fixture, reinstall --test-plugin-dll, and restart before run/v15.")
     parser.add_argument("--keep-running", action="store_true", help="Do not stop the fixture after the all phase.")
     args = parser.parse_args(argv)
+    CANDIDATE_VERSION = args.expected_candidate_version
     root = h.guard_root(args.root)
     os.environ["JELLYP_TEST_IMAGE_BARRIER"] = str(root / IMAGE_BARRIER_NAME)
     if args.phase == "stop":
@@ -1656,7 +1660,7 @@ def main(argv=None):
     if args.phase in ("setup", "all"):
         if not args.candidate or not args.candidate.is_file():
             parser.error("--candidate is required for setup/all")
-        meta, dll_hash = h.read_plugin_archive(args.candidate, "0.3.0.1")
+        meta, dll_hash = h.read_plugin_archive(args.candidate, CANDIDATE_VERSION)
         if dll_hash != args.expected_dll_sha256.upper():
             parser.error("Candidate DLL SHA256 does not match --expected-dll-sha256")
         if not args.test_plugin_dll.is_file():
@@ -1669,7 +1673,7 @@ def main(argv=None):
         if args.phase in ("setup", "all"):
             # Stop a previous fixture before replacing the candidate or test plugin.
             h.stop_host(root)
-            h.install_plugin(root, args.candidate, "0.3.0.1")
+            h.install_plugin(root, args.candidate, CANDIDATE_VERSION)
             ensure_fixture_state(root, args.test_plugin_dll)
             print(f"setup complete: {root / STATE_NAME}")
         if args.phase in ("run", "all", "v15"):

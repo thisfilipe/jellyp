@@ -24,6 +24,17 @@ public sealed partial class OptimizationCoordinator
         lock (_requestGate)
         {
             var current = SnapshotConfiguration();
+            if (request.Defaults is { } requestedDefaults)
+            {
+                var currentBatch = current.ManualDefaults?.BatchSize ?? current.BatchSize;
+                // An unchanged legacy value may be saved back as-is. A new value
+                // above the per-part cap is rejected; nothing is silently rewritten.
+                if (requestedDefaults.BatchSize is < 1
+                    || requestedDefaults.BatchSize > MaximumManualPlanBatch && requestedDefaults.BatchSize != currentBatch)
+                    throw new JellyPRequestException(400, "InvalidBatchSize",
+                        $"Saved manual defaults allow 1 to {MaximumManualPlanBatch} new candidates per part. An unchanged legacy value is preserved.");
+            }
+
             current.ManualDefaults = request.Defaults is null ? null : new ManualDefaults
             {
                 PreserveOriginals = request.Defaults.PreserveOriginals,
@@ -67,8 +78,12 @@ public sealed partial class OptimizationCoordinator
             current.MinimumSsim = automation.MinimumSsim;
             current.BatchSize = automation.BatchSize;
             current.ScopeMode = automation.ScopeMode;
-            current.IncludedItemIds = automation.ItemIds?.ToArray() ?? [];
-            current.IncludedLibraryIds = automation.LibraryIds?.ToArray() ?? [];
+            // Incompatible scope arrays must not survive a mode switch. This keeps
+            // a libraries/all save from silently retaining stale exact item IDs.
+            current.IncludedItemIds = automation.ScopeMode is "items" or "legacy"
+                ? automation.ItemIds?.ToArray() ?? [] : [];
+            current.IncludedLibraryIds = automation.ScopeMode == "libraries"
+                ? automation.LibraryIds?.ToArray() ?? [] : [];
             current.ImagePolicies = ClonePolicies(automation.Policies);
             current.SyncUnchangedPolicies = automation.SyncUnchangedPolicies;
             current.Validate();
@@ -81,11 +96,133 @@ public sealed partial class OptimizationCoordinator
     public PlanSummary AnalyzePlan(PlanAnalyzeRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var scope = NormalizeScope(request);
+        var analysis = BeginAnalysis(request.AnalysisId);
+        using var linked = analysis is null
+            ? null
+            : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, analysis.Cancellation.Token);
+        var token = linked?.Token ?? cancellationToken;
+        var acquired = false;
+        try
+        {
+            _analysisGate.Wait(token);
+            acquired = true;
+            return AnalyzePlanCore(request, token, analysis);
+        }
+        catch (OperationCanceledException)
+        {
+            UpdateAnalysis(analysis, "Cancelled", "Cancelled", message: "Analysis cancelled; no plan was created.");
+            throw new JellyPRequestException(409, "AnalysisCancelled", "Analysis cancelled; no plan was created.");
+        }
+        catch (Exception ex)
+        {
+            UpdateAnalysis(analysis, "Failed", "Failed", message: SafeFailureMessage(ex));
+            throw;
+        }
+        finally
+        {
+            if (acquired) _analysisGate.Release();
+        }
+    }
+
+    /// <summary>Returns transient progress for one analysis request; no paths are exposed.</summary>
+    public PlanAnalysisProgress GetAnalysisProgress(Guid analysisId)
+    {
+        lock (_analysisProgressGate)
+        {
+            PruneAnalysisProgress();
+            if (!_analysisProgress.TryGetValue(analysisId, out var state))
+                throw new JellyPRequestException(404, "AnalysisNotFound", "The analysis progress expired or was not found.");
+            return new PlanAnalysisProgress
+            {
+                AnalysisId = state.Id,
+                State = state.State,
+                Phase = state.Phase,
+                InventoryItems = state.InventoryItems,
+                Evaluated = state.Evaluated,
+                PlanId = state.PlanId,
+                Message = state.Message,
+            };
+        }
+    }
+
+    /// <summary>Requests cancellation of one in-flight analysis request.</summary>
+    public bool CancelAnalysis(Guid analysisId)
+    {
+        lock (_analysisProgressGate)
+        {
+            PruneAnalysisProgress();
+            if (!_analysisProgress.TryGetValue(analysisId, out var state)) return false;
+            if (state.State is "Completed" or "Failed" or "Cancelled") return false;
+            state.State = "Cancelled";
+            state.Phase = "Cancelled";
+            state.Message = "Analysis cancelled; no plan will be created.";
+            state.UpdatedUtc = DateTime.UtcNow;
+            try { state.Cancellation.Cancel(); }
+            catch (ObjectDisposedException) { }
+            return true;
+        }
+    }
+
+    private AnalysisProgressState? BeginAnalysis(Guid? analysisId)
+    {
+        if (!analysisId.HasValue || analysisId.Value == Guid.Empty) return null;
+        lock (_analysisProgressGate)
+        {
+            PruneAnalysisProgress();
+            if (_analysisProgress.TryGetValue(analysisId.Value, out var existing)) return existing;
+            var state = new AnalysisProgressState { Id = analysisId.Value };
+            _analysisProgress[analysisId.Value] = state;
+            return state;
+        }
+    }
+
+    private void PruneAnalysisProgress()
+    {
+        var cutoff = DateTime.UtcNow.AddMinutes(-5);
+        foreach (var pair in _analysisProgress.Where(pair => (pair.Value.State is "Completed" or "Failed" or "Cancelled")
+                         && pair.Value.UpdatedUtc < cutoff).ToArray())
+            RemoveAnalysisProgress(pair.Key);
+        // Bound only terminal history; a long queued/running analysis must remain
+        // cancellable and visible regardless of age or other requests.
+        foreach (var id in _analysisProgress.Where(pair => pair.Value.State is "Completed" or "Failed" or "Cancelled")
+                     .OrderByDescending(pair => pair.Value.UpdatedUtc).Skip(16).Select(pair => pair.Key).ToArray())
+            RemoveAnalysisProgress(id);
+    }
+
+    private void RemoveAnalysisProgress(Guid id)
+    {
+        if (!_analysisProgress.Remove(id, out var state)) return;
+        try { state.Cancellation.Dispose(); }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void UpdateAnalysis(AnalysisProgressState? state, string phase, string? status = null,
+        int? inventoryItems = null, int? evaluated = null, Guid? planId = null, string? message = null)
+    {
+        if (state is null) return;
+        lock (_analysisProgressGate)
+        {
+            state.Phase = phase;
+            if (status is not null) state.State = status;
+            if (inventoryItems.HasValue) state.InventoryItems = inventoryItems.Value;
+            if (evaluated.HasValue) state.Evaluated = evaluated.Value;
+            if (planId.HasValue) state.PlanId = planId.Value;
+            if (message is not null) state.Message = message;
+            state.UpdatedUtc = DateTime.UtcNow;
+        }
+    }
+
+    private PlanSummary AnalyzePlanCore(PlanAnalyzeRequest request, CancellationToken cancellationToken,
+        AnalysisProgressState? analysis)
+    {
         var config = SnapshotConfiguration();
         // Fingerprint the saved effective defaults before request-only draft overrides
         // are applied. Apply/Review later compare the live saved defaults to this value.
         var savedDefaultsFingerprint = ManualDefaultsFingerprint(config);
+        if (request.ContinuationPlanId.HasValue)
+            return AnalyzeContinuation(request, config, savedDefaultsFingerprint, cancellationToken, analysis);
+
+        var scope = NormalizeScope(request);
         var (defaultsSource, legacyWarning) = ApplyManualProfile(config, request);
         var plan = new PlanRecord
         {
@@ -96,7 +233,7 @@ public sealed partial class OptimizationCoordinator
             ItemIds = request.ItemIds?.Distinct().Order().ToArray() ?? [],
             LibraryIds = request.LibraryIds?.Distinct().Order().ToArray() ?? [],
             BatchSize = config.BatchSize,
-            RequestedBatchSize = request.BatchSize ?? config.BatchSize,
+            RequestedBatchSize = config.BatchSize,
             PreserveOriginals = config.PreserveOriginals,
             GeneralPolicy = ToGeneralPolicy(config),
             Policies = ClonePolicies(config.ImagePolicies),
@@ -105,14 +242,134 @@ public sealed partial class OptimizationCoordinator
             ManualDefaultsFingerprint = savedDefaultsFingerprint,
             DefaultsSource = defaultsSource,
             LegacyDefaultsWarning = legacyWarning,
+            PassId = null,
+            ParentPlanId = null,
+            Part = 1,
+            Cursor = string.Empty,
         };
+        plan.PassId = plan.Id;
+        plan.ScopeFingerprint = ScopeFingerprint(plan, savedDefaultsFingerprint);
+        return BuildPlanPart(plan, config, cancellationToken, analysis);
+    }
 
-        var includedItems = scope == "items" ? plan.ItemIds : null;
-        var includedLibraries = scope == "libraries" ? plan.LibraryIds : null;
+    private PlanSummary AnalyzeContinuation(PlanAnalyzeRequest request, PluginConfiguration current,
+        string savedDefaultsFingerprint, CancellationToken cancellationToken, AnalysisProgressState? analysis)
+    {
+        var parent = ReadPlan(request.ContinuationPlanId!.Value);
+        EnsureContinuationAllowed(parent, request, current, savedDefaultsFingerprint);
+        var existing = FindChildPlan(parent.Id, parent.Part + 1);
+        if (existing is not null)
+        {
+            UpdateAnalysis(analysis, "Completed", "Completed", planId: existing.Id,
+                message: "This part already exists; returning the same immutable plan.");
+            return ToSummary(existing);
+        }
+
+        var config = RuntimeConfiguration(parent);
+        var plan = new PlanRecord
+        {
+            Id = Guid.NewGuid(),
+            CreatedUtc = DateTime.UtcNow,
+            ExpiresUtc = parent.ExpiresUtc,
+            Scope = parent.Scope,
+            ItemIds = parent.ItemIds.ToArray(),
+            LibraryIds = parent.LibraryIds.ToArray(),
+            BatchSize = parent.BatchSize,
+            RequestedBatchSize = parent.RequestedBatchSize,
+            PreserveOriginals = parent.PreserveOriginals,
+            GeneralPolicy = parent.GeneralPolicy,
+            Policies = ClonePolicies(parent.Policies),
+            MinimumSavingsRatio = parent.MinimumSavingsRatio,
+            MinimumSavingsBytes = parent.MinimumSavingsBytes,
+            ManualDefaultsFingerprint = parent.ManualDefaultsFingerprint,
+            DefaultsSource = parent.DefaultsSource,
+            LegacyDefaultsWarning = parent.LegacyDefaultsWarning,
+            PassId = parent.PassId ?? parent.Id,
+            ParentPlanId = parent.Id,
+            Part = parent.Part + 1,
+            Cursor = parent.Cursor,
+            ScopeFingerprint = parent.ScopeFingerprint,
+        };
+        return BuildPlanPart(plan, config, cancellationToken, analysis);
+    }
+
+    private void EnsureContinuationAllowed(PlanRecord parent, PlanAnalyzeRequest request,
+        PluginConfiguration current, string savedDefaultsFingerprint)
+    {
+        if (parent.Part <= 0 || string.IsNullOrEmpty(parent.ScopeFingerprint))
+            throw new JellyPRequestException(409, "PlanContinuationUnavailable",
+                "This plan predates deterministic parts. Analyze the selection again.");
+        if (!parent.HasMore)
+            throw new JellyPRequestException(409, "NoMorePlanParts", "This plan has no remaining part.");
+        if (DateTime.UtcNow >= parent.ExpiresUtc)
+            throw new JellyPRequestException(409, "PlanExpired", "This analysis expired after 24 hours. Analyze the selection again.");
+        if (ManualDefaultsFingerprint(current) != parent.ManualDefaultsFingerprint
+            || ScopeFingerprint(parent, savedDefaultsFingerprint) != parent.ScopeFingerprint)
+            throw new JellyPRequestException(409, "ManualDefaultsChanged",
+                "Manual defaults, global limits, scope or policies changed after this analysis. Analyze the selection again.");
+        if (!string.IsNullOrWhiteSpace(request.Scope)
+            && !string.Equals(NormalizeScope(request), parent.Scope, StringComparison.Ordinal))
+            throw new JellyPRequestException(409, "ContinuationScopeChanged",
+                "A continuation must keep the exact scope of its parent plan.");
+        if (request.ItemIds is { Length: > 0 } && !request.ItemIds.Distinct().Order().SequenceEqual(parent.ItemIds))
+            throw new JellyPRequestException(409, "ContinuationScopeChanged",
+                "A continuation must keep the exact item scope of its parent plan.");
+        if (request.LibraryIds is { Length: > 0 } && !request.LibraryIds.Distinct().Order().SequenceEqual(parent.LibraryIds))
+            throw new JellyPRequestException(409, "ContinuationScopeChanged",
+                "A continuation must keep the exact library scope of its parent plan.");
+        if (request.Policies is { Length: > 0 } && !JsonSerializer.Serialize(request.Policies)
+                .Equals(JsonSerializer.Serialize(parent.Policies), StringComparison.Ordinal))
+            throw new JellyPRequestException(409, "ContinuationPolicyChanged",
+                "A continuation must keep the exact policies of its parent plan.");
+        if (request.GeneralPolicy is not null
+            && !JsonSerializer.Serialize(request.GeneralPolicy).Equals(JsonSerializer.Serialize(parent.GeneralPolicy), StringComparison.Ordinal))
+            throw new JellyPRequestException(409, "ContinuationPolicyChanged",
+                "A continuation must keep the exact encoding policy of its parent plan.");
+        if (request.PreserveOriginals.HasValue && request.PreserveOriginals.Value != parent.PreserveOriginals)
+            throw new JellyPRequestException(409, "ContinuationPolicyChanged",
+                "A continuation must keep the exact original-preservation policy of its parent plan.");
+        if (request.BatchSize.HasValue && request.BatchSize.Value != parent.BatchSize)
+            throw new JellyPRequestException(409, "ContinuationPolicyChanged",
+                "A continuation must keep the exact candidates-per-part limit of its parent plan.");
+    }
+
+    private PlanRecord? FindChildPlan(Guid parentId, int part)
+    {
+        if (!Directory.Exists(PlansDirectory)) return null;
+        foreach (var path in Directory.EnumerateFiles(PlansDirectory, "*.json"))
+        {
+            try
+            {
+                var candidate = DurableFiles.ReadJson<PlanRecord>(path);
+                if (candidate.ParentPlanId == parentId && candidate.Part == part) return candidate;
+            }
+            catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(ex, "JellyP skipped an unreadable plan while resolving a continuation");
+            }
+        }
+
+        return null;
+    }
+
+    private PlanSummary BuildPlanPart(PlanRecord plan, PluginConfiguration config,
+        CancellationToken cancellationToken, AnalysisProgressState? analysis)
+    {
+        var includedItems = plan.Scope == "items" ? plan.ItemIds : null;
+        var includedLibraries = plan.Scope == "libraries" ? plan.LibraryIds : null;
+        var partCap = Math.Min(MaximumPlanImages, config.BatchSize + 1);
+        UpdateAnalysis(analysis, "Inventory", "Running");
         IReadOnlyList<ArtworkInventoryEntry> inventory;
         try
         {
-            inventory = _artwork.DetailedInventory(cancellationToken, includedItems, includedLibraries, maximumEntries: MaximumPlanImages);
+            inventory = ReadInventoryPage(cancellationToken, includedItems, includedLibraries,
+                afterKey: string.IsNullOrEmpty(plan.Cursor) ? null : plan.Cursor,
+                maximumEntries: partCap,
+                inventoryProgress: count => UpdateAnalysis(analysis, "Inventory", "Running", inventoryItems: count));
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (InvalidOperationException ex)
         {
@@ -121,16 +378,17 @@ public sealed partial class OptimizationCoordinator
                 "JellyP could not read the inventory safely. Review server logs.");
         }
 
-        if (inventory.Count > MaximumPlanImages)
-            throw new JellyPRequestException(409, "PlanScopeTooLarge",
-                $"The selection contains {inventory.Count} image slots; the plan limit is {MaximumPlanImages}. Narrow the scope before analyzing.");
-
+        var overflow = inventory.Count > partCap;
+        var page = inventory.Take(partCap).ToArray();
+        UpdateAnalysis(analysis, "Evaluating", "Running", inventoryItems: page.Length);
         var managed = LatestCommittedRecords();
         var converter = new WebpImageConverter();
         var evaluated = 0;
         var notEvaluated = 0;
-        var images = new List<PlanImage>(inventory.Count);
-        foreach (var entry in inventory.OrderBy(item => item.Reference.Key, StringComparer.Ordinal))
+        var hasMore = overflow;
+        var lastCursor = plan.Cursor;
+        var images = new List<PlanImage>(page.Length);
+        foreach (var entry in page.OrderBy(item => item.Reference.Key, StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
             var image = ToPlanImage(entry);
@@ -139,15 +397,19 @@ public sealed partial class OptimizationCoordinator
             {
                 case "Remote":
                     image.Reason = "RemoteReference";
+                    lastCursor = entry.Reference.Key;
                     continue;
                 case "Missing":
                     image.Reason = entry.Reason ?? "MissingFile";
+                    lastCursor = entry.Reference.Key;
                     continue;
                 case "Excluded":
                     image.Reason = entry.Reason ?? "Excluded";
+                    lastCursor = entry.Reference.Key;
                     continue;
                 case "Shared":
                     image.Reason = "SharedReference";
+                    lastCursor = entry.Reference.Key;
                     continue;
             }
 
@@ -156,6 +418,7 @@ public sealed partial class OptimizationCoordinator
             if (policy is not { Enabled: true })
             {
                 image.Reason = "CategoryDisabled";
+                lastCursor = entry.Reference.Key;
                 continue;
             }
 
@@ -166,6 +429,7 @@ public sealed partial class OptimizationCoordinator
             if (entry.State == "AlreadyWebp" && !isManaged)
             {
                 image.Reason = "ExternalWebpNotManaged";
+                lastCursor = entry.Reference.Key;
                 continue;
             }
 
@@ -173,10 +437,12 @@ public sealed partial class OptimizationCoordinator
             {
                 image.Reason = "NotEvaluatedBatchLimit";
                 notEvaluated++;
-                continue;
+                hasMore = true;
+                break;
             }
 
             evaluated++;
+            lastCursor = entry.Reference.Key;
             if (isManaged)
             {
                 record = managed[reference.Key];
@@ -188,15 +454,18 @@ public sealed partial class OptimizationCoordinator
                 if (record.PolicyFingerprint == fingerprint)
                 {
                     image.Reason = "AlreadyUsesPolicy";
-                    continue;
                 }
-
-                EvaluateRegeneration(image, record, config, policy, fingerprint, converter);
+                else
+                {
+                    EvaluateRegeneration(image, record, config, policy, fingerprint, converter);
+                }
             }
             else
             {
                 EvaluateConversion(image, entry, config, policy, fingerprint, converter);
             }
+
+            UpdateAnalysis(analysis, "Evaluating", "Running", evaluated: evaluated);
         }
 
         plan.Images = images;
@@ -206,7 +475,9 @@ public sealed partial class OptimizationCoordinator
         plan.Proposed = images.Count(image => image.Action is "Convert" or "Regenerate");
         plan.EstimatedSavingsBytes = images.Where(image => image.Action is "Convert" or "Regenerate")
             .Sum(image => image.SavingsBytes ?? 0);
-        if (legacyWarning)
+        plan.HasMore = hasMore;
+        plan.Cursor = lastCursor;
+        if (plan.LegacyDefaultsWarning)
             plan.Warnings.Add(new PlanWarning
             {
                 Code = "LegacyDefaultsProjected",
@@ -216,13 +487,79 @@ public sealed partial class OptimizationCoordinator
             plan.Warnings.Add(new PlanWarning
             {
                 Code = "PlanBatchLimit",
-                Message = $"{notEvaluated} eligible image slots were not evaluated because the manual batch limit is {config.BatchSize}.",
+                Message = $"At least {notEvaluated} eligible image slot(s) remain after this part's {config.BatchSize}-candidate limit. The remaining total is unknown until the next parts run; continue to process them.",
+            });
+        if (hasMore)
+            plan.Warnings.Add(new PlanWarning
+            {
+                Code = "PlanPartLimit",
+                Message = $"This is part {plan.Part}. The manual limit applies to candidates per part, not to the whole library; continue to reach the remaining image slots.",
             });
 
-        SavePlan(plan);
-        TryPrunePlans(plan.Id);
+        if (analysis is null)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            SavePlan(plan);
+        }
+        else
+        {
+            // Publish the plan and the terminal progress state at one cancellation
+            // boundary. A cancel accepted after this boundary sees Completed; a
+            // cancel accepted before it prevents the plan from being published.
+            lock (_analysisProgressGate)
+            {
+                if (analysis.State == "Cancelled") throw new OperationCanceledException();
+                cancellationToken.ThrowIfCancellationRequested();
+                SavePlan(plan);
+                analysis.State = "Completed";
+                analysis.Phase = "Completed";
+                analysis.PlanId = plan.Id;
+                analysis.Evaluated = evaluated;
+                analysis.UpdatedUtc = DateTime.UtcNow;
+            }
+        }
+
+        TryPrunePlans(plan.Id, force: true);
         return ToSummary(plan);
     }
+
+    private IReadOnlyList<ArtworkInventoryEntry> ReadInventoryPage(CancellationToken cancellationToken,
+        IReadOnlyCollection<Guid>? includedItems, IReadOnlyCollection<Guid>? includedLibraries,
+        string? afterKey, int? maximumEntries, Action<int>? inventoryProgress)
+    {
+        IReadOnlyList<ArtworkInventoryEntry>? page = null;
+        try
+        {
+            page = _artwork.DetailedInventoryPage(cancellationToken, includedItems, includedLibraries,
+                afterKey, maximumEntries, inventoryProgress);
+        }
+        catch (NotSupportedException)
+        {
+            // Older/custom IArtworkStore implementations may only provide DetailedInventory.
+        }
+
+        if (page is not null) return page;
+        return _artwork.DetailedInventory(cancellationToken, includedItems, includedLibraries, inventoryProgress, maximumEntries: null)
+            .Where(entry => string.IsNullOrEmpty(afterKey)
+                || string.CompareOrdinal(entry.Reference.Key, afterKey) > 0)
+            .Take(maximumEntries is > 0 ? maximumEntries.Value + 1 : int.MaxValue)
+            .ToArray();
+    }
+
+    private static string ScopeFingerprint(PlanRecord plan, string savedDefaultsFingerprint) => DurableFiles.Hash(
+        JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            plan.Scope,
+            ItemIds = plan.ItemIds.Select(id => id.ToString("N")).OrderBy(id => id, StringComparer.Ordinal).ToArray(),
+            LibraryIds = plan.LibraryIds.Select(id => id.ToString("N")).OrderBy(id => id, StringComparer.Ordinal).ToArray(),
+            plan.BatchSize,
+            plan.PreserveOriginals,
+            plan.GeneralPolicy,
+            plan.Policies,
+            plan.MinimumSavingsRatio,
+            plan.MinimumSavingsBytes,
+            SavedDefaults = savedDefaultsFingerprint,
+        }));
 
     /// <summary>Returns one plan summary without filesystem paths.</summary>
     public PlanSummary GetPlan(Guid planId)
@@ -286,7 +623,9 @@ public sealed partial class OptimizationCoordinator
             Offset = request.Offset,
             Limit = request.Limit,
             Billing = BuildBilling(images, plan.PreserveOriginals),
-            Retention = BuildRetentionPreview(config, protectedIds, request.RetentionOffset, request.RetentionLimit),
+            Retention = config.BackupRetentionDays <= 0
+                ? EmptyRetentionPreview(request.RetentionOffset, request.RetentionLimit)
+                : BuildRetentionPreview(config, protectedIds, request.RetentionOffset, request.RetentionLimit, verifyHash: false),
             Items = images.Skip(request.Offset).Take(request.Limit).Select(ToImageView).ToArray(),
             Warnings = ReviewWarnings(plan, images),
         };
@@ -337,7 +676,8 @@ public sealed partial class OptimizationCoordinator
                     "This plan discards originals after verified commits. Explicit permanent-removal authorization is required.");
             var protectedIds = images.Where(image => image.Action == "Regenerate" && image.ManagedRecordId.HasValue)
                 .Select(image => image.ManagedRecordId!.Value).ToHashSet();
-            var retention = BuildRetentionSnapshot(config, protectedIds, LoadJournalSnapshot());
+            var retention = BuildRetentionSnapshot(config, protectedIds,
+                config.BackupRetentionDays <= 0 ? null : LoadJournalSnapshot());
             if (retention.Eligible.Count > 0 && !request.AuthorizeRetentionPurge)
                 throw new JellyPRequestException(409, "RetentionPurgeAuthorizationRequired",
                     $"Applying now would retire {retention.Eligible.Count} other originals under the current retention setting. Authorize that separate expiry explicitly.");
@@ -580,11 +920,14 @@ public sealed partial class OptimizationCoordinator
             || policies.Select(policy => policy.Category).Distinct(StringComparer.Ordinal).Count() != policies.Length
             || !PluginConfiguration.Categories.All(category => policies.Any(policy => policy.Category == category)))
             throw new JellyPRequestException(400, "IncompletePolicies", "Manual policies must include every writable category exactly once.");
-        var batch = request.BatchSize ?? defaults?.BatchSize ?? config.BatchSize;
-        var maximumBatch = Math.Min(defaults?.BatchSize ?? config.BatchSize, MaximumPlanBatch);
+        // Legacy saved manual defaults may exceed the per-part limit. Project the
+        // effective value down for this request without rewriting the saved object.
+        var savedBatch = defaults?.BatchSize ?? config.BatchSize;
+        var maximumBatch = Math.Min(savedBatch, MaximumManualPlanBatch);
+        var batch = request.BatchSize ?? maximumBatch;
         if (batch is < 1 || batch > maximumBatch)
             throw new JellyPRequestException(400, "InvalidBatchSize",
-                $"Batch size must be between 1 and {maximumBatch}; the plan hard limit is {MaximumPlanBatch}.");
+                $"Candidates per manual part must be between 1 and {maximumBatch}; the per-part hard limit is {MaximumManualPlanBatch}.");
 
         config.Quality = general.Quality;
         config.Lossless = general.Lossless;
@@ -789,10 +1132,16 @@ public sealed partial class OptimizationCoordinator
         return billing;
     }
 
-    private RetentionPreview BuildRetentionPreview(PluginConfiguration config, IReadOnlySet<Guid> protectedIds,
-        int offset, int limit, RetentionSnapshot? snapshot = null)
+    private static RetentionPreview EmptyRetentionPreview(int offset, int limit) => new()
     {
-        var full = snapshot ?? BuildRetentionSnapshot(config, protectedIds, LoadJournalSnapshot());
+        Offset = offset,
+        Limit = limit,
+    };
+
+    private RetentionPreview BuildRetentionPreview(PluginConfiguration config, IReadOnlySet<Guid> protectedIds,
+        int offset, int limit, bool verifyHash = false, RetentionSnapshot? snapshot = null)
+    {
+        var full = snapshot ?? BuildRetentionSnapshot(config, protectedIds, LoadJournalSnapshot(), verifyHash);
         var items = full.Eligible.Skip(offset).Take(limit).Select(record => new RetentionCandidateView
         {
             RecordId = record.Id,
@@ -820,7 +1169,7 @@ public sealed partial class OptimizationCoordinator
     }
 
     private RetentionSnapshot BuildRetentionSnapshot(PluginConfiguration config, IReadOnlySet<Guid> protectedIds,
-        JournalSnapshot journal)
+        JournalSnapshot? journal, bool verifyHash = true)
     {
         var safetyFingerprint = DurableFiles.Hash(JsonSerializer.SerializeToUtf8Bytes(new
         {
@@ -830,29 +1179,32 @@ public sealed partial class OptimizationCoordinator
             config.MinimumSavingsBytes,
             config.MinimumSavingsRatio,
         }));
-        if (config.BackupRetentionDays <= 0)
+        if (config.BackupRetentionDays <= 0 || journal is null)
             return new RetentionSnapshot([], 0, 0, string.Empty, safetyFingerprint);
         var cutoff = DateTime.UtcNow.AddDays(-config.BackupRetentionDays);
         var allCommitted = journal.All.Where(record => record.State == "Committed" && !record.BackupDeleted).ToArray();
+        var byId = allCommitted.ToDictionary(record => record.Id);
         var protectedCount = 0;
         long protectedBytes = 0;
         foreach (var protectedId in protectedIds)
         {
-            var record = allCommitted.FirstOrDefault(candidate => candidate.Id == protectedId);
-            if (record is null) continue;
+            if (!byId.TryGetValue(protectedId, out var record)) continue;
             protectedCount++;
             protectedBytes += record.OriginalBytes;
         }
 
         var candidates = allCommitted.Where(record => record.CompletedUtc.HasValue && record.CompletedUtc.Value < cutoff)
             .OrderBy(record => record.CompletedUtc).ThenBy(record => record.Id).ToArray();
-        var shared = BackupSlotStates(candidates, CancellationToken.None);
+        var shared = verifyHash
+            ? BackupSlotStates(candidates, CancellationToken.None)
+            : CheapBackupSlotStates(candidates);
         var eligible = new List<MigrationRecord>();
         foreach (var record in candidates)
         {
             if (protectedIds.Contains(record.Id)) continue;
             if (shared.GetValueOrDefault(record.Source.Key) is not { IsMutationSafe: true }) continue;
-            if (!IsActiveRecord(record, verifyHash: true, journal) || File.Exists(record.Source.Path)) continue;
+            if (!File.Exists(Backup(record))) continue;
+            if (!IsActiveRecord(record, verifyHash, journal) || File.Exists(record.Source.Path)) continue;
             eligible.Add(record);
         }
 
@@ -961,8 +1313,10 @@ public sealed partial class OptimizationCoordinator
 
     private string PlanPath(Guid planId) => Path.Combine(PlansDirectory, planId.ToString("N") + ".json");
 
-    private void TryPrunePlans(Guid? keep = null)
+    private void TryPrunePlans(Guid? keep = null, bool force = false)
     {
+        if (!force && DateTime.UtcNow - _lastPlanPruneUtc < TimeSpan.FromMinutes(1)) return;
+        _lastPlanPruneUtc = DateTime.UtcNow;
         try { PrunePlans(keep); }
         catch (Exception ex)
         {
@@ -1042,6 +1396,10 @@ public sealed partial class OptimizationCoordinator
         DefaultsSource = plan.DefaultsSource,
         LegacyDefaultsWarning = plan.LegacyDefaultsWarning,
         OperationId = plan.OperationId,
+        PassId = plan.PassId,
+        ParentPlanId = plan.ParentPlanId,
+        Part = plan.Part <= 0 ? 1 : plan.Part,
+        HasMore = plan.HasMore,
         Warnings = plan.Warnings,
     };
 
@@ -1120,6 +1478,9 @@ public sealed partial class OptimizationCoordinator
             },
             DefaultsSource = manual is null ? "legacy" : "manual",
             LegacyDefaultsWarning = manual is null,
+            EffectiveManualBatchSize = Math.Min(defaults.BatchSize, MaximumManualPlanBatch),
+            ManualBatchLimit = MaximumManualPlanBatch,
+            AutomationBatchLimit = MaximumAutomationBatch,
             Categories = PluginConfiguration.Categories.ToArray(),
         };
     }
@@ -1231,6 +1592,9 @@ public sealed partial class OptimizationCoordinator
         if (record.State != "Committed" || record.BackupDeleted || record.OutputPath is null) return false;
         snapshot ??= LoadJournalSnapshot();
         if (snapshot.Uncertain.ContainsKey(record.Source.Key)) return false;
+        // Superseded history must not cost a checksum read before being discarded.
+        if (!snapshot.LatestCommitted.TryGetValue(record.Source.Key, out var latest) || latest.Id != record.Id)
+            return false;
         var current = _artwork.GetCurrent(record.Source);
         if (current is null || !File.Exists(current.Path)
             || !string.Equals(current.Path, record.OutputPath, PathComparison)) return false;
@@ -1248,7 +1612,7 @@ public sealed partial class OptimizationCoordinator
             }
         }
 
-        return snapshot.LatestCommitted.TryGetValue(record.Source.Key, out var latest) && latest.Id == record.Id;
+        return snapshot.LatestCommitted.TryGetValue(record.Source.Key, out var latestCheck) && latestCheck.Id == record.Id;
     }
 
     private sealed record JournalSnapshot(
@@ -1258,4 +1622,5 @@ public sealed partial class OptimizationCoordinator
         IReadOnlyDictionary<string, MigrationRecord[]> Uncertain);
 
     private static StringComparison PathComparison => OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    private static StringComparer PathComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 }

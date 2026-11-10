@@ -318,6 +318,22 @@ public sealed class JellyPControllerTests : IDisposable
     }
 
     [Fact]
+    public void AnalysisProgressUnknownIdentityIsBoundedAndNotFound()
+    {
+        Assert.Equal(404, Assert.IsType<ObjectResult>(_controller.AnalyzeProgress(Guid.NewGuid())).StatusCode);
+    }
+
+    [Fact]
+    public void TasksPollingDoesNotScanJournalsOrBackups()
+    {
+        var journal = Path.Combine(_root, "journal");
+        Directory.CreateDirectory(journal);
+        File.WriteAllText(Path.Combine(journal, "unreadable.json"), "{not-json");
+        var result = Assert.IsType<OkObjectResult>(_controller.NativeTasks().Result);
+        Assert.DoesNotContain("journal", System.Text.Json.JsonSerializer.Serialize(result.Value));
+    }
+
+    [Fact]
     public void TasksResponseSanitizesLegacyFailurePaths()
     {
         Jellyfin.Plugin.JellyP.Infrastructure.DurableFiles.WriteJson(Path.Combine(_root, "last-run.json"), new RunReport

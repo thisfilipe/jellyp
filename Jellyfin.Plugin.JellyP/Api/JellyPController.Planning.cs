@@ -17,6 +17,28 @@ public sealed partial class JellyPController
         catch (Exception ex) { return ApiFailure(ex); }
     }
 
+    /// <summary>Returns real, transient progress for one in-flight analysis request.</summary>
+    [HttpGet("Plan/Analyze/{analysisId:guid}")]
+    public ActionResult AnalyzeProgress(Guid analysisId)
+    {
+        try { return Ok(coordinator.GetAnalysisProgress(analysisId)); }
+        catch (Exception ex) { return ApiFailure(ex); }
+    }
+
+    /// <summary>Requests cancellation of one in-flight analysis request.</summary>
+    [HttpPost("Plan/Analyze/{analysisId:guid}/Cancel")]
+    public ActionResult CancelAnalysis(Guid analysisId)
+    {
+        try
+        {
+            if (coordinator.CancelAnalysis(analysisId)) return Accepted();
+            try { coordinator.GetAnalysisProgress(analysisId); }
+            catch (JellyPRequestException) { return ApiProblem(404, "AnalysisNotFound", "The analysis progress expired or was not found."); }
+            return ApiProblem(409, "AnalysisTerminal", "The analysis already reached a terminal state.");
+        }
+        catch (Exception ex) { return ApiFailure(ex); }
+    }
+
     /// <summary>Returns one plan summary.</summary>
     [HttpGet("Plan/{id:guid}")]
     public ActionResult<PlanSummary> Plan(Guid id)
@@ -195,6 +217,15 @@ public sealed partial class JellyPController
         catch (Exception ex) { return ApiFailure(ex); }
     }
 
+    /// <summary>Explicitly verifies exact stored-original IDs for review; never mutates.</summary>
+    [HttpPost("Backups/Review")]
+    public ActionResult<BackupReviewResponse> ReviewBackups([FromBody] BackupReviewRequest request)
+    {
+        if (request is null) return ApiProblem(400, "InvalidRequest", "A backup review request is required.");
+        try { return Ok(coordinator.ReviewBackups(request)); }
+        catch (Exception ex) { return ApiFailure(ex); }
+    }
+
     /// <summary>Queues an exact batch restoration. Unknown, duplicate, shared or uncertain records are rejected before any write.</summary>
     [HttpPost("Backups/Restore")]
     public ActionResult<OperationReceipt> Restore([FromBody] BackupBatchRequest request, CancellationToken cancellationToken)
@@ -254,7 +285,7 @@ public sealed partial class JellyPController
                 }).ToArray();
             return Ok(new TasksView
             {
-                LastRun = SanitizeLegacyReport(coordinator.GetStatus().LastRun),
+                LastRun = SanitizeLegacyReport(coordinator.GetLastRun()),
                 Tasks = views,
                 ActiveOperationId = coordinator.ActiveOperationId,
                 CurrentRunnerOperationId = coordinator.CurrentRunnerOperationId,

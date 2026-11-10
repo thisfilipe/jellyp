@@ -49,6 +49,14 @@ selection**. Only those exact image identities can proceed. Changing scope,
 policies or defaults invalidates the plan and requires a new simulation. A plan
 also expires; review its validity before applying.
 
+Manual analysis is processed in deterministic key-ordered parts. A saved manual
+default and each part evaluate at most 1,000 candidates; this is not a limit on
+the whole library. When **Continue to next part** appears, it reaches the next
+image slots without repeating the first part. Continuing is idempotent per parent
+part and is refused if expiry, saved defaults, scope or policies changed. A
+consumed part can still be continued, and the previous part remains available
+for reading. Automation keeps its separate 10,000-candidate limit.
+
 ## Execute and operation receipts
 
 In **Execute**, review the frozen settings, exact selection and storage bill,
@@ -87,14 +95,19 @@ existing conversions alone; use restoration explicitly to undo them.
 ## History, restoration and permanent removal
 
 **History and restoration** lists persisted operation receipts and their
-individual results. Select eligible transactions to restore exact originals in a
-batch, or open the separate **Remove originals · permanent** view to review
-retirement. Uncertain or recovery-required records never enter either batch.
+individual results. The default list is deliberately preliminary: it shows
+stored originals that can be selected for verification (`CanReview`), not a
+claim that every ID is restorable. Select exact IDs, open review, and read the
+per-ID verification result. Invalid, shared, changed, uncertain or superseded
+IDs must be removed explicitly; nothing is silently dropped or substituted.
+The explicit verified `restorable`/`retirable` filters and the `Backups/Review`
+action perform the authoritative check.
 
 Restoration requires retained originals. Retirement is permanent: without the
 original, restoration and original-based regeneration are unavailable. Each
 action is revalidated and confirmed for the exact selected identities. Active
-WebP images are not removed by original retirement.
+WebP images are not removed by original retirement. The operation queue and
+apply verify the exact IDs again even after a successful review.
 
 Retention zero means manual removal; otherwise eligible originals expire at the
 start of an applying batch. Follow [recovery](RECOVERY.md) for pending recovery,
