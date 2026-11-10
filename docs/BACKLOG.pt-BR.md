@@ -48,6 +48,38 @@ problema de viabilidade do uso nessa escala, não apenas um refinamento visual.
   jornada e 52 Backdrops não comprovam desempenho nesse cenário. Otimização não
   pode reduzir as checagens globais necessárias contra referências compartilhadas.
 
+### 1.1 Lentidão ao abrir histórico e loading genérico indefinido — prioridade alta
+
+Novo relato de uso real na 0.4.0.0: ao navegar entre áreas, principalmente para
+**Histórico e restauração**, o conteúdo fica vazio por muito tempo, mostrando
+apenas “Loading JellyP...” e o spinner do host. O menu indica o destino, mas a
+área principal não oferece status útil, fase, erro ou previsão. A captura fornecida
+documenta esse estado; não prova sozinha travamento permanente nem sua causa.
+
+- [ ] Incluir abertura do histórico/restauração e navegação entre áreas no perfil
+  de desempenho ponta a ponta, não apenas análise/aplicação. Medir requisições,
+  tempo de servidor, leitura de operações/journals, verificação dos backups,
+  resolução de nomes/imagens, paginação e renderização. Identificar trabalho
+  global ou sequencial desnecessário antes de propor a correção.
+- [ ] Tornar visível o primeiro conteúdo útil sem depender de todos os cálculos
+  ou seções da página. Avaliar carregamento progressivo e estados por seção,
+  preservando conteúdo já disponível e indicando o que ainda está sendo obtido.
+- [ ] Substituir a espera genérica indefinida por estados acessíveis e localizados:
+  carregando, demorando além do esperado, erro, vazio e conteúdo disponível.
+  Oferecer recuperação/repetição e navegação segura sem duplicar requisições
+  mutantes, cancelar operações implicitamente ou ressuscitar seleções consumidas.
+- [ ] Tratar falha, timeout, requisição obsoleta e mudança de rota para não deixar
+  spinner preso nem permitir que resposta antiga sobrescreva a página atual.
+  Definir timeouts a partir do contrato e das medições, não mascarar a lentidão
+  apenas encerrando a espera no cliente.
+- [ ] Testar respostas lentas/falhas controladas e muitos registros em fixture
+  sintética; verificar progresso anunciado, foco, idioma, ambos os temas e se o
+  histórico abre com custo proporcional ao conteúdo necessário à página.
+
+Registrar junto da prioridade 1: melhorar o loading não substitui otimizar o
+backend, e acelerar o backend não dispensa feedback durante operações longas.
+Não anexar a captura de produção ou logs privados ao repositório sem sanitização.
+
 ### 2. Busca de itens específicos no tema escuro — bug visual
 
 - [ ] Corrigir o fundo branco que aparece na área/lista de seleção de itens
