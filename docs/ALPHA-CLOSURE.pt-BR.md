@@ -1,4 +1,4 @@
-# Fechamento técnico e preparação da alpha
+# Fechamento técnico e preparação da release
 
 **Conferência final do harness em 08/11:** após revisão independente, corrigidos
 cleanup do startup e checagens ausentes do upgrade isolado. **32 testes de release**
@@ -43,9 +43,12 @@ reproduzido no HEAD `a42f017` porque o SDK embute a revisão no informational
 version, embora o diff de produto `e21328a..HEAD` seja vazio. Nenhuma identidade
 de release foi criada. Detalhes na seção 8.
 
-Atualizado em **09/11/2026**. Código base em **`a42f017`**; o produto permanece
-em **`e21328a`** e o harness desta rodada está em `a42f017`. As correções e
-testes V08/V10/V15 permanecem na árvore de trabalho, sem commit.
+Atualizado em **09/11/2026**. Código base em **`b5f709d`**. A release comum
+**0.4.0.0** foi preparada e validada localmente sobre essa base; ela **não foi
+publicada**, e o pai ainda fará commit/push, CI, tag, release e catálogo. O
+artefato publicado `0.3.0.1` e seus assets permanecem imutáveis. As evidências
+desta preparação estão na seção 9; as seções 6–8 continuam sendo registros
+históricos e não foram reabertas.
 Este é o acompanhamento atual de entrega; o plano detalhado conserva também a
 história da proposta. Não transforma testes históricos em uma nova execução.
 
@@ -105,7 +108,7 @@ apresentada como observação de falha física no browser.
 | V10 — scheduler e metadata | Fechado no host real em 09/11/2026: `IntervalTrigger` real iniciou `OptimizeArtworkTask`; refresh relacionado produziu `WaitingForMetadata` sem mutação e retomou após liberar; refresh não relacionado permaneceu `Active` durante a conversão do alvo e não bloqueou | O disparo pelo scheduler e o `EnsureIdle` real estão provados; a UI/planning não foi repetida nesta rodada |
 | V11 — restauração e journals novos/antigos | Exercitado no host 12.1 em 08/11/2026: journal antigo restaurado pela API atual com SHA256 exato | Fechado para o gate local; repetir com identidade candidata final |
 | V12 — remoção seletiva | Reexecutado na rodada final: 52 Backdrops reais, fingerprint estável, aplicação e expiração dos 52 originais revisados; aposentadoria individual e restauração também passaram na jornada | Conjunto real de 52, não o cap de 200; proteção de incertos permanece coberta pela suíte de backend, não por novo caso físico |
-| V13 — upgrade da baseline | Exercitado no host 12.1 em 08/11/2026: baseline `0.3.0.1` → build local, escopo/journal/triggers/modo seguro preservados | Gate local fechado; falta upgrade com nova identidade candidata e catálogo público |
+| V13 — upgrade da baseline | Exercitado no host 12.1 em 08/11/2026 e repetido com a identidade `0.4.0.0` em 09/11/2026 (seção 9): escopo/journal/triggers/modo seguro preservados | Gate local fechado; falta catálogo público |
 | V14 — teclado/idioma/mobile | Reexecutado em 09/11/2026: Chromium, pt/en, Dark/Light, desktop/mobile/tablet, teclado e 23 análises axe sem violações | Regressão final aprovada para Chromium; leitor de tela, Firefox/Safari e dispositivos físicos continuam não validados e não bloqueiam a alpha declarada |
 | V15 — espaço/persistência/interrupção | Fechado no host real em 09/11/2026 (rerun targeted, HEAD `d097fb6`): o WebP já existia antes do SIGKILL com hash igual ao `OutputHash` do journal `Prepared`; SIGKILL somente do PID verificado (argv/cwd/uid/starttime/socket) via pidfd; reinício da mesma DLL marcou `Interrupted`, `PendingRecovery=1`, sem replay; recuperação explícita removeu a saída existente (`outputRemovalProven=true`), restaurou o PNG exato, deixou journal `RolledBack` e `BackupDeleted=true`. A rodada histórica de 80 checks havia observado `Prepared-before-save` e não alegou remoção | Disco físico/permissões/hardware continuam fora do escopo; V08/V10 não foram reexecutados no rerun targeted porque o produto e seus caminhos de harness não mudaram |
 
@@ -159,39 +162,44 @@ Interrupções são somente do processo verificado da fixture. Falta de espaço 
 falha de persistência deve ser simulada isoladamente, nunca enchendo disco do
 computador nem alterando permissões/serviços do sistema ou produção.
 
-## 5. Alpha / P8
+## 5. P8 / preparação da release
 
 - [x] Fechar gates técnicos acima ou documentar restrição de escopo explícita;
   não dispensar integridade/migração por chamar o pacote de alpha. Fechado para
   o escopo alpha declarado (seção 8), com as limitações não bloqueantes listadas;
   não é aceite universal de P7 nem de produção.
-- [ ] Atualizar guias de uso, recuperação e notas de migração para o fluxo atual.
-- [ ] Preparar changelog e limitações com referência aos testes da revisão candidata.
-- [ ] Definir nova versão de quatro partes e a identificação de alpha compatível
-  com Jellyfin; não reutilizar `0.3.0.1` nem alterar seus assets publicados.
-- [ ] Validar pacote e instalação/upgrade do candidato na fixture.
-- [ ] Definir feedback por tarefa e caminho de rollback compatível com journals;
-  não prometer downgrade seguro sem prova. Rollback precisa de snapshot da fixture
-  anterior à atualização e restauração controlada, não só trocar a DLL.
-- [ ] Somente com autorização específica: commit/push, tag, publicação e teste do
-  catálogo público. Produção permanece uma decisão separada.
+- [x] Atualizar guias de uso, recuperação e notas de migração para o fluxo atual
+  em `0.4.0.0`.
+- [x] Preparar changelog e limitações com referência aos testes da revisão
+  candidata.
+- [x] Definir nova versão de quatro partes (`0.4.0.0`) e a identificação
+  compatível com Jellyfin; `0.3.0.1` e seus assets não foram reutilizados.
+- [x] Validar pacote e instalação/upgrade do candidato na fixture.
+- [x] Definir feedback por tarefa e caminho de rollback compatível com journals;
+  não prometer downgrade seguro sem prova. O rollback documentado exige backup
+  anterior e restauração controlada, não só trocar a DLL.
+- [ ] Commit/push, tag, publicação e teste do catálogo público; essas etapas
+  dependem do pai e de autorização específica. Produção permanece uma decisão
+  separada.
 
 **Recomendação P7/P8:** para o escopo alpha declarado, P7 está tecnicamente
 fechado com as limitações abaixo; isso não é aceite universal da matriz V01–V15
-nem autorização de produção. P8 continua em preparação e bloqueado por uma nova
-identidade de versão de quatro partes, changelog/limitações da candidata,
-validação de pacote/instalação/upgrade com essa identidade, caminho de rollback e
-autorização específica de publicação. A identidade alpha continua sendo a antiga
-`0.3.0.1`; não publicar, não sobrescrever assets publicados e não promover a
-fixture a release.
+nem autorização de produção. P8 está **preparado, não publicado**: a identidade
+`0.4.0.0`, o changelog, os guias, o pacote e o upgrade local foram validados
+(seção 9). Falta apenas a publicação pelo pai e o smoke do catálogo público.
+Não sobrescrever os assets de `0.3.0.1` e não promover a fixture a release.
 
 ### Limitações não bloqueantes de uma alpha declarada
 
 Avaliação por pessoa sem contexto está adiada por decisão do mantenedor. Firefox,
-Safari, aparelhos físicos e leitor de tela não foram validados. Essas limitações
-devem acompanhar a alpha; ausência de reclamações não equivale a aceite.
+Safari, aparelhos físicos e leitor de tela não foram validados; a rodada de
+navegador usou somente Chromium. Axe não é certificação WCAG. Os caps declarados
+de 5000 imagens por plano, 1000 por lote/seleção e 200 por lote de
+restauração/aposentadoria não foram submetidos a stress; a maior fixture usou 52
+imagens. Essas limitações devem acompanhar a release; ausência de reclamações não
+equivale a aceite. Não há declaração de estabilidade universal.
 
-### Rascunho de notas para a candidata (não publicado)
+### Rascunho de notas para 0.4.0.0 (não publicado)
 
 **Mudanças:** interface nativa organizada por tarefa; análise e aplicação de um
 conjunto revisado; cálculo de armazenamento do conjunto; relatórios por operação;
@@ -211,7 +219,14 @@ credenciais, imagens de produção, biblioteca completa, banco ou journals priva
 Em erro de recuperação, não recomendar apagar registros ou repetir uma operação
 mutante indiscriminadamente; seguir [recuperação](RECOVERY.md).
 
-### Situação nesta retomada
+**Limitações:** release pré-alpha, sem declaração de estabilidade ou certificação
+universal. Navegador validado somente em Chromium; Firefox, Safari, leitor de tela
+e dispositivos físicos não foram exercitados. Os caps de 5000/1000/200 não tiveram
+stress. Uploads manuais simultâneos continuam sendo uma corrida residual da API
+do Jellyfin. Fazer backup antes de atualizar; downgrade seguro de DLL não é
+prometido.
+
+### Situação histórica da retomada em 08/11/2026
 
 Reconciliação documental realizada e gates locais reexecutados em 08/11/2026,
 com fonte em `30401c511b70ff24577b6af7ec1edcacf8bf9dc5`:
@@ -225,12 +240,12 @@ com fonte em `30401c511b70ff24577b6af7ec1edcacf8bf9dc5`:
   `artifacts/`: quatro membros, 950.493 bytes, SHA256
   `56975d308f763171056b8cd281d589cc3db1432d332857d4ccfa92a1bc3de7df`.
 
-**Bloqueio de identidade de release:** o pacote ainda informa `0.3.0.1`, mas o
-código está 17 commits após a tag dessa versão e os bytes diferem do artefato
-antigo (`9eb58165…`). O ZIP local é apenas um teste de empacotamento, não uma
-candidata publicável. É necessário definir nova versão de quatro partes, alinhar
-projeto, `build.yaml` e changelog e repetir as validações sobre a candidata.
-Nenhuma versão foi alterada nesta retomada.
+**Bloqueio de identidade na retomada de 08/11 (resolvido na seção 9):** o pacote
+ainda informava `0.3.0.1`, mas o código estava 17 commits após a tag dessa versão
+e os bytes diferiam do artefato antigo (`9eb58165…`). O ZIP local era apenas um
+teste de empacotamento, não uma candidata publicável. A seção 9 registra a nova
+versão `0.4.0.0`, o alinhamento de projeto/`build.yaml`/changelog e as
+validações repetidas sobre a candidata.
 
 ### Rodada de host em 08/11/2026
 
@@ -267,7 +282,7 @@ UI/planning/axe, upgrade e as bibliotecas sintéticas foram reexecutados; V11 e
 V13 estão fechados apenas para o gate local. V08/V10/V15 têm prova determinística
 in-process na seção 6 e, em 09/11/2026, prova no host real na seção 7
 (scheduler por intervalo, refresh de metadata e SIGKILL do PID verificado).
-A validação de instalação final deve usar a nova identidade candidata, sem
+A validação de instalação final usa a nova identidade `0.4.0.0` (seção 9), sem
 sobrescrever a versão publicada. Este checklist não autoriza publicação ou
 produção.
 
@@ -692,3 +707,128 @@ encerrado; `host.pid` foi removido e `127.0.0.1:18096` ficou livre. Um rerun
 final do script alpha, após a revisão textual, reiniciou a mesma fixture com PID
 `1110119`, repetiu os 25 checks e também foi encerrado com a porta livre.
 Nenhum segredo, token ou URL autenticada foi impresso na evidência.
+
+## 9. Release comum 0.4.0.0 — preparada, não publicada (09/11/2026)
+
+Esta seção é a preparação atual sobre o HEAD `b5f709d`. Ela **não** reabre os
+gates históricos das seções 6–8 e **não** publica nada. O produto em
+`Jellyfin.Plugin.JellyP/` não foi alterado: as mudanças desta rodada são de
+versão, documentação e empacotamento. Nenhum workflow, canal, flag de
+prerelease ou branch novo foi criado; o pipeline existente continua publicando
+um release comum `--latest` e atualizando o branch `catalog`.
+
+**Versão e documentação**
+
+- `.csproj` e `build.yaml` agora declaram `0.4.0.0`; o ABI continua
+  `12.1.0.0` e o GUID permanente não mudou.
+- `CHANGELOG.md` tem a entrada `[0.4.0.0] - 2026-11-09` com as cinco áreas,
+  seleção exata, planos/recibos duráveis, restauração em lote, aposentadoria
+  separada, independência manual/automação, correções de cancelamento e
+  branding/menu. A entrada declara as limitações e não usa “stable” nem
+  certificação universal.
+- `README.md`, `docs/USAGE.md`, `docs/USAGE.pt-BR.md`, `docs/PLAN.md` e
+  `docs/RELEASING.md` foram atualizados para o fluxo atual, migração e exemplos
+  `0.4.0.0`. A história das versões anteriores foi preservada.
+- `artifacts/JellyP_0.3.0.1.zip`, seu sidecar e o manifesto gerado não foram
+  tocados. O baseline local continua com SHA256
+  `9EB58165657F30D9C633848D4ED707A33FBCD079688B4C966BE36030086657CA`.
+
+**Validação local**
+
+- `dotnet restore JellyP.slnx --locked-mode`: aprovado.
+- Build Release: zero avisos e zero erros.
+- Suíte .NET: **204 testes** aprovados.
+- Suíte de release: **59 testes** aprovados; sintaxe Python/CJS aprovada.
+- Auditoria de publicação da árvore de trabalho: aprovada para 101 arquivos;
+  a auditoria automatizada não substitui revisão manual.
+- Pacote isolado em `/tmp/opencode/jellyp-release-0.4.0.0`, sem substituir
+  `artifacts/`: `JellyP_0.4.0.0.zip` com exatamente quatro membros, `meta.json`
+  em `0.4.0.0`, `targetAbi` `12.1.0.0`, imagem idêntica ao PNG aprovado e DLL
+  SHA256
+  `5C364AA42DD17FA430C977A05808BF1E78F5AE4996B41139911C443A4B5EEED2`.
+  ZIP local: 636.995 bytes, SHA256
+  `69229E225F84ACD1DAE94B076D309C1E301B65C88F99FCFBFDE39676CFEA4AB6`,
+  distinto do baseline `0.3.0.1`.
+- **Identidade:** o build local embute a revisão da árvore no informational
+  version. Commit, tag e CI podem produzir bytes/hashes diferentes dos acima;
+  esses valores são evidência local, não o hash do asset público. Não fixar o
+  SHA256 do ZIP local no README como hash de release antes do CI.
+
+**Fixture e upgrade**
+
+- Raiz nova marcada: `/tmp/opencode/jellyp-release-0.4.0.0-fixture`, com o host
+  oficial 12.1 extraído dos pacotes em cache (server
+  `b57edb75243b24c2ef619b62732a51d18ce1b8a0bf2f2bab9be47d1461b424e9`, web
+  `618e9b9c5754c587e05056d71f90ca14241a27f9abead7a2337f38914c0c3a42`), apenas
+  em `127.0.0.1:18096`.
+- Credenciais novas em `0600`; nenhum token, senha ou URL autenticada foi
+  impresso. `ProgramDataPath` autenticado
+  `/tmp/opencode/jellyp-release-0.4.0.0-fixture/data` foi conferido após o login
+  e antes de bibliotecas/mutações de API.
+- Processo verificado por UID, argv, cwd, starttime e socket de loopback. O PID
+  `1140175`/starttime `12178281` era o único dono de `127.0.0.1:18096`; o
+  encerramento final usou o PID exato, removeu `host.pid` e deixou a porta livre.
+- `python3 scripts/smoke-upgrade.py --root ... --phase all --baseline
+  artifacts/JellyP_0.3.0.1.zip --candidate
+  /tmp/opencode/jellyp-release-0.4.0.0/JellyP_0.4.0.0.zip
+  --expected-candidate-version 0.4.0.0 --expected-dll-sha256
+  5C364AA42DD17FA430C977A05808BF1E78F5AE4996B41139911C443A4B5EEED2`
+  passou **33 checks**.
+- O upgrade `0.3.0.1` → `0.4.0.0` preservou XML, journal, backup e saída WebP
+  byte a byte; escopo exato de item, modo seguro, limites e políticas não
+  mudaram; IDs/chaves/triggers das duas tarefas continuaram iguais; a leitura da
+  configuração antiga não reescreveu o XML. O journal antigo foi restaurado pela
+  API atual com SHA256 exato, `RolledBack`, `BackupDeleted=true` e
+  `PendingRecovery=0`. Uma segunda restauração é recusada.
+
+**UI nativa focada**
+
+- `smoke-native-ui.cjs` sem `--journey` na fixture candidata passou **121
+  checks** (7 análises axe, zero violações, zero erros de página). Cobriu as
+  cinco áreas, 11 categorias, temas claro/escuro, pt/en, desktop/mobile/tablet,
+  foco, paginação e os recursos nativos.
+- A UI instalada exibiu `v0.4.0.0`; as três PNGs embutidas e a composição opaca
+  do catálogo foram servidas byte a byte; o cartão e o detalhe do plugin
+  exibiram a arte aprovada. O menu principal nativo expôs o link JellyP
+  (`#/configurationpage?name=jellyp`), confirmado no navegador e pelo endpoint
+  `web/ConfigurationPages?enableInMainMenu=true`.
+- Não houve jornada mutante de 818 checks, nem reexecução de V08/V10/V15 ou
+  SIGKILL nesta rodada. A jornada de UI e os gates de host históricos continuam
+  sendo as referências registradas; o produto não mudou.
+
+**Limitações desta candidata**
+
+- Release pré-alpha; não é “stable” nem certificação universal.
+- Navegador somente Chromium 1248/Playwright 1.64.1, com
+  `@axe-core/playwright` 4.14.0; Firefox, Safari, leitor de tela e dispositivos
+  físicos não foram validados. Axe não é certificação WCAG.
+- Caps de **5000** imagens por plano, **1000** por lote/seleção e **200** por
+  lote de restauração/aposentadoria não tiveram stress; a maior fixture desta
+  rodada usou 52 imagens.
+- Uploads manuais simultâneos continuam sendo uma corrida residual da API do
+  Jellyfin. Disco fisicamente cheio, erro de permissão de SO e falha de hardware
+  não foram exercitados.
+- Nenhum downgrade seguro de DLL é prometido; rollback exige backup anterior e
+  restauração controlada.
+
+**Estado final**
+
+Antes do encerramento, a leitura autenticada mostrou automação `Enabled=false`,
+`DryRun=true`, `PreserveOriginals=true`, `ScopeMode=items`, os dois triggers
+preservados (um por tarefa), `PendingRecovery=0`, zero backups restauráveis,
+zero operações ativas e ambas as tarefas `Idle`. O processo exato foi encerrado,
+`host.pid` removido e `127.0.0.1:18096` ficou livre. Nenhum segredo foi
+impresso.
+
+**Etapas restantes do pai**
+
+1. Revisar e commitar as mudanças; push para `main`; aguardar o CI
+   **Build and validate**.
+2. Criar e empurrar a tag `v0.4.0.0`; o workflow existente publica o release
+   comum `--latest` e atualiza o branch `catalog`.
+3. Baixar o ZIP/SHA256 públicos e o manifesto bruto; conferir layout, hash,
+   MD5 do catálogo, URL versionada e preservação de `0.3.0.1`.
+4. Executar o smoke de instalação/upgrade público em fixture descartável, sem
+   reutilizar o hash local do ZIP como hash do asset publicado.
+5. Só então declarar a release publicada; produção continua sendo decisão
+   separada.

@@ -3,6 +3,42 @@
 Versions use Jellyfin's four-part format. Published versions and their assets
 are immutable; corrections receive a new version.
 
+## [0.4.0.0] - 2026-11-09
+
+- Reorganize the native dashboard into five areas: Simulate, Execute,
+  Automation, History and restoration, and Settings.
+- Analyze the selected scope, choose exact image identities across pages, review
+  the frozen plan and apply only that reviewed selection. Stale or changed
+  selections are revalidated instead of silently replaced.
+- Persist plans and operation receipts on the server; navigation, reloads and
+  reconnects keep the same operation and per-image results.
+- Restore selected originals in batches, or review and permanently retire
+  originals in a separate action. Uncertain recovery records never enter a
+  batch.
+- Keep manual drafts, Global defaults and scheduled automation independent.
+  Saving defaults or automation does not broaden scope or enable conversions.
+- Preserve existing configuration, task identities, triggers and journals on
+  upgrade. Older journals remain usable, and applying remains disabled and in
+  preview by default.
+- Close cancellation races around validation, metadata waits and transaction
+  boundaries. Stop targets the exact operation and leaves unwritten work for a
+  later run.
+- Add the approved JellyP branding, theme-correct wordmarks, native plugin card
+  artwork and a direct JellyP entry in the Jellyfin main menu.
+- Keep the verified WebP conversion, exact alpha checks, SSIM and savings gates,
+  retained originals, durable recovery and storage protections from earlier
+  releases.
+
+Limitations: this release is pre-alpha and is not claimed to be stable or
+universally certified. Browser validation covered Chromium only; Firefox,
+Safari, screen readers and physical devices remain unvalidated, and axe is not
+WCAG certification. The declared 5000-image plan, 1000-image batch and
+200-original batch caps were not stress-tested; the largest real fixture used 52
+images. Simultaneous manual image uploads remain a residual race because
+Jellyfin exposes no shared mutation lock. Back up Jellyfin before upgrading.
+Configuration and journals are preserved, but a safe DLL downgrade is not
+promised.
+
 ## [0.3.0.1] - 2026-10-17
 
 - Inspect exact selected items before execution, showing registered image types,

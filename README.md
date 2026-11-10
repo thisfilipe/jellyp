@@ -50,61 +50,52 @@ Keep originals for restoration and future policy changes, or permanently remove
 them after output and reference verification. A temporary recovery copy is always
 required. Retained originals initially consume additional space.
 
-## Dashboard workflow
+## Dashboard areas
 
-1. **Select libraries or items.** Choose scope and image types.
-2. **Choose quality and storage.** Defaults: quality 85, SSIM 0.96, no resizing,
-   retained originals, at least 5% and 4 KiB saved. The SSIM gate is independent
-   of encoder quality; lowering quality does not disable it.
-3. **Test or run now.** Choose Simulate and run the selection. The result shows
-   how many images would convert, estimated savings and named example results.
-   Inventory progress appears during the shared-reference check. No images
-   change in simulation. Already-WebP, shared and excluded images explain empty
-   outcomes. Choose Apply for an explicit manual conversion after reviewing.
-4. **Scheduled processing.** Choose whether native JellyP tasks may simulate or
-   apply, save, and open Jellyfin Scheduled Tasks to configure their triggers.
-   No schedule is created automatically. Simulating manually does not disable
-   applying automation; manually applying does not enable it.
-5. An advanced **Image limit per execution** bounds each run (default 250).
-   Repeated scheduled triggers resume the pass automatically. A changed scope or
-   effective policy resets that mode's position. Preview/apply have separate
-   cursors. Stop cancels at transaction boundaries or during metadata waits.
-6. **Restore original** and **Remove verified stored originals…** are individually
-   confirmed actions independent of the scheduled mode. Restoration requires
-   retained originals; retirement is permanent. Retention zero means manual
-   removal, otherwise expiration runs before applying optimization.
+The native page is organized into five areas. The same saved scope, task
+identities and recovery records remain the source of truth.
 
-JellyP already exposes its own **Optimize library artwork** and **Synchronize
-artwork policies** tasks under Dashboard → Scheduled Tasks → JellyP. Both process
-artwork after Jellyfin has saved it; they do not intercept downloads. Tasks use
-saved scope/policies and automatic processing mode. Triggers remain managed by
-Jellyfin and existing configured triggers are preserved on upgrade.
+1. **Simulate.** Choose selected libraries, exact items or explicit all-server
+   scope, then image types, quality and originals. Defaults are quality 85,
+   SSIM 0.96, no resizing, retained originals, and at least 5% and 4 KiB saved.
+   The server reads real bytes, checks shared references and shows proposals
+   without changing artwork. The SSIM gate is independent of encoder quality.
+2. **Execute.** Select the exact proposals to apply across result pages, review
+   the frozen plan and confirm only that selection. The plan is revalidated
+   before mutation. Execution is persisted on the server; navigating,
+   reloading or reconnecting does not cancel it. Stop targets the exact
+   operation and cancels at transaction boundaries or during metadata waits.
+3. **Automation.** Configure scheduled scope, policies, originals and whether
+   native tasks may analyze or apply. Saving automation does not change manual
+   drafts or Global defaults. Open Jellyfin Scheduled Tasks to configure
+   triggers; no schedule is created automatically. Manual simulation and manual
+   apply do not enable or disable automation.
+4. **History and restoration.** Open persisted operation receipts and
+   per-image results, restore selected originals in a batch, or review permanent
+   retirement separately. Restoration requires retained originals; retirement
+   is permanent. Uncertain recovery records never enter either batch.
+5. **Settings.** Global defaults seed new manual tests. Global storage
+   protections and savings filters apply to all operations, including
+   automation. An advanced image limit per batch bounds each run (default 250);
+   repeated triggers resume the pass, and a changed scope or policy resets that
+   mode's position.
 
-Conversion automatically waits for a full library scan or
-refresh of the target, its parents or owning library, with visible wait state and
-cancel support. It does not block on unrelated scheduled tasks or other items'
-metadata queue entries. The wait continues until metadata clears or the native task is cancelled;
-a maximum runtime configured in Jellyfin still applies. Manual image
-uploads still need to be avoided during conversion; Jellyfin exposes no shared
-mutation lock to plugins.
+JellyP exposes **Optimize library artwork** and **Synchronize artwork policies**
+under Dashboard → Scheduled Tasks → JellyP. Both process artwork after Jellyfin
+has saved it and use the saved automation settings. Conversion waits for a full
+library scan or a refresh of the target, its parents or owning library, with
+visible wait state and cancel support. It does not block on unrelated metadata
+or scheduled tasks; a maximum runtime configured in Jellyfin still applies.
+Manual image uploads still need to be avoided during conversion because
+Jellyfin exposes no shared mutation lock.
 
-## Synchronizing changed policies
-
-Change a selected category's policy, save, then run **Sync changed quality
-settings**. Its manual mode is independent of scheduled processing too.
-
-JellyP compares a fingerprint of the effective encoding settings, verifies that
-current artwork still matches its journal and reads the preserved original. It
-restores that original through Jellyfin services, then applies the new policy
-through the normal verified conversion. A crash between the two phases leaves
-a valid original for the next optimization pass. This avoids successive lossy
-recompression. The optional “also regenerate unchanged policies” setting forces
-regeneration from originals.
-
-Images whose originals were retired are reported as **OriginalUnavailable**.
-Changed external artwork is not overwritten. Unselecting a category leaves its
-existing conversions alone; use restoration explicitly to undo them. Newly
-selected categories are processed by the ordinary optimization task.
+When a policy changes, the manual analysis proposes regeneration from the
+retained original; review and apply those exact proposals. The native
+synchronization task can also regenerate unchanged policies when that option is
+enabled in Automation. Images whose originals were retired are reported as
+**OriginalUnavailable**. Changed external artwork is not overwritten.
+Unselecting a category leaves existing conversions alone; use restoration
+explicitly to undo them.
 
 ## Supported scope and limits
 
@@ -147,14 +138,21 @@ filesystem blocks and subsequent changes by other plugins affect total usage.
 No savings percentage is promised for a complete library.
 The default free-space reserve is 2 GiB; the retained-original budget is 512 MiB.
 
-## UX refactor planning
+## Release status and validation limits
 
-The dashboard has a documented refactor proposal covering navigation, manual
-analysis/application, automation, history and originals. Start at [PLAN.md](docs/PLAN.md)
-for status and handoff instructions, or read the
-[detailed plan in Portuguese](docs/UX-REFACTOR-PLAN.pt-BR.md).
-The proposal is not implemented; the current request authorizes planning and
-documentation only.
+JellyP is pre-alpha software. Version 0.4.0.0 is the current release; it is not
+claimed to be stable or universally certified. Browser validation
+covered Chromium only, so Firefox, Safari, screen readers and physical devices
+remain unvalidated; automated accessibility checks are not WCAG certification.
+The declared 5000-image plan, 1000-image batch and 200-original batch caps are
+enforced but were not stress-tested. The largest real fixture used 52 images.
+Linux x64 is the exercised platform; Windows, macOS and ARM behavior is not
+established by that run.
+
+The implemented interface and its evidence are summarized in [PLAN.md](docs/PLAN.md),
+with the detailed Portuguese specification in
+[UX-REFACTOR-PLAN.pt-BR.md](docs/UX-REFACTOR-PLAN.pt-BR.md) and validation in
+[VALIDATION.md](docs/VALIDATION.md).
 
 ## Build, test and package
 
@@ -167,16 +165,22 @@ dotnet test JellyP.slnx --configuration Release --no-build --no-restore
 python3 scripts/package.py
 ```
 
-The local archive is `artifacts/JellyP_0.3.0.1.zip` with a SHA256 file. It contains
-only the plugin DLL, `meta.json` and license. Jellyfin supplies its matching
-SkiaSharp 3.119.4 managed/native stack. No server or duplicate native dependencies
-are bundled. A WebP codec probe runs before any scan. The package script packages the local Release build; the trusted tag workflow publishes releases
-and updates the catalog after checking their assets. See
-[releasing](docs/RELEASING.md).
+The local archive is `artifacts/JellyP_0.4.0.0.zip` with a SHA256 file. It contains
+exactly four members: the plugin DLL, `meta.json`, the GPL license and
+`jellyp-plugin.png`. Jellyfin supplies its matching SkiaSharp 3.119.4
+managed/native stack. No server or duplicate native dependencies are bundled. A
+WebP codec probe runs before any scan. The package script packages the local
+Release build; the trusted tag workflow publishes releases and updates the
+catalog after checking their assets. See [releasing](docs/RELEASING.md).
 
-Stop Jellyfin during installation, extract the archive to
-`<Jellyfin data>/plugins/JellyP_0.3.0.1/`, ensure ownership matches the server,
-then restart and verify the plugin is active. Back up the server first. Do not
+Back up Jellyfin's data and database before upgrading. Stop Jellyfin, install the
+new package through the catalog or extract it to
+`<Jellyfin data>/plugins/JellyP_0.4.0.0/`, ensure ownership matches the server,
+then restart and verify the plugin is active. The GUID, native task identities,
+configured triggers, saved scope/policies and existing recovery journals are
+preserved on upgrade. Older journals remain usable without inventing historical
+settings. A safe DLL downgrade is not promised: to roll back, use the pre-upgrade
+backup and a controlled restore rather than only replacing the DLL. Do not
 restart during playback or another maintenance task. For uninstall and retained
 originals, follow [recovery instructions](docs/RECOVERY.md).
 

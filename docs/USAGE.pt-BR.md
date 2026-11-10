@@ -1,100 +1,138 @@
 # Como usar o JellyP
 
-Abra **Painel → Plugins → JellyP → Configurações** e escolha Português (Brasil).
-Após atualizar, reinicie o Jellyfin, recarregue a página e confira a versão no topo.
+Abra **Painel → Plugins → JellyP → Configurações** e escolha Português (Brasil)
+ou English. Após atualizar, reinicie o Jellyfin, recarregue a página e confira a
+versão exibida no cabeçalho.
 
-## Comece pelas bibliotecas
+A página tem cinco áreas: **Simular**, **Executar**, **Automação**,
+**Histórico e restauração** e **Configurações**. O trabalho manual é independente
+da automação agendada.
 
-Em **1. Selecione bibliotecas ou itens**, escolha **Bibliotecas selecionadas** e
-marque onde o plugin deve atuar. Pastas, temporadas e episódios entram automaticamente.
-Uma seleção vazia ou excluída impede a execução; nunca significa todas as bibliotecas.
-Tarefas existentes preservam o escopo antigo após atualizar; para salvar um escopo
-antigo global na nova tela, selecione as bibliotecas desejadas.
+## Escopo e políticas de imagem
 
-Para testar algo específico, escolha **Somente os itens selecionados**, busque pelo
-nome ou cole o link dos detalhes/ID. Isso seleciona exatamente esses itens: um ID
-de série não inclui os episódios. **Todas as bibliotecas e metadata global** inclui explicitamente
-todas as bibliotecas e metadata global.
+Escolha **Bibliotecas selecionadas** e marque as bibliotecas que o JellyP pode
+processar. Pastas, temporadas, episódios e versões próprias entram
+automaticamente. Uma seleção vazia ou excluída impede a execução; nunca significa
+todas as bibliotecas. Configurações globais antigas continuam preservadas para as
+tarefas existentes, mas a página pede que você escolha bibliotecas antes de salvar
+um escopo global legado.
 
-Ao selecionar itens, a tela verifica as imagens próprias cadastradas e mostra o ano,
-tipo e final do ID para distinguir versões do mesmo título. Ela avisa se não houver
-imagens ou tipos marcados, se forem remotas, já WebP, ausentes ou excluídas.
-Pré-candidatas locais ainda precisam passar pelas verificações da simulação.
-O JellyP não baixa capas ausentes. Use **Atualizar andamento** para refazer essa
-verificação depois de alterar imagens fora do plugin. Uma seleção sem candidatas
-locais termina sem inventário global; havendo candidatas, a checagem global continua.
+Para um teste preciso, escolha **Itens específicos**, busque pelo nome ou cole o
+link/ID dos detalhes. Os IDs selecionam exatamente esses itens: escolher uma série
+não inclui seus episódios. **Todas as bibliotecas e metadata global** inclui
+explicitamente o servidor inteiro. Pessoas são entidades globais do Jellyfin; o
+escopo de biblioteca inclui as pessoas creditadas nos itens selecionados e suas
+fotos também podem aparecer em outras bibliotecas. Arquivos compartilhados
+continuam protegidos em todas as bibliotecas.
 
-Pessoas são entidades globais do Jellyfin. No escopo de biblioteca entram as pessoas
-creditadas nos itens selecionados; suas fotos também podem aparecer em outras
-bibliotecas. Arquivos de imagem compartilhados por entidades distintas continuam
-protegidos, mesmo se uma das referências estiver fora da seleção.
+Marque qualquer um dos 11 tipos de imagem. Padrões globais ou ajustes por tipo
+definem qualidade 0–100, modo com/sem perdas, redução opcional de dimensões e
+SSIM mínimo. Os padrões são qualidade 85, SSIM 0,96, sem redução, originais
+guardados e pelo menos 5% e 4 KiB de economia. Qualidade 100 ainda tem perdas;
+**Sem perdas** exige pixels idênticos. A transparência é verificada exatamente. O
+filtro SSIM é independente da qualidade do codificador.
 
-Marque os tipos de imagem. Use ajustes globais ou individuais. Comece com qualidade
-85, sem reduzir dimensões. 100 ainda tem perdas; Sem perdas exige pixels idênticos.
-A semelhança mínima (SSIM), padrão 0,96, é um filtro separado: baixar qualidade não
-o desativa. Não reduza o filtro sem conferir qualidade. A transparência é verificada
-exatamente.
+## Simule e selecione imagens exatas
 
-## Simule e veja o resultado
+Em **Simular**, escolha escopo, tipos de imagem, qualidade, originais e o limite
+avançado de imagens, depois clique em **Simular as imagens**. O servidor lê os
+bytes reais, confere referências compartilhadas e o progresso do inventário, e
+retorna propostas. Nada é alterado nessa etapa.
 
-Em **3. Teste ou execute agora**, escolha **Simular** e clique em **Simular seleção**.
-O botão salva escopo, qualidade e a seleção separada de automação, depois solicita
-uma simulação identificada. Não muda o modo salvo para as tarefas agendadas.
+O resultado mostra contagens avaliadas e propostas, motivos para ignorar imagens,
+a conta de armazenamento da seleção exata e propostas com nomes de itens em todas
+as páginas de resultado. Imagens já em WebP, compartilhadas, remotas, ausentes ou
+não suportadas são explicadas em vez de ignoradas silenciosamente. Se nenhum item tiver candidata local utilizável, o
+JellyP evita o inventário global; candidatas reais ainda passam pela checagem de
+referências compartilhadas.
 
-A tela mostra progresso do inventário, quantas imagens seriam convertidas, redução
-estimada, motivos para ignorar imagens e até 20 exemplos com nomes. O inventário
-confere todas as referências, mesmo numa seleção pequena. Se resultar em zero,
-a tela explica imagens já em WebP, compartilhadas ou excluídas. Se nenhum item
-corresponder, reveja a seleção ou os IDs.
+Selecione as propostas desejadas em todas as páginas de resultado e escolha
+**Revisar seleção**. Somente essas identidades exatas podem seguir. Mudar escopo,
+políticas ou padrões invalida o plano e exige nova simulação. O plano também
+expira; confira a validade antes de aplicar.
 
-O **Limite de imagens por execução**, nos ajustes avançados, começa em 250. Ele
-limita trabalho por execução; o escopo continua sendo a biblioteca escolhida.
-Execuções posteriores retomam o passe. Simulação e aplicação têm posições próprias.
-Mudar escopo ou ajustes efetivos reinicia o passe daquele modo.
+## Execute e acompanhe os recibos
 
-## Aplique agora ou deixe agendado
+Em **Executar**, revise os ajustes congelados, a seleção exata e a conta de
+armazenamento, depois confirme. O JellyP revalida cada imagem selecionada antes da
+mutação. A operação é persistida no servidor: navegar, recarregar ou reconectar
+não a cancela nem cria um segundo disparo.
 
-Para uma conversão manual, escolha **Aplicar** em Executar agora. Isso não habilita
-conversões automáticas. O plugin aguarda sozinho varreduras e atualizações do item,
-de seus pais ou de sua biblioteca. A espera é cancelável e continua até o conflito terminar ou a tarefa ser
-cancelada; limites de duração configurados no agendador do Jellyfin continuam valendo. Não é preciso desligar tarefas agendadas sem relação com as imagens.
-Evite envios manuais de imagens durante conversões: a API pública do Jellyfin não
-oferece uma trava compartilhada para isso.
+Progresso, esperas e resultados individuais ficam disponíveis em **Histórico e
+restauração**. **Parar** atua na operação exata e cancela em fronteiras de
+transação ou durante esperas de metadata; o trabalho não gravado fica para uma
+execução posterior. A conversão aguarda automaticamente uma varredura completa ou
+uma atualização do item, de seus pais ou de sua biblioteca. Metadata e tarefas
+agendadas sem relação não precisam ser desligadas. Evite envios manuais de
+imagens durante a conversão porque o Jellyfin não oferece uma trava compartilhada
+para plugins.
 
-Em **4. Processamento agendado**, escolha independentemente **Somente simular** ou
-**Aplicar conversões** e salve. Use **Abrir tarefas agendadas do Jellyfin** e configure
-os disparos das tarefas de otimização e sincronização do JellyP. O plugin não cria
-horários sozinho e preserva os agendamentos existentes. Os próximos disparos retomam
-o escopo e os ajustes salvos, até o limite configurado, sem confirmações manuais de
-manutenção. Se a execução for cancelada, a imagem atual fica para uma nova execução.
+## Automação
 
-## Liberação de espaço e restauração
+Em **Automação**, configure escopo, políticas, originais e se as tarefas nativas
+do JellyP podem analisar ou aplicar. Salve a automação independentemente dos
+rascunhos manuais e dos Padrões globais. Salvar a automação não amplia o escopo
+nem habilita conversões.
 
-Guardar originais inicialmente ocupa **mais espaço**. Para um teste reversível,
-guarde os originais, use limite de 1 imagem e confira o item. **Restaurar original**
-desfaz essa transação sem alterar a automação.
+O JellyP expõe **Otimizar imagens da biblioteca** e **Sincronizar políticas de
+imagens** em Painel → Tarefas Agendadas → JellyP. Configure os disparos lá; o
+plugin não cria um agendamento automaticamente. Identidades das tarefas e
+disparos existentes são preservados na atualização. Simular ou aplicar
+manualmente não habilita nem desabilita o processamento agendado.
 
-Para liberar espaço imediatamente, escolha **Remover originais após verificar**.
-O atalho no guia de emergência prepara uma simulação não salva de 25 imagens com
-essa opção, mantendo escopo, qualidade e automação. Revise tudo antes de executar.
-Aplicar sem guardar originais exige ciência da permanência e confirmação. Uma
-automação salva para aplicar com essa opção também apaga os originais permanentemente.
+Quando uma política muda, a análise manual propõe regenerar a partir do original
+guardado. Revise e aplique essas propostas exatas. A tarefa nativa de
+sincronização também pode regenerar políticas inalteradas quando essa opção está
+habilitada em Automação. Imagens cujo original foi aposentado aparecem como
+**OriginalUnavailable**. Arte externa alterada não é sobrescrita. Desmarcar um
+tipo não desfaz conversões existentes; use a restauração explicitamente.
 
-Cada fonte só é removida após verificar o WebP e a referência persistida. Sem o
-original guardado, não haverá restauração nem regeneração a partir dele. Uma cópia
-temporária ainda é necessária durante a verificação. **Remover originais guardados
-verificados…** libera cópias anteriores sem converter novamente e mantém as incertas
-ou com recuperação pendente.
+## Histórico, restauração e remoção permanente
 
-Mantenha a reserva padrão de 2 GiB. Se o disco já estiver cheio, libere primeiro
-espaço conhecido e alheio ao metadata. Reduzir a reserva não cria espaço. Não apague
-metadata nem o banco. O espaço líquido liberado desconta os originais guardados da
-redução verificada das conversões ativas; não é uma medida exata de `df`.
+**Histórico e restauração** lista recibos persistidos de operações e seus
+resultados individuais. Selecione transações elegíveis para restaurar originais
+exatos em lote, ou abra a visão separada **Remover originais · permanente** para
+revisar a aposentadoria. Registros incertos ou com recuperação necessária nunca
+entram em nenhum dos lotes.
 
-Para mudar qualidade/dimensões de imagens já convertidas, guarde os originais,
-altere os ajustes e use **Sincronizar mudanças de qualidade**, primeiro simulando.
-Isso evita perdas sucessivas. Desmarcar um tipo não desfaz suas conversões; restaure
-explicitamente. Tipos recém-marcados usam a otimização comum.
+A restauração exige originais guardados. A aposentadoria é permanente: sem o
+original, não há restauração nem regeneração a partir dele. Cada ação é
+revalidada e confirmada para as identidades exatas selecionadas. A aposentadoria
+de originais não remove os WebP ativos.
 
-Veja os [limites e exclusões](../README.md#supported-scope-and-limits) e a
-[recuperação](RECOVERY.md).
+Retenção zero significa remoção manual; caso contrário, originais elegíveis
+expiram no início de um lote de aplicação. Siga a [recuperação](RECOVERY.md) para
+pendências, desinstalação e pouco espaço.
+
+## Configurações e contabilização de armazenamento
+
+**Configurações** contém os Padrões globais para novos testes manuais, além das
+proteções globais de armazenamento e filtros de economia. Essas proteções valem
+para todas as operações, inclusive automação. Salvar padrões invalida a análise e
+a revisão manuais; não salva nem amplia a automação.
+
+Mantenha a reserva padrão de 2 GiB e o limite de 512 MiB para originais. Guardar
+originais inicialmente ocupa mais espaço. O espaço líquido liberado desconta os
+arquivos de backup reais da redução verificada das conversões ativas; não é uma
+previsão exata de `df`. Journals, banco, caches de cliente, blocos do sistema de
+arquivos e alterações posteriores de outros plugins afetam o total. Se o disco já
+estiver cheio, libere espaço conhecido e alheio ao metadata antes de tentar
+converter; reduzir a reserva não cria espaço. Não apague metadata nem o banco.
+
+## Atualização e rollback
+
+Faça backup dos dados e do banco do Jellyfin antes de atualizar. Instale o novo
+pacote pelo catálogo ou manualmente, reinicie em uma janela ociosa e confira a
+versão ativa. O GUID do plugin, as identidades das tarefas nativas, os disparos
+configurados, o escopo/políticas salvos e os journals existentes são preservados.
+Journals antigos continuam utilizáveis sem inventar ajustes históricos.
+
+Um downgrade seguro de DLL não é prometido. Para reverter, use o backup anterior
+à atualização e uma restauração controlada, não apenas a troca da DLL. Resolva
+recuperações pendentes antes de desinstalar e mantenha o diretório de dados do
+plugin até que seus originais não sejam mais necessários.
+
+Veja [escopo e limites](../README.md#supported-scope-and-limits),
+[recuperação](RECOVERY.md) e [validação](VALIDATION.md). A validação de navegador
+cobriu somente Chromium; Firefox, Safari, leitores de tela e dispositivos físicos
+continuam não validados.

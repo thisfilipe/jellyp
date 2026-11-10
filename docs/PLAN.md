@@ -1,22 +1,23 @@
 # JellyP UX refactor: handoff and authorization boundary
 
-## Current delivery status (2026-11-08)
+## Current delivery status (2026-11-09)
 
-**The main implementation is committed through `30401c5`; final acceptance and
-alpha preparation are not complete.** This status supersedes the historical
-implementation summaries below, not their recorded limitations.
+**The main implementation is committed through `b5f709d`; the 0.4.0.0 release
+package and documentation are prepared and validated locally, but not published.**
+This status supersedes the historical implementation summaries below, not their
+recorded limitations.
 
 - P3 contracts and P4 backend implementation are delivered. P5/P6 native journeys
-  are implemented and iteratively reviewed by the maintainer, including selection,
-  operation-specific history, sticky panels, main-menu access and approved branding.
-- P7 has substantial service and real-host evidence, but the mandatory scenario
-  matrix is not universally accepted. P8 remains preparation, not a release.
-- The temporary host was lost after reboot. Its last successful runs are historical
-  evidence, not a currently running/revalidated instance. Selected screenshots and
-  filtered results were preserved privately outside Git; no credentials or database
-  were retained. Recreating the host is still necessary for remaining host gates.
-- Version `0.3.0.1` remains a development baseline; do not replace that published
-  version's assets. No push, publication or production installation follows here.
+  are implemented and iteratively reviewed by the maintainer, including exact
+  selection, operation-specific history, sticky panels, main-menu access and
+  approved branding.
+- P7 is closed for the declared pre-alpha scope, not universally accepted. P8 is
+  prepared: version, changelog, usage/migration notes, package and local upgrade
+  validation exist for `0.4.0.0`; publication remains a separate parent step.
+- Version `0.3.0.1` and its assets are immutable. `0.4.0.0` is the current
+  pre-alpha release candidate; do not replace the older published version.
+- Browser evidence is Chromium-only, the declared batch/plan caps were not
+  stress-tested, and no stable or universal certification is claimed.
 
 See the [alpha closure checklist](ALPHA-CLOSURE.pt-BR.md) for the scenario-level
 status, remaining technical gates and ordered next actions. Historical test counts
@@ -87,8 +88,8 @@ The user should not need to discover a separate synchronization button.
 
 Execution should use a reviewed analysis and explicit selected image identities,
 revalidating them before mutation. Manual drafts, saved defaults, automation,
-analysis results and execution reports need separate ownership. These are target
-requirements; they are not implemented in 0.3.0.1.
+analysis results and execution reports need separate ownership. These were target
+requirements for `0.3.0.1`; they are implemented in the `0.4.0.0` candidate.
 
 ## Phases and dependencies
 
@@ -100,9 +101,9 @@ requirements; they are not implemented in 0.3.0.1.
 | P3 | Capability map and contracts | Delivered in the integration document; remaining runtime proof tracked separately |
 | P4 | Backend/API adaptations | Implemented and unit-tested; host safety gates remain in P7 |
 | P5 | Native manual flow | Implemented and maintainer-reviewed; accessibility coverage has explicit limits |
-| P6 | Automation, history, restoration and retirement | Implemented; complete baseline upgrade demonstration still pending |
-| P7 | Final regression and scenario consolidation | In progress; see alpha closure checklist, not test counts alone |
-| P8 | Alpha documentation, package and migration | In preparation; no new version or publication authorized by this status |
+| P6 | Automation, history, restoration and retirement | Implemented; local baseline upgrade demonstrated, public catalog upgrade pending publication |
+| P7 | Final regression and scenario consolidation | Closed for the declared pre-alpha scope, not universally certified; see alpha closure checklist |
+| P8 | Alpha documentation, package and migration | Prepared for `0.4.0.0`; local package/install/upgrade validation done, publication pending |
 
 ### Subsequent bounded implementation evidence (2026-11-06)
 
@@ -123,9 +124,10 @@ only the reviewed IDs, retaining active WebP images. Backend hardening has 181
 passing .NET tests; native suites passed 79 UI checks (7 axe) and 16 focused
 planning checks, with 9 release tests. These numbers are separate evidence sets,
 not substitutes for the still-pending cases documented in native validation.
-**Do not mark these phases universally complete.** P8 remains pending; the old
-`smoke-ui.cjs` and synthetic P2 checks were not represented as validating the
-replacement page. Production and release remain unauthorized.
+**Do not mark these phases universally complete.** At that point P8 remained
+pending; the old `smoke-ui.cjs` and synthetic P2 checks were not represented as
+validating the replacement page. Production and release remained unauthorized.
+The current status above records the later `0.4.0.0` preparation.
 
 Final local recheck (2026-11-07): 181 .NET + 9 release tests, 79 real native UI
 checks (7 axe), and 16 focused native planning checks passed on the latest

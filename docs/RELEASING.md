@@ -9,15 +9,23 @@ The plugin GUID is permanent across versions.
 1. Review changes and run the commands in [CONTRIBUTING.md](../CONTRIBUTING.md).
    Run `python3 scripts/audit-publication.py` against the Git index before pushing.
 2. Merge the reviewed source to `main`; wait for **Build and validate** to pass.
-3. Create and push a version tag, for example `v0.3.0.1`. The tag must equal `v`
+3. Create and push a version tag, for example `v0.4.0.0`. The tag must equal `v`
    plus the project version. Do not move or replace an existing tag.
 4. The **Publish release and catalog** workflow builds/tests the tagged source,
-   validates the package and publishes its ZIP and SHA256 file on GitHub Releases.
+   validates the package and publishes its ZIP and SHA256 file as a normal
+   `--latest` GitHub release. There is no separate prerelease or channel flag.
 5. It downloads both public assets and compares them to the tested build. Only
-   then does it update `manifest.json` on the `catalog` branch, preserving older
-   versions. Existing version metadata/checksums cannot be replaced silently.
+   then does it update `manifest.json` on the existing `catalog` branch,
+   preserving older versions. Existing version metadata/checksums cannot be
+   replaced silently.
 6. Verify the workflow, public release download and raw catalog URL. Exercise an
    installation through Jellyfin's repository/catalog UI on a disposable server.
+
+Local package hashes are not release hashes. The tagged CI build embeds the
+tag's source revision, so its DLL/ZIP bytes can differ from a working-tree build.
+Do not publish or document a local ZIP SHA256 as the release asset hash before
+the workflow finishes; verify the uploaded SHA256 sidecar and catalog checksum
+afterwards.
 
 The catalog URL is:
 
@@ -54,7 +62,7 @@ To retry only catalog publication from a trusted checkout of the release tag,
 download the existing release ZIP and SHA256, verify them, then run:
 
 ```sh
-python3 scripts/publish-catalog.py --repository thisfilipe/jellyp --archive artifacts/JellyP_0.3.0.1.zip
+python3 scripts/publish-catalog.py --repository thisfilipe/jellyp --archive artifacts/JellyP_0.4.0.0.zip
 ```
 
 This requires authenticated `gh` with repository contents write access. Normal

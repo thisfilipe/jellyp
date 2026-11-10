@@ -527,8 +527,10 @@ production access, V15 SIGKILL rerun or complete V13 upgrade was performed in
 this round. The fixture ended with `Enabled=false`, `DryRun=true`,
 `PreserveOriginals=true`, no JellyP triggers, `PendingRecovery=0`, zero active
 backups and no active operation; the exact process was stopped and the loopback
-port was free. P7 is technically closed for this declared alpha scope only; P8
-still needs a new four-part release identity, changelog/limitations, package and
-installation/upgrade validation with that identity, rollback planning and
-publication authorization. The alpha identity remains the old `0.3.0.1`; it
-must not be published or treated as a release.
+port was free. P7 is technically closed for this declared pre-alpha scope only.
+P8 is prepared for `0.4.0.0`: version, changelog/limitations, usage guides,
+package and installation/upgrade validation exist locally; publication remains
+a separate parent step. See the release-preparation section in
+[ALPHA-CLOSURE.pt-BR.md](ALPHA-CLOSURE.pt-BR.md).
+The published `0.3.0.1` assets remain immutable, and `0.4.0.0` must not be
+described as public before the workflow completes.
