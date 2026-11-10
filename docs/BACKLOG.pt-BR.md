@@ -1,5 +1,64 @@
 # Pendências futuras do JellyP
 
+## Prioridades — feedback de uso real da 0.4.0.0
+
+Relatos do mantenedor em servidor com biblioteca muito grande. São observações
+de uso real, **ainda sem reprodução controlada, perfil de desempenho ou causa
+raiz comprovada**. Registrar não equivale a autorizar investigação em produção.
+Os quatro pontos abaixo têm prioridade sobre refinamentos menores de conveniência.
+
+### 1. Desempenho da simulação e ausência de progresso — prioridade alta
+
+- [ ] Investigar a demora excessiva mesmo ao simular um único item específico em
+  biblioteca grande. O usuário relata um primeiro cálculo muito demorado sem
+  progresso/status visível e, ao chegar aos resultados, outro cálculo demorado
+  para apresentar a conta de armazenamento e permitir avançar.
+- [ ] Medir separadamente seleção/inspeção, inventário, verificação de referências,
+  conversão de teste, criação do plano e cálculo/revisão da seleção. Identificar
+  varreduras ou cálculos repetidos antes de propor cache ou mudança de arquitetura.
+- [ ] Exibir feedback contínuo e acessível desde o início: fase real, atividade,
+  contagem/progresso quando conhecido, erros e cancelamento. Não inventar
+  porcentagem quando o total ainda for desconhecido nem deixar a interface
+  aparentemente parada durante o cálculo da conta.
+- [ ] Evitar trabalho redundante entre análise, resultados e conta quando puder
+  ser reutilizado com validade explícita. Preservar a conta após a lista, seleção
+  exata entre páginas e revalidação antes de aplicar.
+- [ ] Validar com fixture sintética representativa de biblioteca grande e medir
+  o custo de selecionar apenas um item. Os testes anteriores com 14 imagens de
+  jornada e 52 Backdrops não comprovam desempenho nesse cenário. Otimização não
+  pode reduzir as checagens globais necessárias contra referências compartilhadas.
+
+### 2. Busca de itens específicos no tema escuro — bug visual
+
+- [ ] Corrigir o fundo branco que aparece na área/lista de seleção de itens
+  específicos ao digitar na busca da simulação, deixando títulos sem contraste.
+  A hipótese relatada é aplicação indevida de estilo do tema claro; causa não
+  confirmada. Conferir a superfície real fornecida pelo host e o CSS do plugin.
+- [ ] Reproduzir durante digitação/resultados/seleção, incluindo foco e hover,
+  e validar contraste nos temas claro e escuro sem alterar estilos globais do host.
+
+### 3. Origem dos ajustes de capas — padrão inesperado
+
+- [ ] Investigar por que o primeiro tipo da simulação (capas principais) aparece
+  sempre em “Usar ajustes deste tipo”, em vez de partir dos ajustes do teste.
+  O usuário descreve o comportamento como hardcoded; ainda não foi distinguido
+  entre padrão do código, configuração salva, projeção antiga ou rascunho da sessão.
+- [ ] Fazer o estado inicial seguir os ajustes do teste conforme a UX esperada,
+  sem apagar overrides que a pessoa tenha escolhido/salvo explicitamente.
+  Cobrir teste novo, recarga, padrões globais e configuração preexistente.
+
+### 4. Limites de lote inconsistentes e insuficientes
+
+- [ ] Resolver a discrepância percebida: o teste manual permite até **1.000**,
+  enquanto os ajustes globais aceitam **10.000**. O mantenedor considera ambos
+  baixos para seu uso. Não apenas aumentar o atributo `max` da interface: conferir
+  validação de API, plano, seleção, memória e execução incremental.
+- [ ] Tornar explícita a relação entre o teto salvo e o limite efetivo de um teste,
+  sem oferecer nos padrões um valor que o fluxo manual não consiga usar como tal.
+- [ ] Tratar em conjunto com a opção de lote sem limite solicitada abaixo,
+  preservando limites de segurança bem justificados e evitando prometer suporte
+  a volumes ainda não medidos. Compatibilidade de valores existentes é obrigatória.
+
 ## Limites opcionais — feedback após a publicação 0.4.0.0
 
 O mantenedor solicitou registrar duas melhorias, sem implementá-las nesta versão:
