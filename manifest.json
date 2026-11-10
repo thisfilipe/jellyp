@@ -6,8 +6,16 @@
     "description": "Administrator-selected artwork policies, verified alpha and quality, resumable migration and optional preserved originals.",
     "owner": "thisfilipe",
     "category": "General",
-    "imageUrl": "https://raw.githubusercontent.com/thisfilipe/jellyp/v0.4.0.0/assets/branding/jellyp-catalog.png",
+    "imageUrl": "https://raw.githubusercontent.com/thisfilipe/jellyp/v0.4.0.1/assets/branding/jellyp-catalog.png",
     "versions": [
+      {
+        "version": "0.4.0.1",
+        "targetAbi": "12.1.0.0",
+        "sourceUrl": "https://github.com/thisfilipe/jellyp/releases/download/v0.4.0.1/JellyP_0.4.0.1.zip",
+        "checksum": "1302c0d2fca127072fa3a9cbb705da60",
+        "timestamp": "2026-11-10T18:46:18Z",
+        "changelog": "- Process large scopes as deterministic, key-ordered parts instead of rejecting\n  the whole selection above the 5,000-slot plan cap. Manual parts evaluate at\n  most 1,000 candidates; explicit continuation reaches the rest of the library\n  without repeating the first images or replacing reviewed selections.\n- Keep continuation idempotent per parent part and reject it when expiry, saved\n  defaults, scope or policies changed. A consumed parent can still continue.\n- Report real analysis phases and counts through a transient progress endpoint,\n  with explicit cancellation. The existing synchronous Analyze response remains.\n- Align saved manual defaults and the manual test to the same 1,000-candidate\n  per-part limit. Legacy saved values above it remain readable and are clamped\n  for analysis without a silent rewrite; automation keeps its separate 10,000\n  limit.\n- Reduce operation-wide global reference scans, per-image backup-directory\n  scans and whole-operation persistence. Default history listing is explicitly\n  preliminary (`CanReview`, no restore/removal claim); exact selected IDs are\n  verified by a bounded read-only `/Backups/Review` action and again before\n  queue/apply.\n- Load history progressively with per-section loading, timeout/retry and stale\n  response guards. Task polling no longer scans journals or every original.\n  Explicit verified `restorable`/`retirable` filters remain available and are\n  the only ones that claim verified eligibility.\n- Fix the dark-theme search result surface without changing host theme globals.\n  The default Primary policy template has no per-type override; explicit saved\n  overrides remain preserved and are not reset.\n- Keep recovery, shared-reference protection, exact reviewed application and\n  immutable published assets unchanged.\n\nLimitations: the manual per-part limit remains 1,000; unlimited batch/original\nbudget options are still future backlog items. Large operation records still\ncarry their prepared evidence, and checkpointing every 25 images is still\nO(B\u00b2/25), so memory and whole-record persistence remain bounded but not constant.\nBrowser validation covered the native Chromium harness at desktop/tablet/mobile\nin EN/PT and light/dark, including axe, restore/retire review and extended\nhistory; Firefox, Safari, physical devices and screen readers remain outside\nthat harness."
+      },
       {
         "version": "0.4.0.0",
         "targetAbi": "12.1.0.0",
