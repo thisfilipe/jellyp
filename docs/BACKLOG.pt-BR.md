@@ -1,5 +1,53 @@
 # Pendências futuras do JellyP
 
+## Conflito SQLite durante automação — prioridade alta
+
+Incidente observado após várias execuções em massa bem-sucedidas: a gravação da
+referência de uma imagem falhou com **SQLite Error 5 (`database is locked`)**.
+A tentativa automática de restauração encontrou o mesmo erro. A transação ficou
+em `RecoveryRequired`; as execuções seguintes foram recusadas com
+`Recover interrupted image transactions before continuing`.
+
+### Fatos confirmados e recuperação
+
+- O backup foi preservado, mesmo com a opção de não reter originais após sucesso.
+  Os hashes do backup e do WebP correspondiam aos registrados no journal.
+- A recuperação individual pelo endpoint suportado terminou em `RolledBack`,
+  restaurou bytes idênticos aos do original, removeu a saída da transação e
+  deixou `PendingRecovery=0`. Não foi necessário editar o banco ou o journal.
+- A imagem foi registrada em um caminho canônico diferente do caminho histórico.
+  A confirmação foi feita pela referência atual da API e pelo hash, não apenas
+  pela existência de `Source.Path` do journal.
+- A causa imediata foi o conflito de escrita no SQLite. **Não foi identificado
+  quem mantinha o bloqueio**, nem demonstrado que o plugin o originou. Concorrência
+  com metadata/outros escritores é hipótese a investigar, não diagnóstico fechado.
+
+### Trabalho pendente
+
+- [ ] Reproduzir `SQLITE_BUSY` na persistência da imagem e no rollback em fixture
+  isolada, inclusive sob concorrência com tarefas de metadata. Distinguir
+  contenção transitória de bloqueio persistente e identificar o estágio exato
+  em que arquivos e referência durável divergiram.
+- [ ] Avaliar tratamento limitado e observável de conflitos transitórios no
+  ponto seguro de persistência. Não repetir cegamente `SaveImage`, reiniciar a
+  conversão ou restaurar sobre uma imagem que outro escritor já tenha alterado.
+  Preservar hashes, checagem de compartilhamento, journal e reserva de espaço.
+- [ ] Manter a recusa de novas mutações enquanto houver recuperação pendente;
+  não apagar registros, marcar sucesso artificialmente ou liberar a automação
+  sem comprovar a consistência da transação.
+- [ ] Mostrar na automação/tarefa o motivo específico do bloqueio, a pendência e
+  o caminho de recuperação individual. A falha genérica do scheduler não deve
+  obrigar o usuário a consultar logs para descobrir como prosseguir.
+- [ ] Cobrir recuperação em caminho canônico diferente do histórico, seguida
+  de nova execução segura. Verificar referência atual e hash antes de descartar
+  backup; não pressupor que restaurar exige recriar o mesmo caminho antigo.
+- [ ] Testar conflito resolvido, conflito persistente, cancelamento durante espera,
+  rollback também bloqueado e ausência de repetição/perda de transações concluídas.
+
+O incidente foi recuperado; a robustez diante da contenção e a explicação do
+bloqueio na interface continuam pendentes. Este registro é sanitizado: não contém
+IDs reais, caminhos de mídia, hashes de imagens, logs brutos ou credenciais.
+
 ## Prioridades — feedback de uso real da 0.4.0.0
 
 Relatos do mantenedor em servidor com biblioteca muito grande. São observações
