@@ -24,14 +24,33 @@ em `RecoveryRequired`; as execuções seguintes foram recusadas com
 
 ### Trabalho pendente
 
+**Recorrência relatada em 12/11/2026:** o problema voltou a ocorrer. O mantenedor
+identificou como suspeita forte a execução simultânea de outra automação do
+Jellyfin ou de outro plugin, possivelmente escrevendo no banco. A percepção é
+que o JellyP falha quando deveria aguardar a contenção terminar. Nesta
+recorrência não foram coletados logs nem identificados o escritor ou o lock;
+essa correlação **ainda é hipótese**, não causa confirmada. A recuperação da
+ocorrência anterior não comprova que a nova pendência esteja resolvida.
+
 - [ ] Reproduzir `SQLITE_BUSY` na persistência da imagem e no rollback em fixture
   isolada, inclusive sob concorrência com tarefas de metadata. Distinguir
   contenção transitória de bloqueio persistente e identificar o estágio exato
   em que arquivos e referência durável divergiram.
+- [ ] Correlacionar começo/fim das tarefas concorrentes com o conflito SQLite,
+  incluindo automações do próprio Jellyfin e de outros plugins. Distinguir
+  espera por metadata relacionado de contenção global de escrita: uma tarefa
+  não relacionada à imagem pode ainda disputar o mesmo banco. Não presumir que
+  toda tarefa ativa bloqueia o banco nem serializar indiscriminadamente todas
+  as automações apenas com base em seu estado Running.
 - [ ] Avaliar tratamento limitado e observável de conflitos transitórios no
   ponto seguro de persistência. Não repetir cegamente `SaveImage`, reiniciar a
   conversão ou restaurar sobre uma imagem que outro escritor já tenha alterado.
   Preservar hashes, checagem de compartilhamento, journal e reserva de espaço.
+- [ ] Definir espera/tentativa limitada para contenção transitória no estágio
+  comprovadamente seguro, com estado visível de espera, cancelamento e erro
+  claro ao esgotar o limite. Diferenciar o conflito que pode ser aguardado da
+  proteção posterior por transação já incompleta: esta última não pode ser
+  contornada por retry genérico. Revalidar referência e bytes antes de retomar.
 - [ ] Manter a recusa de novas mutações enquanto houver recuperação pendente;
   não apagar registros, marcar sucesso artificialmente ou liberar a automação
   sem comprovar a consistência da transação.
